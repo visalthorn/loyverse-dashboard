@@ -174,10 +174,10 @@ async function loadKPIs() {
   if (!data) return;
 
   const cards = [
-    { icon:'💰', label:'Gross Income',          value: '៛' + fmt(data.gross_income.value),      growth: data.gross_income.growth, sub: 'Net: ៛' + fmt(data.net_revenue) },
-    { icon:'🧾', label:'Orders',           value: data.orders.value,                  growth: data.orders.growth },
-    { icon:'📊', label:'Avg Order Value',  value: '៛' + fmt(data.aov.value),           growth: data.aov.growth },
-    { icon:'💸', label:'Total Expenses',   value: '៛' + fmt(data.expenses.total),      growth: 0 },
+    { icon:'💰', label:'Gross Income',     value: '៛' + fmtRaw(data.gross_income.value),  growth: data.gross_income.growth, sub: 'Net Profit: ៛' + fmtRaw(data.net_revenue) },
+    { icon:'🧾', label:'Orders',           value: data.orders.value,                      growth: data.orders.growth },
+    { icon:'📊', label:'Avg Order Value',  value: '៛' + fmtRaw(data.aov.value),           growth: data.aov.growth },
+    { icon:'💸', label:'Total Expenses',   value: '-៛' + fmtRaw(data.expenses.total),     growth: 0, valueClass: 'text-red-400' },
   ];
 
   document.getElementById('kpiCards').innerHTML = cards.map(c => `
@@ -187,9 +187,9 @@ async function loadKPIs() {
         ${growthBadge(c.growth)}
       </div>
       <div class="mt-2">
-        <div class="text-2xl font-bold text-white">${c.value}</div>
+        <div class="text-2xl font-bold ${c.valueClass || 'text-white'}">${c.value}</div>
         <div class="text-xs text-slate-400 mt-1">${c.label}</div>
-        ${c.sub ? `<div class="text-xs text-red-400 mt-1">${c.sub}</div>` : ''}
+        ${c.sub ? `<div class="text-xs text-green-400 mt-1">${c.sub}</div>` : ''}
       </div>
     </div>
   `).join('');
@@ -530,6 +530,16 @@ function fmt(n) {
   if (num >= 1000000) return (num / 1000000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M';
   if (num >= 1000)    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
   return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function fmtRaw(value, decimals = 0) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0';
+
+  return num.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
 }
 
 function fmtDate(iso, period) {
