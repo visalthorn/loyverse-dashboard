@@ -134,7 +134,7 @@
   <section class="card">
     <div class="flex items-center justify-between mb-4">
       <h2 class="section-title">💸 Expenses</h2>
-      <span class="text-xs text-slate-400">Submit and view recent expenses</span>
+      <span class="text-xs text-slate-400">Add and view expenses</span>
     </div>
 
     <form id="expenseForm" class="grid md:grid-cols-3 gap-3 mb-4" onsubmit="submitExpense(event)">
@@ -155,13 +155,13 @@
         <textarea id="expenseRemark" placeholder="Optional note" class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2"></textarea>
       </div>
       <div class="md:col-span-3 flex items-center gap-2">
-        <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-4 py-2 rounded">Save Expense</button>
+        <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-4 py-2 rounded">Add Expense</button>
         <div id="expenseMsg" class="text-sm text-slate-400"></div>
       </div>
     </form>
 
     <div>
-      <h3 class="text-sm text-slate-400 mb-2">Recent Expenses</h3>
+      <h3 class="text-sm text-slate-400 mb-2">Expenses List</h3>
       <div id="expensesList" class="space-y-2 text-sm text-slate-300"></div>
     </div>
   </section>

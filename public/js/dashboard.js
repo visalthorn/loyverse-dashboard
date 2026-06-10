@@ -559,21 +559,31 @@ async function loadExpenses() {
   const container = document.getElementById('expensesList');
   if (!container) return;
   container.innerHTML = '<div class="text-slate-500">Loading...</div>';
+  // pagination state
+  const page = window.expensesPage || 1;
+  const per_page = window.expensesPerPage || 10;
 
-  const data = await fetchJSON('/api/expenses');
+  const data = await fetchJSON(`/api/expenses?page=${page}&per_page=${per_page}`);
   if (!data) return container.innerHTML = '<div class="text-slate-500">Failed to load expenses.</div>';
 
-  if (!data.length) return container.innerHTML = '<div class="text-slate-500">No expenses recorded.</div>';
+  if (!data.items || data.items.length === 0) return container.innerHTML = '<div class="text-slate-500">No expenses recorded.</div>';
 
-  container.innerHTML = data.map(e => `
+  // render list with edit/delete buttons
+  container.innerHTML = data.items.map(e => `
     <div class="flex items-center justify-between p-2 bg-slate-800 rounded">
       <div>
         <div class="font-medium">${e.expense_by} · ${fmtDate(e.expense_date, 'weekly')}</div>
         <div class="text-xs text-slate-400">${e.remark || ''}</div>
       </div>
-      <div class="text-amber-400 font-bold">៛${fmt(e.amount)}</div>
+      <div class="flex items-center gap-3">
+        <div class="text-amber-400 font-bold">៛${fmt(e.amount)}</div>
+        <button onclick="startEditExpense(${e.id})" class="text-sm text-slate-300 hover:text-amber-400">Edit</button>
+        <button onclick="confirmDeleteExpense(${e.id})" class="text-sm text-red-400 hover:text-red-300">Delete</button>
+      </div>
     </div>
   `).join('');
+
+  renderExpensesPagination(data.total, data.page, data.per_page);
 }
 
 async function submitExpense(e) {
@@ -586,6 +596,8 @@ async function submitExpense(e) {
   const expense_by = document.getElementById('expenseBy').value.trim();
   const remark = document.getElementById('expenseRemark').value.trim();
 
+  const editingId = window.editingExpenseId || null;
+
   if (!expense_date || !amount || !expense_by) {
     msg.textContent = 'Please fill required fields.';
     return;
@@ -594,11 +606,20 @@ async function submitExpense(e) {
   // use fetch directly with POST since we need to send a body and attach auth
   try {
     const token = getToken();
-    const r = await fetch('/api/expenses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
-      body: JSON.stringify({ expense_date, amount, remark, expense_by })
-    });
+    let r;
+    if (editingId) {
+      r = await fetch(`/api/expenses/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
+        body: JSON.stringify({ expense_date, amount, remark, expense_by })
+      });
+    } else {
+      r = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
+        body: JSON.stringify({ expense_date, amount, remark, expense_by })
+      });
+    }
 
     if (r.status === 401) { logout(); return; }
     if (!r.ok) {
@@ -608,11 +629,91 @@ async function submitExpense(e) {
     }
 
     const jr = await r.json();
-    msg.textContent = 'Saved.';
+    msg.textContent = editingId ? 'Updated.' : 'Saved.';
     document.getElementById('expenseForm').reset();
+    window.editingExpenseId = null;
+    document.getElementById('expenseForm').querySelector('button[type=submit]').textContent = 'Add Expense';
     loadExpenses();
   } catch (err) {
     console.error('Submit expense error:', err);
     msg.textContent = 'Error saving expense.';
   }
+}
+
+function startEditExpense(id) {
+  // fetch single expense from current list via API (reuse /api/expenses with a simple filter not available), call backend: we will fetch page by page and find id
+  // Simpler: fetch first page that contains id by requesting a large per_page then find
+  (async () => {
+    const token = getToken();
+    const r = await fetch(`/api/expenses?page=1&per_page=100`, { headers: { 'Authorization': token ? 'Bearer ' + token : '' } });
+    if (!r.ok) return alert('Failed to load expense for edit.');
+    const j = await r.json();
+    const item = (j.items || []).find(x => x.id === id);
+    if (!item) return alert('Expense not found.');
+
+    document.getElementById('expenseDate').value = item.expense_date.split('T')[0];
+    document.getElementById('expenseAmount').value = item.amount;
+    document.getElementById('expenseBy').value = item.expense_by;
+    document.getElementById('expenseRemark').value = item.remark || '';
+    window.editingExpenseId = id;
+    document.getElementById('expenseForm').querySelector('button[type=submit]').textContent = 'Save Changes';
+    window.scrollTo({ top: document.getElementById('expenseForm').offsetTop - 50, behavior: 'smooth' });
+  })();
+}
+
+function confirmDeleteExpense(id) {
+  if (!confirm('Are you sure you want to delete this expense? This cannot be undone.')) return;
+  deleteExpense(id);
+}
+
+async function deleteExpense(id) {
+  try {
+    const token = getToken();
+    const r = await fetch(`/api/expenses/${id}`, { method: 'DELETE', headers: { 'Authorization': token ? 'Bearer ' + token : '' } });
+    if (r.status === 401) { logout(); return; }
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      return alert(j.message || 'Failed to delete expense.');
+    }
+    loadExpenses();
+  } catch (err) {
+    console.error('Delete expense error:', err);
+    alert('Error deleting expense.');
+  }
+}
+
+// Pagination helpers
+function renderExpensesPagination(total, page, per_page) {
+  window.expensesPage = page;
+  window.expensesPerPage = per_page;
+  const pages = Math.max(1, Math.ceil(total / per_page));
+  const container = document.getElementById('expensesList');
+  const pagerId = 'expensesPager';
+  // remove existing pager if any
+  const existing = document.getElementById(pagerId);
+  if (existing) existing.remove();
+
+  const pager = document.createElement('div');
+  pager.id = pagerId;
+  pager.className = 'mt-2 flex items-center gap-2';
+
+  const prev = document.createElement('button');
+  prev.textContent = 'Prev';
+  prev.disabled = page <= 1;
+  prev.onclick = () => { if (page > 1) { window.expensesPage = page - 1; loadExpenses(); } };
+
+  const next = document.createElement('button');
+  next.textContent = 'Next';
+  next.disabled = page >= pages;
+  next.onclick = () => { if (page < pages) { window.expensesPage = page + 1; loadExpenses(); } };
+
+  const info = document.createElement('span');
+  info.className = 'text-slate-400 text-sm';
+  info.textContent = `Page ${page} / ${pages} · ${total} items`;
+
+  pager.appendChild(prev);
+  pager.appendChild(info);
+  pager.appendChild(next);
+
+  container.parentNode.appendChild(pager);
 }

@@ -443,13 +443,21 @@ app.get('/api/cancelled-orders', async (req, res) => {
 // ─── API: Expenses ───────────────────────────────────────────────────────────
 app.get('/api/expenses', requireAuth, async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const per_page = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 10));
+    const offset = (page - 1) * per_page;
+
+    const totalRes = await pool.query(`SELECT COUNT(*) AS count FROM expenses`);
+    const total = parseInt(totalRes.rows[0].count || 0);
+
     const result = await pool.query(`
       SELECT id, expense_date, amount, remark, expense_by, created_at
       FROM expenses
       ORDER BY created_at DESC
-      LIMIT 50
-    `);
-    res.json(result.rows);
+      LIMIT $1 OFFSET $2
+    `, [per_page, offset]);
+
+    res.json({ items: result.rows, total, page, per_page });
   } catch (err) {
     console.error('Expenses GET error:', err);
     res.status(500).json({ error: err.message });
@@ -472,6 +480,45 @@ app.post('/api/expenses', requireAuth, async (req, res) => {
     res.status(201).json({ expense: result.rows[0] });
   } catch (err) {
     console.error('Expenses POST error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update an expense
+app.put('/api/expenses/:id', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { expense_date, amount, remark, expense_by } = req.body;
+  if (!id || !expense_date || !amount || !expense_by) {
+    return res.status(400).json({ message: 'id, expense_date, amount and expense_by are required.' });
+  }
+
+  try {
+    const result = await pool.query(`
+      UPDATE expenses
+      SET expense_date = $1, amount = $2, remark = $3, expense_by = $4
+      WHERE id = $5
+      RETURNING id, expense_date, amount, remark, expense_by, created_at
+    `, [expense_date, amount, remark || null, expense_by, id]);
+
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Expense not found.' });
+    res.json({ expense: result.rows[0] });
+  } catch (err) {
+    console.error('Expenses PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete an expense
+app.delete('/api/expenses/:id', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid id.' });
+
+  try {
+    const result = await pool.query(`DELETE FROM expenses WHERE id = $1 RETURNING id`, [id]);
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Expense not found.' });
+    res.json({ deleted: true, id });
+  } catch (err) {
+    console.error('Expenses DELETE error:', err);
     res.status(500).json({ error: err.message });
   }
 });
