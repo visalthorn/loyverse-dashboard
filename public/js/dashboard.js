@@ -568,11 +568,17 @@ async function loadExpenses() {
 
   if (!data.items || data.items.length === 0) return container.innerHTML = '<div class="text-slate-500">No expenses recorded.</div>';
 
-  // render list with edit/delete buttons
-  container.innerHTML = data.items.map(e => `
-    <div class="flex items-center justify-between p-2 bg-slate-800 rounded">
+  let lastDate = null;
+  const groupedHtml = data.items.map(e => {
+    const dayLabel = fmtDate(e.expense_date, 'weekly');
+    const showHeader = dayLabel !== lastDate;
+    lastDate = dayLabel;
+    return `${showHeader ? `
+      <div class="mt-3 mb-1 text-xs uppercase tracking-wide text-slate-500 border-b border-slate-700 pb-1">${dayLabel}</div>
+    ` : ''}
+    <div class="flex items-center justify-between p-2 bg-slate-800 rounded ${showHeader ? '' : 'mt-2'}">
       <div>
-        <div class="font-medium">${e.expense_by} · ${fmtDate(e.expense_date, 'weekly')}</div>
+        <div class="font-medium">${e.expense_by}</div>
         <div class="text-xs text-slate-400">${e.remark || ''}</div>
       </div>
       <div class="flex items-center gap-3">
@@ -580,9 +586,10 @@ async function loadExpenses() {
         <button onclick="startEditExpense(${e.id})" class="text-sm text-slate-300 hover:text-amber-400">Edit</button>
         <button onclick="confirmDeleteExpense(${e.id})" class="text-sm text-red-400 hover:text-red-300">Delete</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
+  container.innerHTML = groupedHtml;
   renderExpensesPagination(data.total, data.page, data.per_page);
 }
 

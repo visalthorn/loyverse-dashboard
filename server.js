@@ -453,7 +453,7 @@ app.get('/api/expenses', requireAuth, async (req, res) => {
     const result = await pool.query(`
       SELECT id, expense_date, amount, remark, expense_by, created_at
       FROM expenses
-      ORDER BY created_at DESC
+      ORDER BY expense_date DESC, created_at DESC
       LIMIT $1 OFFSET $2
     `, [per_page, offset]);
 
