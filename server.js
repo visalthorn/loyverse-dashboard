@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_UAT || process.env.JWT_SECRET_PROD || 'pos_dashboard_secret_change_in_prod';
-const JWT_EXPIRES = '1h'; // token lasts 1 hour
+const JWT_EXPIRES = '24h'; // token lasts 24 hour
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -59,7 +59,7 @@ function buildPeriodFilter(period, startDate, endDate, alias = 'r', firstParam =
   }
   switch (period) {
     case 'today': return { clause: `DATE(${kh}) = CURRENT_DATE`, params: [] };
-    case 'week':  return { clause: `DATE(${kh}) BETWEEN CURRENT_DATE - INTERVAL '6 days' AND CURRENT_DATE`, params: [] };
+    case 'week':  return { clause: `DATE(${kh}) BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE`, params: [] };
     case 'month': return { clause: `DATE_TRUNC('month', ${kh}) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`, params: [] };
     case 'year':  return { clause: `DATE_TRUNC('year', ${kh}) = DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year')`, params: [] };
     default:      return { clause: `DATE(${kh}) = CURRENT_DATE`, params: [] };

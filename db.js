@@ -32,6 +32,11 @@ if (ENV === 'PROD') {
   });
 }
 
+pool.on('query', (query) => {
+  console.log('📍 Query:', query.text);
+  console.log('📌 Params:', query.values);
+});
+
 // Test connection on startup
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {

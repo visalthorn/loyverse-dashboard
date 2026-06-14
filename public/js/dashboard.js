@@ -83,14 +83,22 @@ const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  detectEnv();
-  loadAll();
-  setInterval(loadAll, 5 * 60 * 1000); // auto-refresh 5 min
+  const hasDashboard = Boolean(document.getElementById('grossIncomeChart'));
+  const hasExpenses  = Boolean(document.getElementById('expenseForm') || document.getElementById('expensesList'));
+
+  if (hasDashboard) {
+    detectEnv();
+    loadAll();
+    setInterval(loadAll, 5 * 60 * 1000); // auto-refresh 5 min
+  } else if (hasExpenses) {
+    loadExpenses();
+  }
 });
 
 async function detectEnv() {
-  await fetchJSON('/api/kpis?period=today');
   const badge = document.getElementById('envBadge');
+  if (!badge) return;
+  await fetchJSON('/api/kpis?period=today');
   const host  = location.hostname;
   const env   = host === 'localhost' || host === '127.0.0.1' ? 'UAT' : 'PROD';
   badge.textContent    = env;
@@ -219,39 +227,46 @@ async function loadGrossIncomeTrend() {
   ]);
   if (!incomeData) return;
 
+  // Normalize any period value to its Phnom Penh calendar date (YYYY-MM-DD).
+  // DATE_TRUNC groups by PP day, but the returned timestamp is the UTC instant
+  // for PP midnight (e.g. 2026-06-07T17:00:00.000Z === 2026-06-08 00:00 +07:00),
+  // so we must convert via the PP timezone rather than reading the UTC date part.
+  const ppDateKey = (period) =>
+    new Date(period).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+
   const labels  = incomeData.map(r => fmtDate(r.period, trendPeriod));
   const revenue = incomeData.map(r => parseFloat(r.gross_income));
-  const expenses = (expenseTrend && expenseTrend.length)
-    ? expenseTrend.map(r => parseFloat(r.total_expense))
-    : labels.map(() => 0);
+
+  // Align expenses to income periods by PP calendar date, not raw timestamp string.
+  const expenseMap = {};
+  if (expenseTrend && expenseTrend.length) {
+    expenseTrend.forEach(e => {
+      expenseMap[ppDateKey(e.period)] = parseFloat(e.total_expense);
+    });
+  }
+  const expenses = incomeData.map(r => expenseMap[ppDateKey(r.period)] || 0);
 
   destroyChart('grossIncomeChart');
   charts.grossIncomeChart = new Chart(document.getElementById('grossIncomeChart'), {
-    type: 'line',
+    type: 'bar',
     data: {
       labels,
       datasets: [
         {
           label: 'Gross Income',
           data: revenue,
+          backgroundColor: 'rgba(245,158,11,0.7)',
           borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245,158,11,0.08)',
-          borderWidth: 2,
-          pointRadius: 3,
-          pointBackgroundColor: '#f59e0b',
-          fill: true,
-          tension: 0.4,
+          borderWidth: 1,
+          borderRadius: 6,
         },
         {
           label: 'Expenses',
           data: expenses,
+          backgroundColor: 'rgba(239,68,68,0.7)',
           borderColor: '#ef4444',
-          backgroundColor: 'rgba(239,68,68,0.06)',
-          borderWidth: 2,
-          pointRadius: 2,
-          pointBackgroundColor: '#ef4444',
-          fill: true,
-          tension: 0.3,
+          borderWidth: 1,
+          borderRadius: 6,
         }
       ]
     },
@@ -302,7 +317,7 @@ async function loadPaymentMethods() {
   document.getElementById('paymentLegend').innerHTML = data.map((r, i) => `
     <div class="legend-item">
       <span><span class="legend-dot" style="background:${COLORS[i+2]}"></span>${r.payment_name || r.payment_type}</span>
-      <span class="font-medium">$${fmt(r.total)} <span class="text-slate-500">(${total > 0 ? ((r.total/total)*100).toFixed(1) : 0}%)</span></span>
+      <span class="font-medium">៛${fmt(r.total)} <span class="text-slate-500">(${total > 0 ? ((r.total/total)*100).toFixed(1) : 0}%)</span></span>
     </div>
   `).join('');
 }

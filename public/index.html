@@ -7,167 +7,221 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="/css/style.css"/>
-</head>
-<body class="bg-slate-900 text-white min-h-screen">
+<style>
+  /* ---- App shell / sidebar layout ---- */
+  body.app-shell { display: flex; min-height: 100vh; }
 
-<!-- Header -->
-<header class="bg-slate-800 border-b border-slate-700 px-6 py-3 sticky top-0 z-50">
-  <div class="flex items-center justify-between">
-    <!-- Left: Logo + Title -->
-    <div class="flex items-center gap-3">
-      <span class="text-2xl">📊</span>
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-lg font-bold text-amber-400">POS Analytics</h1>
-          <span id="envBadge" class="px-2 py-0.5 rounded text-xs font-bold"></span>
-        </div>
-        <p class="text-xs text-slate-400" id="lastUpdated">Loading...</p>
+  .sidebar {
+    width: 17rem;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .main-wrapper {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #cbd5e1; /* slate-300 */
+    border-left: 3px solid transparent;
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+  .nav-item.active {
+    background: rgba(245, 158, 11, .12); /* amber-500/12 */
+    color: #fbbf24; /* amber-400 */
+    border-left-color: #fbbf24;
+  }
+
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 50;
+  }
+  .sidebar-overlay.show { display: block; }
+
+  @media (max-width: 767px) {
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      transform: translateX(-100%);
+      z-index: 60;
+      transition: transform .25s ease;
+    }
+    .sidebar.sidebar-open { transform: translateX(0); }
+  }
+</style>
+</head>
+<body class="app-shell bg-slate-900 text-white min-h-screen">
+
+<!-- Sidebar -->
+<aside id="sidebar" class="sidebar bg-slate-800 border-r border-slate-700">
+  <div class="px-5 py-4 border-b border-slate-700 flex items-center gap-3">
+    <span class="text-2xl">📊</span>
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-base font-bold text-amber-400">POS Analytics</h1>
+        <span id="envBadge" class="px-2 py-0.5 rounded text-xs font-bold"></span>
       </div>
-    </div>
-    <!-- Right: Period Filters -->
-    <div class="flex flex-col md:flex-row items-start md:items-center gap-3">
-      <div class="period-selector flex gap-1 bg-slate-700 rounded-lg p-1">
-        <button onclick="setPeriod('week')"   class="period-btn active" data-period="week">Last 7 days</button>
-        <button onclick="setPeriod('month')"  class="period-btn" data-period="month">Last Month</button>
-        <button onclick="setPeriod('year')"   class="period-btn" data-period="year">Year</button>
-        <button onclick="setPeriod('range')"  class="period-btn" data-period="range">Custom</button>
-      </div>
-      <div class="custom-range flex flex-wrap items-center gap-2">
-        <label class="text-xs text-slate-300">From <input id="startDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
-        <label class="text-xs text-slate-300">To <input id="endDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
-        <button onclick="applyCustomRange()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded">Apply</button>
-      </div>
-      <div id="userInfo" class="ml-3"></div>
+      <p class="text-xs text-slate-400" id="lastUpdated">Loading...</p>
     </div>
   </div>
-</header>
 
-<main class="p-4 md:p-6 space-y-6 max-w-screen-2xl mx-auto">
+  <nav class="flex-1 px-3 py-4 space-y-1">
+    <a href="/" class="nav-item active">
+      <span class="text-lg">📊</span> Dashboard
+    </a>
+    <a href="/expenses.html" class="nav-item">
+      <span class="text-lg">💸</span> Expenses
+    </a>
+  </nav>
 
-  <!-- KPI Cards -->
-  <section>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="kpiCards">
-      <div class="kpi-card skeleton"><div class="h-16"></div></div>
-      <div class="kpi-card skeleton"><div class="h-16"></div></div>
-      <div class="kpi-card skeleton"><div class="h-16"></div></div>
-      <div class="kpi-card skeleton"><div class="h-16"></div></div>
-    </div>
-  </section>
+  <div class="px-5 py-4 border-t border-slate-700">
+    <div id="userInfo" class="text-xs text-slate-400"></div>
+  </div>
+</aside>
 
-  <!-- Gross Income Trend -->
-  <section class="card">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="section-title">📈 Gross Income</h2>
-      <span id="grossIncomeLabel" class="text-xs text-slate-400">Period matched to global filter</span>
-    </div>
-    <div class="chart-container"><canvas id="grossIncomeChart"></canvas></div>
-  </section>
+<!-- Mobile overlay -->
+<div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-  <!-- Dining + Payment -->
-  <section class="grid md:grid-cols-2 gap-4">
-    <div class="card">
-      <h2 class="section-title mb-4">🍽️ Dining Options</h2>
-      <div class="chart-container-sm"><canvas id="diningChart"></canvas></div>
-      <div id="diningLegend" class="mt-3 space-y-1"></div>
-    </div>
-    <div class="card">
-      <h2 class="section-title mb-4">💳 Payment Methods</h2>
-      <div class="chart-container-sm"><canvas id="paymentChart"></canvas></div>
-      <div id="paymentLegend" class="mt-3 space-y-1"></div>
-    </div>
-  </section>
+<!-- Main content -->
+<div class="main-wrapper">
 
-  <!-- Peak Hours Heatmap -->
-  <section class="card">
-    <h2 class="section-title mb-4">🔥 Peak Hours Heatmap <span id="heatmapRangeLabel" class="text-xs text-slate-400 font-normal"></span></h2>
-    <div class="overflow-x-auto">
-      <div id="heatmap" class="heatmap-grid"></div>
-    </div>
-  </section>
-
-  <!-- Top Products -->
-  <section class="card">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="section-title">🛒 Top Products</h2>
-      <span class="text-xs text-slate-400">Sorted by Revenue</span>
-    </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-slate-400 border-b border-slate-700 text-left">
-            <th class="pb-2 pr-4">#</th>
-            <th class="pb-2 pr-4">Item</th>
-            <th class="pb-2 pr-4 text-right">Qty</th>
-            <th class="pb-2 pr-4 text-right">Revenue</th>
-            <th class="pb-2 text-right">% Share</th>
-          </tr>
-        </thead>
-        <tbody id="topItemsBody">
-          <tr><td colspan="5" class="py-4 text-center text-slate-500">Loading...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Employee + Device -->
-  <section class="grid md:grid-cols-2 gap-4">
-    <div class="card">
-      <h2 class="section-title mb-4">👤 Employee Performance</h2>
-      <div class="chart-container"><canvas id="employeeChart"></canvas></div>
-    </div>
-    <div class="card">
-      <h2 class="section-title mb-4">🖥️ Device Performance</h2>
-      <div class="chart-container"><canvas id="deviceChart"></canvas></div>
-    </div>
-  </section>
-
-  <!-- Cancelled Orders -->
-  <section class="card border border-red-800">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="section-title text-red-400">🚨 Cancelled Orders</h2>
-      <div id="cancelSummary" class="flex gap-4 text-sm"></div>
-    </div>
-    <div id="cancelList" class="space-y-2"></div>
-  </section>
-
-  <!-- Expenses -->
-  <section class="card">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="section-title">💸 Expenses</h2>
-      <span class="text-xs text-slate-400">Add and view expenses</span>
-    </div>
-
-    <form id="expenseForm" class="grid md:grid-cols-3 gap-3 mb-4" onsubmit="submitExpense(event)">
-      <div>
-        <label class="text-xs text-slate-300">Date</label>
-        <input id="expenseDate" type="date" required class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
+  <!-- Top bar -->
+  <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
+        <h2 class="text-lg font-semibold">Dashboard</h2>
       </div>
-      <div>
-        <label class="text-xs text-slate-300">Amount</label>
-        <input id="expenseAmount" type="number" step="0.01" required class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
-      </div>
-      <div>
-        <label class="text-xs text-slate-300">Expense by</label>
-        <input id="expenseBy" type="text" required placeholder="Name" class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
-      </div>
-      <div class="md:col-span-3">
-        <label class="text-xs text-slate-300">Remark</label>
-        <textarea id="expenseRemark" placeholder="Optional note" class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2"></textarea>
-      </div>
-      <div class="md:col-span-3 flex items-center gap-2">
-        <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-4 py-2 rounded">Add Expense</button>
-        <div id="expenseMsg" class="text-sm text-slate-400"></div>
-      </div>
-    </form>
 
-    <div>
-      <h3 class="text-sm text-slate-400 mb-2">Expenses List</h3>
-      <div id="expensesList" class="space-y-2 text-sm text-slate-300"></div>
+      <!-- Period Filters -->
+      <div class="flex flex-col md:flex-row items-start md:items-center gap-3">
+        <div class="period-selector flex gap-1 bg-slate-700 rounded-lg p-1">
+          <button onclick="setPeriod('week')"   class="period-btn active" data-period="week">Last 7 days</button>
+          <button onclick="setPeriod('month')"  class="period-btn" data-period="month">Last Month</button>
+          <button onclick="setPeriod('year')"   class="period-btn" data-period="year">Year</button>
+          <button onclick="setPeriod('range')"  class="period-btn" data-period="range">Custom</button>
+        </div>
+        <div class="custom-range flex flex-wrap items-center gap-2">
+          <label class="text-xs text-slate-300">From <input id="startDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
+          <label class="text-xs text-slate-300">To <input id="endDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
+          <button onclick="applyCustomRange()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded">Apply</button>
+        </div>
+      </div>
     </div>
-  </section>
+  </header>
 
-</main>
+  <main class="p-4 md:p-6 space-y-6 max-w-screen-2xl mx-auto w-full">
 
+    <!-- KPI Cards -->
+    <section>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="kpiCards">
+        <div class="kpi-card skeleton"><div class="h-16"></div></div>
+        <div class="kpi-card skeleton"><div class="h-16"></div></div>
+        <div class="kpi-card skeleton"><div class="h-16"></div></div>
+        <div class="kpi-card skeleton"><div class="h-16"></div></div>
+      </div>
+    </section>
+
+    <!-- Gross Income Trend -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title">📈 Gross Income and Expenses</h2>
+        <span id="grossIncomeLabel" class="text-xs text-slate-400">Period matched to global filter</span>
+      </div>
+      <div class="chart-container"><canvas id="grossIncomeChart"></canvas></div>
+    </section>
+
+    <!-- Dining + Payment -->
+    <section class="grid md:grid-cols-2 gap-4">
+      <div class="card">
+        <h2 class="section-title mb-4">🍽️ Dining Options</h2>
+        <div class="chart-container-sm"><canvas id="diningChart"></canvas></div>
+        <div id="diningLegend" class="mt-3 space-y-1"></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title mb-4">💳 Payment Methods</h2>
+        <div class="chart-container-sm"><canvas id="paymentChart"></canvas></div>
+        <div id="paymentLegend" class="mt-3 space-y-1"></div>
+      </div>
+    </section>
+
+    <!-- Peak Hours Heatmap -->
+    <section class="card">
+      <h2 class="section-title mb-4">🔥 Peak Hours Heatmap <span id="heatmapRangeLabel" class="text-xs text-slate-400 font-normal"></span></h2>
+      <div class="overflow-x-auto">
+        <div id="heatmap" class="heatmap-grid"></div>
+      </div>
+    </section>
+
+    <!-- Top Products -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title">🛒 Top Products</h2>
+        <span class="text-xs text-slate-400">Sorted by Revenue</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-slate-400 border-b border-slate-700 text-left">
+              <th class="pb-2 pr-4">#</th>
+              <th class="pb-2 pr-4">Item</th>
+              <th class="pb-2 pr-4 text-right">Qty</th>
+              <th class="pb-2 pr-4 text-right">Revenue</th>
+              <th class="pb-2 text-right">% Share</th>
+            </tr>
+          </thead>
+          <tbody id="topItemsBody">
+            <tr><td colspan="5" class="py-4 text-center text-slate-500">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Employee + Device -->
+    <section class="grid md:grid-cols-2 gap-4">
+      <div class="card">
+        <h2 class="section-title mb-4">👤 Employee Performance</h2>
+        <div class="chart-container"><canvas id="employeeChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title mb-4">🖥️ Device Performance</h2>
+        <div class="chart-container"><canvas id="deviceChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Cancelled Orders -->
+    <section class="card border border-red-800">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title text-red-400">🚨 Cancelled Orders</h2>
+        <div id="cancelSummary" class="flex gap-4 text-sm"></div>
+      </div>
+      <div id="cancelList" class="space-y-2"></div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('sidebar-open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+</script>
 <script src="/js/dashboard.js"></script>
 </body>
 </html>
