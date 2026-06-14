@@ -24,6 +24,22 @@ function logout() {
   localStorage.removeItem(USER_KEY);
   window.location.href = '/login';
 }
+
+function getEl(id) {
+  return document.getElementById(id);
+}
+
+function setText(id, value) {
+  const el = getEl(id);
+  if (el) el.textContent = value;
+  return el;
+}
+
+function setHTML(id, value) {
+  const el = getEl(id);
+  if (el) el.innerHTML = value;
+  return el;
+}
  
 // Check auth on page load — redirect to login if no token
 (async function checkAuth() {
@@ -52,25 +68,35 @@ function logout() {
  
 // Show logged-in user in dashboard header
 function renderUserHeader(user) {
-  const el = document.getElementById('userInfo');
-  if (!el) return;
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div style="text-align:right;">
-        <div style="font-size:13px;font-weight:600;color:#e2e8f0;">${user.fullName || user.username}</div>
-        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">${user.role}</div>
+  const el = getEl('userInfo');
+  if (el) {
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="text-align:right;">
+          <div style="font-size:13px;font-weight:600;color:#e2e8f0;">${user.fullName || user.username}</div>
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">${user.role}</div>
+        </div>
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0b1120;">
+          ${(user.fullName || user.username).charAt(0).toUpperCase()}
+        </div>
+        <button onclick="logout()" title="Sign out"
+          style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
+          onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
+          onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">
+          Sign out
+        </button>
       </div>
-      <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0b1120;">
-        ${(user.fullName || user.username).charAt(0).toUpperCase()}
-      </div>
-      <button onclick="logout()" title="Sign out"
-        style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
-        onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
-        onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">
-        Sign out
-      </button>
-    </div>
-  `;
+    `;
+  }
+
+  const sidebarName = getEl('sidebarUserName');
+  if (sidebarName) sidebarName.textContent = user.fullName || user.username || 'User';
+
+  const sidebarRole = getEl('sidebarUserRole');
+  if (sidebarRole) sidebarRole.textContent = (user.role || '').toUpperCase();
+
+  const sidebarAvatar = getEl('sidebarAvatar');
+  if (sidebarAvatar) sidebarAvatar.textContent = (user.fullName || user.username || 'U').charAt(0).toUpperCase();
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -96,7 +122,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function detectEnv() {
-  const badge = document.getElementById('envBadge');
+  const badge = getEl('envBadge');
   if (!badge) return;
   await fetchJSON('/api/kpis?period=today');
   const host  = location.hostname;
@@ -106,8 +132,8 @@ async function detectEnv() {
 }
 
 function loadAll() {
-  document.getElementById('lastUpdated').textContent =
-    'Updated: ' + new Date().toLocaleTimeString();
+  const lastUpdated = getEl('lastUpdated');
+  if (lastUpdated) lastUpdated.textContent = 'Updated: ' + new Date().toLocaleTimeString();
   loadKPIs();
   loadGrossIncomeTrend();
   loadDiningOptions();
@@ -129,8 +155,10 @@ function setPeriod(p) {
   if (p !== 'range') {
     currentStartDate = '';
     currentEndDate = '';
-    document.getElementById('startDate').value = '';
-    document.getElementById('endDate').value = '';
+    const startInput = getEl('startDate');
+    const endInput = getEl('endDate');
+    if (startInput) startInput.value = '';
+    if (endInput) endInput.value = '';
     loadAll();
     return;
   }
@@ -141,8 +169,10 @@ function setPeriod(p) {
 }
 
 function applyCustomRange() {
-  const start = document.getElementById('startDate').value;
-  const end   = document.getElementById('endDate').value;
+  const startInput = getEl('startDate');
+  const endInput = getEl('endDate');
+  const start = startInput ? startInput.value : '';
+  const end = endInput ? endInput.value : '';
   
   if (!start || !end) {
     alert('Please choose both a start and end date.');
@@ -188,7 +218,8 @@ async function loadKPIs() {
     { icon:'💸', label:'Total Expenses',   value: '-៛' + fmtRaw(data.expenses.total),     growth: 0, valueClass: 'text-red-400' },
   ];
 
-  document.getElementById('kpiCards').innerHTML = cards.map(c => `
+  const kpiCards = getEl('kpiCards');
+  if (kpiCards) kpiCards.innerHTML = cards.map(c => `
     <div class="kpi-card">
       <div class="flex items-start justify-between">
         <span class="text-2xl">${c.icon}</span>
@@ -212,7 +243,7 @@ function growthBadge(g) {
 // ─── Gross Income Trend ─────────────────────────────────────────────────────
 async function loadGrossIncomeTrend() {
   const trendPeriod = getGrossIncomeTrendGranularity();
-  const trendLabel = document.getElementById('grossIncomeLabel');
+  const trendLabel = getEl('grossIncomeLabel');
   const displayLabel = currentPeriod === 'range'
     ? `Custom range ${currentStartDate} → ${currentEndDate}`
     : currentPeriod === 'week' ? 'Last 7 days'
@@ -290,7 +321,8 @@ async function loadDiningOptions() {
   });
 
   const total = revenue.reduce((a, b) => a + b, 0);
-  document.getElementById('diningLegend').innerHTML = data.map((r, i) => `
+  const diningLegend = getEl('diningLegend');
+  if (diningLegend) diningLegend.innerHTML = data.map((r, i) => `
     <div class="legend-item">
       <span><span class="legend-dot" style="background:${COLORS[i]}"></span>${r.dining_option}</span>
       <span class="font-medium">៛${fmt(r.revenue)} <span class="text-slate-500">(${total > 0 ? ((r.revenue/total)*100).toFixed(1) : 0}%)</span></span>
@@ -314,7 +346,8 @@ async function loadPaymentMethods() {
   });
 
   const total = totals.reduce((a, b) => a + b, 0);
-  document.getElementById('paymentLegend').innerHTML = data.map((r, i) => `
+  const paymentLegend = getEl('paymentLegend');
+  if (paymentLegend) paymentLegend.innerHTML = data.map((r, i) => `
     <div class="legend-item">
       <span><span class="legend-dot" style="background:${COLORS[i+2]}"></span>${r.payment_name || r.payment_type}</span>
       <span class="font-medium">៛${fmt(r.total)} <span class="text-slate-500">(${total > 0 ? ((r.total/total)*100).toFixed(1) : 0}%)</span></span>
@@ -345,7 +378,8 @@ async function loadPeakHours() {
     if (matrix[d][h] > maxVal) maxVal = matrix[d][h];
   });
 
-  const container = document.getElementById('heatmap');
+  const container = getEl('heatmap');
+  if (!container) return;
 
   // Hour headers
   let html = '<div class="heatmap-header-row"><div></div>';
@@ -384,7 +418,8 @@ async function loadTopItems() {
   const data = await fetchJSON(`/api/top-items?period=${currentPeriod}&limit=10${rangeQuery()}`);
   if (!data) return;
 
-  document.getElementById('topItemsBody').innerHTML = data.map((r, i) => `
+  const topItemsBody = getEl('topItemsBody');
+  if (topItemsBody) topItemsBody.innerHTML = data.map((r, i) => `
     <tr class="border-b border-slate-800 hover:bg-slate-800 transition-colors">
       <td class="py-2 pr-4 text-slate-400 font-mono">${i+1}</td>
       <td class="py-2 pr-4">
@@ -453,12 +488,14 @@ async function loadCancelledOrders() {
   const data = await fetchJSON(`/api/cancelled-orders?period=${currentPeriod}${rangeQuery()}`);
   if (!data) return;
 
-  document.getElementById('cancelSummary').innerHTML = `
+  const cancelSummary = getEl('cancelSummary');
+  if (cancelSummary) cancelSummary.innerHTML = `
     <span class="text-red-400 font-bold">${data.summary.count} cancelled</span>
     <span class="text-slate-400">Lost: <span class="text-red-300 font-bold">$${fmt(data.summary.lost_revenue)}</span></span>
   `;
 
-  document.getElementById('cancelList').innerHTML = data.items.length
+  const cancelList = getEl('cancelList');
+  if (cancelList) cancelList.innerHTML = data.items.length
     ? data.items.map(r => `
         <div class="cancel-row">
           <div>
@@ -610,8 +647,8 @@ async function loadExpenses() {
 
 async function submitExpense(e) {
   e.preventDefault();
-  const msg = document.getElementById('expenseMsg');
-  msg.textContent = '';
+  const msg = getEl('expenseMsg');
+  if (msg) msg.textContent = '';
 
   const expense_date = document.getElementById('expenseDate').value;
   const amount = document.getElementById('expenseAmount').value;
@@ -646,19 +683,19 @@ async function submitExpense(e) {
     if (r.status === 401) { logout(); return; }
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      msg.textContent = j.message || 'Failed to save expense.';
+      if (msg) msg.textContent = j.message || 'Failed to save expense.';
       return;
     }
 
     const jr = await r.json();
-    msg.textContent = editingId ? 'Updated.' : 'Saved.';
+    if (msg) msg.textContent = editingId ? 'Updated.' : 'Saved.';
     document.getElementById('expenseForm').reset();
     window.editingExpenseId = null;
     document.getElementById('expenseForm').querySelector('button[type=submit]').textContent = 'Add Expense';
     loadExpenses();
   } catch (err) {
     console.error('Submit expense error:', err);
-    msg.textContent = 'Error saving expense.';
+    if (msg) msg.textContent = 'Error saving expense.';
   }
 }
 
