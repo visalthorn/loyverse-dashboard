@@ -140,7 +140,10 @@
       </div>
 
       <!-- Period Filters -->
-      <div class="flex flex-col md:flex-row items-start md:items-center gap-3">
+      <div class="flex flex-col md:flex-row items-start md:items-center gap-5">
+        <div class="custom-range flex flex-wrap items-center gap-2">
+          <button onclick="syncGrossIncome()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded">Sync Gross Income</button>
+        </div>
         <div class="period-selector flex gap-1 bg-slate-700 rounded-lg p-1">
           <button onclick="setPeriod('week')"   class="period-btn active" data-period="week">Last 7 days</button>
           <button onclick="setPeriod('month')"  class="period-btn" data-period="month">Last Month</button>

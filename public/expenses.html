@@ -95,7 +95,10 @@
         </div>
         <div class="text-xs text-slate-400 flex items-center gap-2">
           <span id="sidebarUserRole">Role</span>
-          <button onclick="logout()" class="ml-2 text-xs text-slate-300 hover:text-amber-400">Sign out</button>
+          <button onclick="logout()" title="Sign out"
+        style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
+        onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
+        onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">Sign out</button>
         </div>
       </div>
     </div>

@@ -1,7 +1,14 @@
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
+const axios = require("axios");
 const dotenv = require('dotenv');
- 
+
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_UAT || process.env.JWT_SECRET_PROD || 'pos_dashboard_secret_change_in_prod';
@@ -166,27 +173,32 @@ app.get('/api/kpis', requireAuth, async (req, res) => {
   const period = req.query.period || 'today';
   const filter = buildPeriodFilter(period, req.query.start, req.query.end);
   try {
+    // Compare Kpis for current period vs previous period (use same filter but shift date range back by 1 day/week/month/year depending on the selected period)
     const curr = await pool.query(`
       SELECT
         COALESCE(SUM(total_money), 0) AS gross_income,
-        COUNT(*) FILTER (WHERE cancelled_at IS NULL) AS orders,
-        COUNT(*) FILTER (WHERE cancelled_at IS NOT NULL) AS cancelled,
-        COALESCE(AVG(total_money) FILTER (WHERE cancelled_at IS NULL), 0) AS aov
+        COUNT(*) AS orders,
+        COALESCE(AVG(total_money), 0) AS aov
       FROM receipts r
       WHERE ${filter.clause}
+        AND ((receipt_type = 'SALE' AND cancelled_at IS NULL) OR (receipt_type = 'REFUND' AND cancelled_at IS NOT NULL))
     `, filter.params);
+    const prev = await pool.query(`
+      SELECT
+        COALESCE(SUM(total_money), 0) AS gross_income,
+        COUNT(*) AS orders,
+        COALESCE(AVG(total_money), 0) AS aov
+      FROM receipts r
+      WHERE ${getPrevPeriodSQL(period)}
+        AND ((receipt_type = 'SALE' AND cancelled_at IS NULL) OR (receipt_type = 'REFUND' AND cancelled_at IS NOT NULL))
+    `);
+
     // total expenses for the same filter (use expense_date column)
     const expFilter = buildPeriodFilter(period, req.query.start, req.query.end, 'e', 1, 'expense_date');
     const expRes = await pool.query(`
       SELECT COALESCE(SUM(amount), 0) AS total_expense FROM expenses e WHERE ${expFilter.clause}
     `, expFilter.params);
-    const prev = await pool.query(`
-      SELECT
-        COALESCE(SUM(total_money), 0) AS gross_income,
-        COUNT(*) FILTER (WHERE cancelled_at IS NULL) AS orders
-      FROM receipts r
-      WHERE ${getPrevPeriodSQL(period)}
-    `);
+    
     const c = curr.rows[0];
     const p = prev.rows[0];
     const expensesTotal = expRes.rows[0] ? parseFloat(expRes.rows[0].total_expense) : 0;
@@ -194,10 +206,7 @@ app.get('/api/kpis', requireAuth, async (req, res) => {
     res.json({
       gross_income:     { value: parseFloat(c.gross_income).toFixed(2), growth: growth(c.gross_income, p.gross_income) },
       orders:           { value: parseInt(c.orders), growth: growth(c.orders, p.orders) },
-      aov:              { value: parseFloat(c.aov).toFixed(2), growth: 0 },
-      cancellationRate: { value: totalOrders > 0 ? ((c.cancelled / totalOrders) * 100).toFixed(1) : '0.0', growth: 0 },
-      cancelledCount:   parseInt(c.cancelled),
-      cancelledRevenue: 0,
+      aov:              { value: parseFloat(c.aov).toFixed(2), growth: growth(c.aov, p.aov) },
       expenses: { total: expensesTotal },
       net_revenue: parseFloat((parseFloat(c.gross_income) - expensesTotal).toFixed(2))
     });
@@ -523,7 +532,235 @@ app.delete('/api/expenses/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Insert Receipt (used by sync-yesterday.js)
+// =========================
+// TIMEZONE CONVERT
+// UTC -> Asia/Phnom_Penh
+// =========================
+function toCambodiaTime(date) {
 
+  if (!date) return null;
+
+  return dayjs
+    .utc(date)
+    .tz("Asia/Phnom_Penh")
+    .format("YYYY-MM-DD HH:mm:ss");
+
+}
+
+// =========================
+// LOYVERSE API
+// =========================
+const loyverse = axios.create({
+  baseURL: "https://api.loyverse.com/v1.0",
+  timeout: 30000,
+  headers: {
+    Authorization: `Bearer ${process.env.LOYVERSE_TOKEN}`,
+  },
+});
+
+// =========================
+// FETCH RECEIPTS
+// =========================
+async function fetchReceipts(startDate, endDate) {
+
+  let all = [];
+  let cursor = null;
+
+  do {
+
+    const res = await loyverse.get("/receipts", {
+      params: {
+        created_at_min: startDate,
+        created_at_max: endDate,
+        limit: 250,
+        cursor,
+      },
+    });
+
+    const receipts = res.data.receipts || [];
+
+    all.push(...receipts);
+
+    cursor = res.data.cursor;
+
+    console.log(`📦 Batch fetched: ${receipts.length}`);
+
+  } while (cursor);
+
+  console.log(`📊 Total fetched: ${all.length}`);
+
+  return all;
+
+}
+
+app.post('/api/gross-income', requireAuth, async (req, res) => {
+  try {
+    const yesterday = dayjs().subtract(1, 'day');
+    const start = yesterday.startOf("day").toISOString();
+    const end = yesterday.endOf("day").toISOString();
+
+    console.log(`📅 Checking is the receipt is already exists for ${yesterday.format("YYYY-MM-DD")}`);
+    // =========================
+    // RECEIPT PAYMENTS VALIDATION
+    // =========================
+    const receiptExistsByYesterday = await pool.query(
+      `
+      SELECT 1
+      FROM receipts
+      WHERE receipt_date >= $1
+        AND receipt_date <= $2
+      LIMIT 1
+      `,
+      [
+        yesterday.startOf("day").toISOString(),
+        yesterday.endOf("day").toISOString(),
+      ]
+    );
+
+    if (receiptExistsByYesterday.rowCount <= 0) {
+
+      console.log("🚀 Sync started");
+      console.log("");
+      console.log("=================================");
+      console.log(`📅 Syncing ${yesterday.format("YYYY-MM-DD")}`);
+      console.log("=================================");
+
+      // get receipts from Loyverse for yesterday
+      console.log("🚀 Fetching data from loyverse");
+      const receipts = await fetchReceipts(start, end);
+
+      if (receipts.length > 0) {
+        await pool.query("BEGIN");
+        for (const r of receipts) {
+          // =========================
+          // RECEIPTS
+          // =========================
+          console.log("🚀 Start insert data for receipts");
+          await pool.query(
+            `
+            INSERT INTO receipts
+            (
+              receipt_number,
+              receipt_type,
+              total_money,
+              receipt_date,
+              created_at,
+              updated_at,
+              cancelled_at,
+              dining_option,
+              source,
+              store_id,
+              pos_device_id,
+              employee_id
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            ON CONFLICT (receipt_number)
+            DO NOTHING
+            `,
+            [
+              r.receipt_number,
+              r.receipt_type,
+              r.total_money,
+
+              toCambodiaTime(r.receipt_date),
+              toCambodiaTime(r.created_at),
+              toCambodiaTime(r.updated_at),
+              toCambodiaTime(r.cancelled_at),
+
+              r.dining_option,
+              r.source,
+              r.store_id,
+              r.pos_device_id,
+              r.employee_id
+            ]
+          );
+
+          // =========================
+          // ITEMS
+          // =========================
+          console.log("🚀 Start insert data for receipt_items");
+          for (const item of r.line_items || []) {
+
+            await pool.query(
+              `
+              INSERT INTO receipt_items
+              (
+                receipt_number,
+                sku,
+                item_name,
+                quantity,
+                price,
+                gross_total
+              )
+              VALUES ($1,$2,$3,$4,$5,$6)
+              ON CONFLICT DO NOTHING
+              `,
+              [
+                r.receipt_number,
+                item.sku,
+                item.item_name,
+                item.quantity,
+                item.price,
+                item.gross_total_money,
+              ]
+            );
+
+          }
+
+          // =========================
+          // PAYMENTS
+          // =========================
+          console.log("🚀 Start insert data for receipt_payments");
+          for (const payment of r.payments || []) {
+
+            await pool.query(
+              `
+              INSERT INTO receipt_payments
+              (
+                receipt_number,
+                payment_type_id,
+                payment_name,
+                payment_type,
+                money_amount,
+                paid_at
+              )
+              VALUES ($1,$2,$3,$4,$5,$6)
+              ON CONFLICT DO NOTHING
+              `,
+              [
+                r.receipt_number,
+                payment.payment_type_id,
+                payment.name,
+                payment.type,
+                payment.money_amount,
+                toCambodiaTime(payment.paid_at),
+              ]
+            );
+
+          }
+
+        }
+        await client.query("COMMIT");
+        
+      } else {
+        console.log("⚠️ No data from loyverse for yesterday");
+      }
+      console.log("✅ Recipt not found for yesterday, inserting new receipt data...");
+    } else {
+      console.log(`⏭ Skipping receipt is already exists for yesterday`);
+    }
+
+    res.status(201).json({ message: 'Receipts inserted successfully.' });
+  } catch (err) {
+
+    await pool.query("ROLLBACK");
+
+    console.error("❌ Insert process failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+
+});
 
 // ─── DEBUG endpoint ──────────────────────────────────────────────────────────
 app.get('/api/debug', async (req, res) => {

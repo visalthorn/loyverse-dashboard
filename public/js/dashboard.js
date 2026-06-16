@@ -776,3 +776,31 @@ function renderExpensesPagination(total, page, per_page) {
 
   container.parentNode.appendChild(pager);
 }
+
+// Sync Gross Income for Yesterday
+async function syncGrossIncome() {
+
+  // use fetch directly with POST since we need to send a body and attach auth
+  try {
+    const token = getToken();
+      let r = await fetch('/api/gross-income', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
+          body: JSON.stringify({})
+        });
+
+      console.log(r.status);
+
+      if (r.status === 401) { logout(); return; }
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        console.error('Failed to sync gross income:', j.message || 'Unknown error');
+        return;
+      }
+
+      console.log("🔚 Finished");
+      loadGrossIncomeTrend();
+  } catch (err) {
+    console.error('Sync gross income error:', err);
+  }
+}
