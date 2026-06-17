@@ -784,7 +784,7 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
           }
 
         }
-        await client.query("COMMIT");
+        await pool.query("COMMIT");
         
       } else {
         console.log("⚠️ No data from loyverse for yesterday");
