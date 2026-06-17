@@ -130,14 +130,48 @@ function getTrendPeriod(period, startDate, endDate) {
   return 'day';
 }
 
-function getPrevPeriodSQL(period, alias = 'r') {
+function getPrevPeriodSQL(period, startDate, endDate, alias = 'r') {
   const col = alias + '.receipt_date';
   const kh  = toKH(col);
   switch (period) {
-    case 'week':   return "DATE(" + kh + ") BETWEEN CURRENT_DATE - INTERVAL '13 days' AND CURRENT_DATE - INTERVAL '7 days'";
-    case 'month':  return "DATE_TRUNC('month', " + kh + ") = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '2 months')";
-    case 'year':   return "DATE_TRUNC('year',  " + kh + ") = DATE_TRUNC('year',  CURRENT_DATE - INTERVAL '2 years')";
-    default:       return "DATE(" + kh + ") = CURRENT_DATE - INTERVAL '1 day'";
+    case 'week':
+      return {
+        clause: "DATE(" + kh + ") BETWEEN CURRENT_DATE - INTERVAL '13 days' AND CURRENT_DATE - INTERVAL '7 days'",
+        params: []
+      };
+    case 'month':
+      return {
+        clause: "DATE_TRUNC('month', " + kh + ") = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '2 months')",
+        params: []
+      };
+    case 'year':
+      return {
+        clause: "DATE_TRUNC('year',  " + kh + ") = DATE_TRUNC('year',  CURRENT_DATE - INTERVAL '2 years')",
+        params: []
+      };
+    case 'range':
+      if (startDate && endDate) {
+        const start = dayjs(startDate).startOf('day');
+        const end = dayjs(endDate).startOf('day');
+        const days = Math.max(1, end.diff(start, 'day') + 1);
+        const prevEnd = start.subtract(1, 'day');
+        const prevStart = prevEnd.subtract(days - 1, 'day');
+        console.log(`Current range: ${start.format('YYYY-MM-DD')} to ${end.format('YYYY-MM-DD')} (${days} days)`);
+        console.log(`Previous range: ${prevStart.format('YYYY-MM-DD')} to ${prevEnd.format('YYYY-MM-DD')}`);
+        return {
+          clause: `DATE(${kh}) BETWEEN $1 AND $2`,
+          params: [prevStart.format('YYYY-MM-DD'), prevEnd.format('YYYY-MM-DD')]
+        };
+      }
+      return {
+        clause: "DATE(" + kh + ") = CURRENT_DATE - INTERVAL '2 day'",
+        params: []
+      };
+    default:
+      return {
+        clause: "DATE(" + kh + ") = CURRENT_DATE - INTERVAL '2 day'",
+        params: []
+      };
   }
 }
 
@@ -226,15 +260,16 @@ app.get('/api/kpis', requireAuth, async (req, res) => {
       WHERE ${filter.clause}
         AND ((receipt_type = 'SALE' AND cancelled_at IS NULL) OR (receipt_type = 'REFUND' AND cancelled_at IS NOT NULL))
     `, filter.params);
+    const prevFilter = getPrevPeriodSQL(period, req.query.start, req.query.end);
     const prev = await pool.query(`
       SELECT
         COALESCE(SUM(total_money), 0) AS gross_income,
         COUNT(*) AS orders,
         COALESCE(AVG(total_money), 0) AS aov
       FROM receipts r
-      WHERE ${getPrevPeriodSQL(period)}
+      WHERE ${prevFilter.clause}
         AND ((receipt_type = 'SALE' AND cancelled_at IS NULL) OR (receipt_type = 'REFUND' AND cancelled_at IS NOT NULL))
-    `);
+    `, prevFilter.params);
 
     // total expenses for the same filter (use expense_date column)
     const expFilter = buildPeriodFilter(period, req.query.start, req.query.end, 'e', 1, 'expense_date');
