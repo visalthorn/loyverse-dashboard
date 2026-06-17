@@ -3,6 +3,8 @@ const jwt    = require('jsonwebtoken');
 const axios = require("axios");
 const dotenv = require('dotenv');
 
+const path = require('path');
+const fs = require('fs');
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
 const timezone = require("dayjs/plugin/timezone");
@@ -11,11 +13,52 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 dotenv.config();
 
+const LOG_DIR = path.join(__dirname, 'logs');
+
+function formatLogArg(arg) {
+  if (arg instanceof Error) return arg.stack || arg.message;
+  if (typeof arg === 'object') return JSON.stringify(arg, null, 2);
+  return String(arg);
+}
+
+function ensureLogDir() {
+  if (!fs.existsSync(LOG_DIR)) {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+  }
+}
+
+function getLogFilePath() {
+  return path.join(LOG_DIR, `server-${dayjs().tz("Asia/Phnom_Penh").format("YYYY-MM-DD")}.log`);
+}
+
+function writeLogToFile(...args) {
+  try {
+    ensureLogDir();
+    const timestamp = dayjs().tz("Asia/Phnom_Penh").format("YYYY-MM-DD HH:mm:ss");
+    const text = args.map(formatLogArg).join(' ');
+    fs.appendFileSync(getLogFilePath(), `[${timestamp}] ${text}\n`, 'utf8');
+  } catch (err) {
+    process.stderr.write(`Failed to write log file: ${err.stack || err.message}\n`);
+  }
+}
+
+const originalConsoleLog = console.log.bind(console);
+const originalConsoleError = console.error.bind(console);
+
+console.log = (...args) => {
+  originalConsoleLog(...args);
+  writeLogToFile(...args);
+};
+
+console.error = (...args) => {
+  originalConsoleError(...args);
+  writeLogToFile('ERROR', ...args);
+};
+
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_UAT || process.env.JWT_SECRET_PROD || 'pos_dashboard_secret_change_in_prod';
 const JWT_EXPIRES = '24h'; // token lasts 24 hour
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const pool = require('./db');
 
 const app = express();
@@ -608,15 +651,15 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
       `
       SELECT 1
       FROM receipts
-      WHERE receipt_date >= $1
-        AND receipt_date <= $2
+      WHERE CAST(receipt_date AS date) = CAST($1 AS date)
       LIMIT 1
       `,
       [
-        yesterday.startOf("day").toISOString(),
-        yesterday.endOf("day").toISOString(),
+        yesterday.toISOString(),
       ]
     );
+
+    console.log(`📊 Receipt exists for yesterday: ${receiptExistsByYesterday.rowCount > 0 ? 'YES' : 'NO'}`);
 
     if (receiptExistsByYesterday.rowCount <= 0) {
 
