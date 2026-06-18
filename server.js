@@ -646,7 +646,7 @@ async function fetchReceipts(startDate, endDate) {
   let cursor = null;
   const startDateUtc = dayjs(startDate).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
   const endDateUtc = dayjs(endDate).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
-
+  console.log(`Fetching receipts from Loyverse between ${startDateUtc} and ${endDateUtc} (UTC time)`);
   do {
 
     const res = await loyverse.get("/receipts", {
@@ -659,7 +659,6 @@ async function fetchReceipts(startDate, endDate) {
     });
 
     const receipts = res.data.receipts || [];
-
     all.push(...receipts);
 
     cursor = res.data.cursor;
@@ -703,7 +702,6 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
       console.log("🚀 Sync started");
       // get receipts from Loyverse for yesterday
       const receipts = await fetchReceipts(start, end);
-
       if (receipts.length > 0) {
         await pool.query("BEGIN");
         for (const r of receipts) {
