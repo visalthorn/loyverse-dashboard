@@ -536,17 +536,37 @@ app.get('/api/expenses', requireAuth, async (req, res) => {
     const per_page = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 10));
     const offset = (page - 1) * per_page;
 
-    const totalRes = await pool.query(`SELECT COUNT(*) AS count FROM expenses`);
+    const filters = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (req.query.start) {
+      filters.push(`expense_date >= $${paramIndex++}`);
+      params.push(req.query.start);
+    }
+    if (req.query.end) {
+      filters.push(`expense_date <= $${paramIndex++}`);
+      params.push(req.query.end);
+    }
+
+    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+
+    const totalRes = await pool.query(`SELECT COUNT(*) AS count FROM expenses ${whereClause}`, params);
     const total = parseInt(totalRes.rows[0].count || 0);
 
+    const totalAmountRes = await pool.query(`SELECT COALESCE(SUM(amount), 0) AS total_amount FROM expenses ${whereClause}`, params);
+    const total_amount = parseFloat(totalAmountRes.rows[0].total_amount || 0);
+
+    const pagingParams = [...params, per_page, offset];
     const result = await pool.query(`
       SELECT id, expense_date, amount, remark, expense_by, created_at
       FROM expenses
+      ${whereClause}
       ORDER BY expense_date DESC, created_at DESC
-      LIMIT $1 OFFSET $2
-    `, [per_page, offset]);
+      LIMIT $${pagingParams.length - 1} OFFSET $${pagingParams.length}
+    `, pagingParams);
 
-    res.json({ items: result.rows, total, page, per_page });
+    res.json({ items: result.rows, total, total_amount, page, per_page });
   } catch (err) {
     console.error('Expenses GET error:', err);
     res.status(500).json({ error: err.message });

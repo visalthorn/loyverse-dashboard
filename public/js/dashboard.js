@@ -103,9 +103,38 @@ function renderUserHeader(user) {
 let currentPeriod = 'week';
 let currentStartDate = '';
 let currentEndDate = '';
+let expenseFilterStartDate = '';
+let expenseFilterEndDate = '';
 let charts = {};
 const COLORS = ['#f59e0b','#3b82f6','#10b981','#f43f5e','#8b5cf6','#06b6d4','#84cc16','#ec4899'];
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function getTodayDate() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function updateExpenseSummary(count, totalAmount) {
+  const summary = getEl('expensesSummary');
+  if (!summary) return;
+  const formattedTotal = `៛${fmtRaw(totalAmount, 2)}`;
+  summary.innerHTML = `<span class="text-sm text-amber-600 font-bold">${count}</span> item${count === 1 ? '' : 's'} · Total: <span class="text-sm text-amber-600 font-bold">${formattedTotal}</span>`;
+}
+
+function applyExpenseFilters() {
+  expenseFilterStartDate = getEl('expensesStartDate')?.value || '';
+  expenseFilterEndDate = getEl('expensesEndDate')?.value || '';
+  window.expensesPage = 1;
+  loadExpenses();
+}
+
+function clearExpenseFilters() {
+  const today = getTodayDate();
+  const startInput = getEl('expensesStartDate');
+  const endInput = getEl('expensesEndDate');
+  if (startInput) startInput.value = today;
+  if (endInput) endInput.value = today;
+  applyExpenseFilters();
+}
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -117,7 +146,21 @@ window.addEventListener('DOMContentLoaded', () => {
     loadAll();
     setInterval(loadAll, 5 * 60 * 1000); // auto-refresh 5 min
   } else if (hasExpenses) {
-    loadExpenses();
+    const today = getTodayDate();
+
+    const startInput = getEl('expensesStartDate');
+    const endInput = getEl('expensesEndDate');
+    if (startInput) startInput.value = today;
+    if (endInput) endInput.value = today;
+
+    const applyBtn = getEl('expensesFilterBtn');
+    const clearBtn = getEl('expensesClearBtn');
+    if (applyBtn) applyBtn.addEventListener('click', applyExpenseFilters);
+    if (clearBtn) clearBtn.addEventListener('click', clearExpenseFilters);
+    if (startInput) startInput.addEventListener('change', applyExpenseFilters);
+    if (endInput) endInput.addEventListener('change', applyExpenseFilters);
+
+    applyExpenseFilters();
   }
 });
 
@@ -615,10 +658,23 @@ async function loadExpenses() {
   const page = window.expensesPage || 1;
   const per_page = window.expensesPerPage || 10;
 
-  const data = await fetchJSON(`/api/expenses?page=${page}&per_page=${per_page}`);
-  if (!data) return container.innerHTML = '<div class="text-slate-500">Failed to load expenses.</div>';
+  const queryParts = [`page=${page}`, `per_page=${per_page}`];
+  if (expenseFilterStartDate) queryParts.push(`start=${encodeURIComponent(expenseFilterStartDate)}`);
+  if (expenseFilterEndDate) queryParts.push(`end=${encodeURIComponent(expenseFilterEndDate)}`);
+  const data = await fetchJSON(`/api/expenses?${queryParts.join('&')}`);
+  if (!data) {
+    updateExpenseSummary(0, 0);
+    return container.innerHTML = '<div class="text-slate-500">Failed to load expenses.</div>';
+  }
 
-  if (!data.items || data.items.length === 0) return container.innerHTML = '<div class="text-slate-500">No expenses recorded.</div>';
+  const totalAmount = parseFloat(data.total_amount || 0);
+  updateExpenseSummary(data.total || 0, totalAmount);
+
+  if (!data.items || data.items.length === 0) {
+    container.innerHTML = '<div class="text-slate-500">No expenses recorded for the selected range.</div>';
+    renderExpensesPagination(data.total || 0, data.page, data.per_page);
+    return;
+  }
 
   let lastDate = null;
   const groupedHtml = data.items.map(e => {
@@ -626,7 +682,7 @@ async function loadExpenses() {
     const showHeader = dayLabel !== lastDate;
     lastDate = dayLabel;
     return `${showHeader ? `
-      <div class="mt-3 mb-1 text-xs uppercase tracking-wide text-slate-500 border-b border-slate-700 pb-1">${dayLabel}</div>
+      <div class="mt-3 mb-1 text-xs uppercase tracking-wide text-amber-500 font-bold border-b border-slate-700 pb-1">${dayLabel}</div>
     ` : ''}
     <div class="flex items-center justify-between p-2 bg-slate-800 rounded ${showHeader ? '' : 'mt-2'}">
       <div>
