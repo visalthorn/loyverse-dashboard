@@ -644,13 +644,15 @@ async function fetchReceipts(startDate, endDate) {
 
   let all = [];
   let cursor = null;
+  const startDateUtc = dayjs(startDate).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
+  const endDateUtc = dayjs(endDate).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
 
   do {
 
     const res = await loyverse.get("/receipts", {
       params: {
-        created_at_min: startDate,
-        created_at_max: endDate,
+        created_at_min: startDateUtc,
+        created_at_max: endDateUtc,
         limit: 250,
         cursor,
       },
@@ -690,7 +692,7 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
       LIMIT 1
       `,
       [
-        yesterday.toISOString(),
+        toCambodiaTime(yesterday.toISOString()),
       ]
     );
 
@@ -699,13 +701,7 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
     if (receiptExistsByYesterday.rowCount <= 0) {
 
       console.log("🚀 Sync started");
-      console.log("");
-      console.log("=================================");
-      console.log(`📅 Syncing ${yesterday.format("YYYY-MM-DD")}`);
-      console.log("=================================");
-
       // get receipts from Loyverse for yesterday
-      console.log("🚀 Fetching data from loyverse");
       const receipts = await fetchReceipts(start, end);
 
       if (receipts.length > 0) {
@@ -714,7 +710,6 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
           // =========================
           // RECEIPTS
           // =========================
-          console.log("🚀 Start insert data for receipts");
           await pool.query(
             `
             INSERT INTO receipts
@@ -757,7 +752,6 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
           // =========================
           // ITEMS
           // =========================
-          console.log("🚀 Start insert data for receipt_items");
           for (const item of r.line_items || []) {
 
             await pool.query(
@@ -789,7 +783,6 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
           // =========================
           // PAYMENTS
           // =========================
-          console.log("🚀 Start insert data for receipt_payments");
           for (const payment of r.payments || []) {
 
             await pool.query(
