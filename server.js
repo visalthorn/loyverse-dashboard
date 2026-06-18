@@ -11,6 +11,8 @@ const timezone = require("dayjs/plugin/timezone");
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+const TZ = 'Asia/Phnom_Penh';
+
 dotenv.config();
 
 const LOG_DIR = path.join(__dirname, 'logs');
@@ -644,8 +646,8 @@ async function fetchReceipts(startDate, endDate) {
 
   let all = [];
   let cursor = null;
-  const startDateUtc = dayjs(startDate).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
-  const endDateUtc = dayjs(endDate).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
+  const startDateUtc = startDate.utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
+  const endDateUtc = endDate.utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
   console.log(`Fetching receipts from Loyverse between ${startDateUtc} and ${endDateUtc} (UTC time)`);
   do {
 
@@ -675,9 +677,9 @@ async function fetchReceipts(startDate, endDate) {
 
 app.post('/api/gross-income', requireAuth, async (req, res) => {
   try {
-    const yesterday = dayjs().subtract(1, 'day');
-    const start = yesterday.startOf("day").toISOString();
-    const end = yesterday.endOf("day").toISOString();
+    const yesterday = dayjs().tz(TZ).subtract(1, 'day');
+    const start = yesterday.startOf('day');
+    const end = yesterday.endOf('day');
 
     console.log(`📅 Checking is the receipt is already exists for ${yesterday.format("YYYY-MM-DD")}`);
     // =========================
