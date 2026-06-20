@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // DASHBOARD AUTH GUARD
 // Add this at the VERY TOP of your dashboard.js (before everything)
 // ============================================================
@@ -6,6 +6,7 @@
 // ── Auth Guard ───────────────────────────────────────────────
 const TOKEN_KEY = 'pos_token';
 const USER_KEY  = 'pos_user';
+const TZ = 'Asia/Phnom_Penh';
  
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -140,11 +141,19 @@ function clearExpenseFilters() {
 window.addEventListener('DOMContentLoaded', () => {
   const hasDashboard = Boolean(document.getElementById('grossIncomeChart'));
   const hasExpenses  = Boolean(document.getElementById('expenseForm') || document.getElementById('expensesList'));
+  const hasReceipts  = Boolean(document.getElementById('receiptsTbody'));
 
   if (hasDashboard) {
     detectEnv();
     loadAll();
     setInterval(loadAll, 5 * 60 * 1000); // auto-refresh 5 min
+  } else if (hasReceipts) {
+    const today = getTodayDate();
+    const startInput = getEl('filterStart');
+    const endInput   = getEl('filterEnd');
+    if (startInput) startInput.value = today;
+    if (endInput)   endInput.value   = today;
+    loadReceipts();
   } else if (hasExpenses) {
     const today = getTodayDate();
 
@@ -306,7 +315,7 @@ async function loadGrossIncomeTrend() {
   // for PP midnight (e.g. 2026-06-07T17:00:00.000Z === 2026-06-08 00:00 +07:00),
   // so we must convert via the PP timezone rather than reading the UTC date part.
   const ppDateKey = (period) =>
-    new Date(period).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+    new Date(period).toLocaleDateString('en-CA', { timeZone: TZ });
 
   const labels  = incomeData.map(r => fmtDate(r.period, trendPeriod));
   const revenue = incomeData.map(r => parseFloat(r.gross_income));
@@ -833,7 +842,7 @@ function renderExpensesPagination(total, page, per_page) {
   container.parentNode.appendChild(pager);
 }
 
-// Sync Gross Income for Yesterday
+// // ───  Sync Gross Income for Yesterday ───────────────────────────────────────────────────────────────
 async function syncGrossIncome() {
 
   // use fetch directly with POST since we need to send a body and attach auth
@@ -860,3 +869,445 @@ async function syncGrossIncome() {
     console.error('Sync gross income error:', err);
   }
 }
+
+// ─── Expenses ───────────────────────────────────────────────────────────────
+/* ===========================
+     Config
+  =========================== */
+  const PAGE_SIZE = 25;
+
+  /* ===========================
+     State
+  =========================== */
+  let allReceipts = [];   // loaded from API (already filtered by date/type)
+  let displayed   = [];   // after client-side search
+  let currentPage = 1;
+  let selectedId  = null;
+  let isLoading   = false;
+
+  /* ===========================
+     Fetch from API — date/type filters sent as query params
+  =========================== */
+  async function loadReceipts() {
+    if (isLoading) return;
+    isLoading = true;
+    setTableLoading(true);
+
+    const start = document.getElementById('filterStart').value;
+    const end   = document.getElementById('filterEnd').value;
+    const type  = document.getElementById('filterType').value;
+
+    const params = new URLSearchParams({ per_page: 500 });
+    if (start) params.set('start', start);
+    if (end)   params.set('end',   end);
+    if (type)  params.set('type',  type);
+
+    const data = await fetchJSON(`/api/receipts?${params}`);
+    allReceipts = data ? (data.receipts ?? []) : filterDemoData(start, end, type);
+
+    isLoading = false;
+    currentPage = 1;
+    renderStats();
+    applySearch();
+  }
+
+  /* ===========================
+     Stats (from API-returned dataset)
+  =========================== */
+  function renderStats() {
+    const salesRows   = allReceipts.filter(r => r.receipt_type === 'SALE' && r.is_canceled === 'No');
+    const refundRows  = allReceipts.filter(r => r.receipt_type === 'REFUND');
+
+    const salesAmt   = salesRows.reduce((s, r)   => s + parseFloat(r.total_money || 0), 0);
+    const refundAmt  = refundRows.reduce((s, r)  => s + parseFloat(r.total_money || 0), 0);
+    const totalAmt   = salesAmt - refundAmt;
+
+    document.getElementById('statTotal').textContent         = allReceipts.length;
+    document.getElementById('statTotalAmount').textContent   = '៛' + fmtRaw(totalAmt);
+    document.getElementById('statSales').textContent         = salesRows.length;
+    document.getElementById('statSalesAmount').textContent   = '៛' + fmtRaw(salesAmt);
+    document.getElementById('statRefunds').textContent       = refundRows.length;
+    document.getElementById('statRefundsAmount').textContent = '៛' + fmtRaw(refundAmt);
+  }
+
+  /* ===========================
+     API filter change — re-fetch
+  =========================== */
+  function onApiFilterChange() {
+    loadReceipts();
+  }
+
+  /* ===========================
+     Client-side search (no API call)
+  =========================== */
+  function onSearchChange() {
+    currentPage = 1;
+    applySearch();
+  }
+
+  function applySearch() {
+    const q = document.getElementById('searchInput').value.trim().toLowerCase();
+
+    displayed = q
+      ? allReceipts.filter(r =>
+          (r.receipt_number || '').toLowerCase().includes(q) ||
+          (r.pos_device || '').toLowerCase().includes(q) ||
+          String(r.order || '').includes(q)
+        )
+      : allReceipts;
+
+    const n  = displayed.length;
+    const of = allReceipts.length;
+    document.getElementById('resultCount').textContent =
+      q ? `${n} of ${of} receipts` : `${of} receipts`;
+
+    setTableLoading(false);
+    renderTable();
+    renderPagination();
+  }
+
+  function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('filterStart').value = '';
+    document.getElementById('filterEnd').value   = '';
+    document.getElementById('filterType').value  = '';
+    loadReceipts();
+  }
+
+  function setTableLoading(on) {
+    if (on) {
+      document.getElementById('receiptsTbody').innerHTML =
+        `<tr><td colspan="8" class="empty-state"><span class="loading-dots">Loading</span></td></tr>`;
+    }
+  }
+
+  /* ===========================
+     Table rendering
+  =========================== */
+  function renderTable() {
+    const tbody  = document.getElementById('receiptsTbody');
+    const start  = (currentPage - 1) * PAGE_SIZE;
+    const rows   = displayed.slice(start, start + PAGE_SIZE);
+
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No receipts match your filters</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map((r, i) => {
+      const idx         = start + i + 1;
+      const dateStr     = formatDate(r.receipt_date);
+      const typeClass   = r.receipt_type === 'REFUND' ? 'badge-refund' : 'badge-sale';
+      const typeLabel   = r.receipt_type === 'SALE' ? 'Sale' : r.receipt_type === 'REFUND' ? 'Refund' : (r.receipt_type || '—');
+      const cancelBadge = r.is_canceled === 'Yes'
+        ? '<span class="badge badge-canceled">Yes</span>'
+        : '<span class="text-slate-600 text-xs">—</span>';
+      const sel = r.id === selectedId ? 'selected' : '';
+
+      return `<tr class="receipt-row ${sel}" onclick="selectReceipt(${r.id})">
+        <td class="py-2.5 pr-3 text-slate-500 text-xs pl-1">${idx}</td>
+        <td class="py-2.5 pr-3 font-mono text-amber-400 font-semibold text-xs">${r.receipt_number}</td>
+        <td class="py-2.5 pr-3 text-slate-400 text-xs">${r.order ?? '—'}</td>
+        <td class="py-2.5 pr-3 text-slate-300 text-xs whitespace-nowrap">${dateStr}</td>
+        <td class="py-2.5 pr-3 text-slate-300 text-xs">${r.pos_device ?? '—'}</td>
+        <td class="py-2.5 pr-3 text-center"><span class="badge ${typeClass}">${typeLabel}</span></td>
+        <td class="py-2.5 pr-3 text-center">${cancelBadge}</td>
+        <td class="py-2.5 text-right font-semibold text-white text-xs whitespace-nowrap">${formatCurrency(r.total_money)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  /* ===========================
+     Pagination
+  =========================== */
+  function renderPagination() {
+    const total     = Math.ceil(displayed.length / PAGE_SIZE);
+    const ctrl      = document.getElementById('paginationControls');
+    const pageInfo  = document.getElementById('pageInfo');
+
+    pageInfo.textContent = `Page ${currentPage} of ${total || 1}`;
+
+    if (total <= 1) { ctrl.innerHTML = ''; return; }
+
+    let pages = [];
+    // always show first, last, current ±1
+    const show = new Set([1, total, currentPage, currentPage - 1, currentPage + 1]
+      .filter(p => p >= 1 && p <= total));
+    const sorted = [...show].sort((a, b) => a - b);
+
+    let html = `<button class="page-btn" onclick="changePage(${currentPage - 1})" ${currentPage===1?'disabled':''}>‹</button>`;
+
+    let prev = 0;
+    for (const p of sorted) {
+      if (p - prev > 1) html += `<span class="page-btn" style="cursor:default;color:#475569">…</span>`;
+      html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="changePage(${p})">${p}</button>`;
+      prev = p;
+    }
+
+    html += `<button class="page-btn" onclick="changePage(${currentPage + 1})" ${currentPage===total?'disabled':''}>›</button>`;
+    ctrl.innerHTML = html;
+  }
+
+  function changePage(p) {
+    const total = Math.ceil(displayed.length / PAGE_SIZE);
+    if (p < 1 || p > total) return;
+    currentPage = p;
+    renderTable();
+    renderPagination();
+  }
+
+  /* ===========================
+     Receipt detail
+  =========================== */
+  function selectReceipt(id) {
+    selectedId = id;
+    const r = allReceipts.find(x => x.id === id);
+    renderTable();
+
+    if (!r) return;
+
+    const panel   = document.getElementById('detailPanel');
+    const empty   = document.getElementById('detailEmpty');
+    const content = document.getElementById('detailContent');
+
+    empty.classList.add('hidden');
+    content.classList.remove('hidden');
+    panel.classList.add('active');
+
+    const items = Array.isArray(r.items) ? r.items : [];
+    const itemsHtml = items.map(it => `
+      <div class="detail-item-row">
+        <div>
+          <div class="detail-item-name">${it.item_name}</div>
+          <div class="detail-item-qty">${it.qty} × ${formatCurrency(it.unit_price)}</div>
+        </div>
+        <div class="detail-item-price">${formatCurrency(it.total_price)}</div>
+      </div>`).join('');
+
+    const isRefund   = r.receipt_type === 'REFUND';
+    const typeClass  = isRefund ? 'text-red-400' : 'text-emerald-400';
+    const typeLabel  = isRefund ? 'Refund' : 'Sale';
+    const cancelNote = r.is_canceled === 'Yes' ? `<span class="badge badge-canceled ml-2">Canceled</span>` : '';
+
+    content.innerHTML = `
+      <div class="detail-header">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div>
+            <div class="text-xs text-slate-400 mb-0.5">Receipt No.</div>
+            <div class="font-mono font-bold text-amber-400 text-base">${r.receipt_number}</div>
+          </div>
+          <div class="text-right">
+            <span class="badge ${isRefund ? 'badge-refund' : 'badge-sale'} text-sm px-3 py-1">${typeLabel}</span>
+            ${cancelNote}
+          </div>
+        </div>
+        <div class="text-2xl font-bold text-white mb-1">${formatCurrency(r.total_money)}</div>
+        <div class="text-xs text-slate-400">Total</div>
+      </div>
+
+      <div class="p-4 space-y-3 text-xs">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-slate-500 mb-0.5">Order</div>
+            <div class="text-slate-200">${r.order ?? '—'}</div>
+          </div>
+          <div>
+            <div class="text-slate-500 mb-0.5">POS Device</div>
+            <div class="text-slate-200">${r.pos_device ?? '—'}</div>
+          </div>
+          <div>
+            <div class="text-slate-500 mb-0.5">Date</div>
+            <div class="text-slate-200">${formatDate(r.receipt_date)}</div>
+          </div>
+        </div>
+
+        ${itemsHtml ? `
+        <div class="border-t border-slate-700 pt-3">
+          <div class="text-slate-400 font-semibold mb-2">Items</div>
+          ${itemsHtml}
+        </div>` : ''}
+
+        <div class="border-t border-slate-700 pt-3 flex justify-between font-semibold">
+          <span class="text-slate-300">Total</span>
+          <span class="${typeClass}">${formatCurrency(r.total_money)}</span>
+        </div>
+
+        <div class="border-t border-slate-700 pt-3">
+          <button onclick="exportReceiptPDF()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold py-2 rounded flex items-center justify-center gap-1.5">
+            🖨 Export PDF
+          </button>
+        </div>
+      </div>`;
+  }
+
+  /* ===========================
+     Formatters
+  =========================== */
+  function formatCurrency(val) {
+    if (val == null) return '—';
+    return 'KHR ' + Number(val).toLocaleString();
+  }
+
+  function formatDate(str) {
+    if (!str) return '—';
+    try {
+      return new Date(str).toLocaleString('en-GB', {
+        timeZone: TZ,
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      });
+    } catch { return str; }
+  }
+
+  /* ===========================
+     CSV / PDF Export
+  =========================== */
+  function downloadCSV(filename, rows) {
+    const csv = rows.map(r => r.map(cell => {
+      const s = String(cell ?? '');
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportReceiptsCSV() {
+    if (!allReceipts.length) return alert('No receipts loaded.');
+    const rows = [
+      ['Receipt No.', 'Order', 'Date', 'POS Device', 'Type', 'Is Canceled', 'Total (KHR)'],
+      ...allReceipts.map(r => [
+        r.receipt_number,
+        r.order ?? '',
+        formatDate(r.receipt_date),
+        r.pos_device ?? '',
+        r.receipt_type === 'SALE' ? 'Sale' : r.receipt_type === 'REFUND' ? 'Refund' : (r.receipt_type ?? ''),
+        r.is_canceled,
+        r.total_money
+      ])
+    ];
+    downloadCSV(`receipts-${new Date().toISOString().slice(0,10)}.csv`, rows);
+  }
+
+  async function exportExpensesCSV() {
+    const params = new URLSearchParams({ per_page: 1000 });
+    if (expenseFilterStartDate) params.set('start', expenseFilterStartDate);
+    if (expenseFilterEndDate)   params.set('end',   expenseFilterEndDate);
+    const data = await fetchJSON(`/api/expenses?${params}`);
+    if (!data || !data.items) return alert('Failed to load expenses.');
+    const rows = [
+      ['Date', 'Amount (KHR)', 'Expense By', 'Remark'],
+      ...data.items.map(e => [
+        e.expense_date ? e.expense_date.slice(0, 10) : '',
+        e.amount,
+        e.expense_by,
+        e.remark ?? ''
+      ])
+    ];
+    downloadCSV(`expenses-${new Date().toISOString().slice(0,10)}.csv`, rows);
+  }
+
+  function exportReceiptPDF() {
+    const r = allReceipts.find(x => x.id === selectedId);
+    if (!r) return;
+    const items = Array.isArray(r.items) ? r.items : [];
+    const itemsHtml = items.map(it => `
+      <tr>
+        <td>${it.item_name}</td>
+        <td style="text-align:center">${it.qty}</td>
+        <td style="text-align:right">KHR ${Number(it.unit_price).toLocaleString()}</td>
+        <td style="text-align:right">KHR ${Number(it.total_price).toLocaleString()}</td>
+      </tr>`).join('');
+    const typeLabel = r.receipt_type === 'REFUND' ? 'Refund' : 'Sale';
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"/>
+<title>Receipt ${r.receipt_number}</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 420px; margin: 24px auto; font-size: 13px; color: #111; }
+  h1 { text-align: center; font-size: 18px; margin: 0 0 2px; }
+  .sub { text-align: center; color: #555; font-size: 11px; margin-bottom: 14px; }
+  .meta { display: flex; justify-content: space-between; margin: 4px 0; font-size: 12px; }
+  .meta span:first-child { color: #666; }
+  hr { border: none; border-top: 1px dashed #999; margin: 10px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { border-bottom: 1px solid #333; padding: 4px 6px; text-align: left; }
+  td { padding: 4px 6px; }
+  .total-row td { border-top: 1px solid #333; font-weight: bold; padding-top: 6px; }
+  @media print { @page { margin: 10mm; } }
+</style>
+</head><body>
+  <h1>Receipt</h1>
+  <div class="sub">${r.receipt_number} &bull; ${typeLabel}${r.is_canceled === 'Yes' ? ' &bull; Canceled' : ''}</div>
+  <hr/>
+  <div class="meta"><span>Date</span><span>${formatDate(r.receipt_date)}</span></div>
+  <div class="meta"><span>POS Device</span><span>${r.pos_device ?? '—'}</span></div>
+  <div class="meta"><span>Order</span><span>${r.order ?? '—'}</span></div>
+  ${items.length ? `<hr/>
+  <table>
+    <thead><tr>
+      <th>Item</th>
+      <th style="text-align:center">Qty</th>
+      <th style="text-align:right">Unit Price</th>
+      <th style="text-align:right">Total</th>
+    </tr></thead>
+    <tbody>
+      ${itemsHtml}
+      <tr class="total-row">
+        <td colspan="3">Total</td>
+        <td style="text-align:right">KHR ${Number(r.total_money).toLocaleString()}</td>
+      </tr>
+    </tbody>
+  </table>` : `<hr/><div class="meta"><strong>Total</strong><strong>KHR ${Number(r.total_money).toLocaleString()}</strong></div>`}
+  <hr/>
+  <div style="text-align:center;font-size:11px;color:#888;margin-top:8px">Thank you!</div>
+<script>window.print(); window.onafterprint = () => window.close();<\/script>
+</body></html>`);
+    win.document.close();
+  }
+
+  /* ===========================
+     Demo data helpers (fallback when API is unavailable)
+  =========================== */
+  function filterDemoData(start, end, type) {
+    return DEMO_RECEIPTS.filter(r => {
+      const rDate = r.receipt_date ? r.receipt_date.slice(0, 10) : '';
+      if (start && rDate < start) return false;
+      if (end   && rDate > end)   return false;
+      if (type  && r.receipt_type !== type) return false;
+      return true;
+    });
+  }
+
+  /* ===========================
+     Demo data
+  =========================== */
+  const DEMO_RECEIPTS = [
+    { id:'r1292', receipt_number:'6-1292', order:'8', receipt_date:'2026-06-17T16:46:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:23000, items:[
+      {item_name:'សុករសជ្រៀងជាន', qty:1, unit_price:17000, total_price:17000},
+      {item_name:'ជាសស', qty:1, unit_price:1000, total_price:1000},
+      {item_name:'សាក់យសម្ជ្រ', qty:1, unit_price:2000, total_price:2000},
+      {item_name:'Coca-Cola', qty:1, unit_price:3000, total_price:3000},
+    ]},
+    { id:'r1291', receipt_number:'6-1291', order:'10', receipt_date:'2026-06-17T16:07:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:67000, items:[]},
+    { id:'r1290', receipt_number:'6-1290', order:null, receipt_date:'2026-06-17T16:01:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:86000, items:[]},
+    { id:'r1289', receipt_number:'6-1289', order:null, receipt_date:'2026-06-17T15:45:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:60000, items:[]},
+    { id:'r1288', receipt_number:'6-1288', order:null, receipt_date:'2026-06-17T15:43:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:105000, items:[]},
+    { id:'r1287', receipt_number:'6-1287', order:null, receipt_date:'2026-06-17T15:32:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:101000, items:[]},
+    { id:'r0131', receipt_number:'9-0131', order:null, receipt_date:'2026-06-17T15:12:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:61000, items:[]},
+    { id:'r0130', receipt_number:'9-0130', order:null, receipt_date:'2026-06-17T14:59:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:56000, items:[]},
+    { id:'r1286', receipt_number:'6-1286', order:null, receipt_date:'2026-06-17T14:45:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:22000, items:[]},
+    { id:'r0129', receipt_number:'9-0129', order:null, receipt_date:'2026-06-17T14:35:00Z', pos_device:'Shop Device', receipt_type:'SALE', is_canceled:'No', total_money:27000, items:[]},
+    ...Array.from({length:27}, (_,i) => ({
+      id:`rdemo${i}`, receipt_number:`6-${1260+i}`, order:null,
+      receipt_date: new Date(Date.now() - (i+1)*3600000).toISOString(),
+      pos_device:'Shop Device', receipt_type: i % 9 === 0 ? 'REFUND' : 'SALE',
+      is_canceled: i % 11 === 0 ? 'Yes' : 'No',
+      total_money: (Math.floor(Math.random()*20)+1)*5000,
+      items:[]
+    }))
+  ];

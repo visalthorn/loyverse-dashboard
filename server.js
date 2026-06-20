@@ -533,7 +533,7 @@ app.get('/api/cancelled-orders', async (req, res) => {
 app.get('/api/expenses', requireAuth, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
-    const per_page = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 10));
+    const per_page = Math.min(1000, Math.max(1, parseInt(req.query.per_page) || 10));
     const offset = (page - 1) * per_page;
 
     const filters = [];
@@ -745,9 +745,10 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
               source,
               store_id,
               pos_device_id,
-              employee_id
+              employee_id,
+              "order"
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
             ON CONFLICT (receipt_number)
             DO NOTHING
             `,
@@ -765,7 +766,8 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
               r.source,
               r.store_id,
               r.pos_device_id,
-              r.employee_id
+              r.employee_id,
+              r.order ?? null
             ]
           );
 
@@ -851,6 +853,68 @@ app.post('/api/gross-income', requireAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 
+});
+
+
+// ─── API: Receipts
+//  ───────────────────────────────────────────────────────────
+app.get('/api/receipts', requireAuth, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const per_page = Math.min(500, Math.max(1, parseInt(req.query.per_page) || 25));
+    const offset = (page - 1) * per_page;
+
+    const filters = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (req.query.start) {
+      filters.push(`DATE(r.receipt_date) >= $${paramIndex++}`);
+      params.push(req.query.start);
+    }
+    if (req.query.end) {
+      filters.push(`DATE(r.receipt_date) <= $${paramIndex++}`);
+      params.push(req.query.end);
+    }
+    if (req.query.type) {
+      filters.push(`UPPER(r.receipt_type) = UPPER($${paramIndex++})`);
+      params.push(req.query.type);
+    }
+
+    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+
+    const totalRes = await pool.query(`SELECT COUNT(*) AS count FROM receipts r ${whereClause}`, params);
+    const total = parseInt(totalRes.rows[0].count || 0);
+
+    const totalAmountRes = await pool.query(`SELECT COALESCE(SUM(r.total_money), 0) AS total_amount FROM receipts r ${whereClause}`, params);
+    const total_amount = parseFloat(totalAmountRes.rows[0].total_amount || 0);
+
+    const pagingParams = [...params, per_page, offset];
+    const result = await pool.query(`
+      SELECT r.id, r.receipt_number, r.order, r.receipt_date, r.receipt_type,
+        CASE WHEN r.cancelled_at IS NULL THEN 'No' ELSE 'Yes' END AS is_canceled,
+        r.total_money, pd.name AS pos_device,
+        (
+          SELECT jsonb_agg(jsonb_build_object(
+            'item_name', ri.item_name,
+            'qty', ri.quantity,
+            'unit_price', ri.price,
+            'total_price', ri.gross_total
+          ))
+          FROM receipt_items ri WHERE ri.receipt_number = r.receipt_number
+        ) AS items
+      FROM receipts r
+      LEFT JOIN pos_devices pd ON r.pos_device_id = CAST(pd.id AS varchar)
+      ${whereClause}
+      ORDER BY r.receipt_date DESC, r.created_at DESC
+      LIMIT $${pagingParams.length - 1} OFFSET $${pagingParams.length}
+    `, pagingParams);
+
+    res.json({ receipts: result.rows, total, total_amount, page, per_page });
+  } catch (err) {
+    console.error('Receipts GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── DEBUG endpoint ──────────────────────────────────────────────────────────
