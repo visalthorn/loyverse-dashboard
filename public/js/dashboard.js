@@ -45,27 +45,34 @@ function setHTML(id, value) {
 // Check auth on page load — redirect to login if no token
 (async function checkAuth() {
   const token = getToken();
-  if (!token) {
-    window.location.href = '/login';
-    return;
-  }
- 
-  // Verify token is still valid with server
+  if (!token) { window.location.href = '/login'; return; }
   try {
-    const res = await fetch('/api/auth/verify', {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if (!res.ok) {
-      logout();
+    const res = await fetch('/api/auth/verify', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) { logout(); return; }
+    const data = await res.json();
+    userPermissions = data.permissions || {};
+    currentUserRole = data.user?.role || '';
+    renderUserHeader(data.user);
+    // Show Users nav link only for admin
+    const navUsers = getEl('navUsers');
+    if (navUsers) navUsers.style.display = currentUserRole === 'admin' ? '' : 'none';
+    // Block non-admins from users page
+    if (document.getElementById('usersTableBody') && currentUserRole !== 'admin') {
+      window.location.href = '/';
       return;
     }
-    // Show user info in header
-    const data = await res.json();
-    renderUserHeader(data.user);
+    applyPermissions();
   } catch {
     logout();
   }
 })();
+
+function applyPermissions() {
+  document.querySelectorAll('[data-write-page]').forEach(el => {
+    const page = el.dataset.writePage;
+    if (!userPermissions[page]?.can_write) el.style.display = 'none';
+  });
+}
  
 // Show logged-in user in dashboard header
 function renderUserHeader(user) {
@@ -101,6 +108,8 @@ function renderUserHeader(user) {
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
+let userPermissions = {};
+let currentUserRole = '';
 let currentPeriod = 'week';
 let currentStartDate = '';
 let currentEndDate = '';
@@ -142,6 +151,8 @@ window.addEventListener('DOMContentLoaded', () => {
   const hasDashboard = Boolean(document.getElementById('grossIncomeChart'));
   const hasExpenses  = Boolean(document.getElementById('expenseForm') || document.getElementById('expensesList'));
   const hasReceipts  = Boolean(document.getElementById('receiptsTbody'));
+  const hasStaff     = Boolean(document.getElementById('staffTableBody'));
+  const hasUsers     = Boolean(document.getElementById('usersTableBody'));
 
   if (hasDashboard) {
     detectEnv();
@@ -154,6 +165,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (startInput) startInput.value = today;
     if (endInput)   endInput.value   = today;
     loadReceipts();
+  } else if (hasStaff) {
+    loadStaff();
+  } else if (hasUsers) {
+    loadUsersPage();
   } else if (hasExpenses) {
     const today = getTodayDate();
 
@@ -700,8 +715,9 @@ async function loadExpenses() {
       </div>
       <div class="flex items-center gap-3">
         <div class="text-amber-400 font-bold">៛${fmt(e.amount)}</div>
+        ${userPermissions.expenses?.can_write ? `
         <button onclick="startEditExpense(${e.id})" class="text-sm text-slate-300 hover:text-amber-400">Edit</button>
-        <button onclick="confirmDeleteExpense(${e.id})" class="text-sm text-red-400 hover:text-red-300">Delete</button>
+        <button onclick="confirmDeleteExpense(${e.id})" class="text-sm text-red-400 hover:text-red-300">Delete</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1157,6 +1173,407 @@ async function syncGrossIncome() {
         hour: '2-digit', minute: '2-digit', hour12: false
       });
     } catch { return str; }
+  }
+
+  /* ===========================
+     Staff Management
+  =========================== */
+  let staffList = [];
+  let editingStaffId = null;
+
+  async function loadStaff() {
+    const data = await fetchJSON('/api/staff');
+    staffList = Array.isArray(data) ? data : [];
+    renderStaffStats();
+    renderStaffTable();
+  }
+
+  function renderStaffStats() {
+    const active = staffList.filter(s => s.is_active);
+    const totalSalary = active.reduce((sum, s) => {
+      const amt = parseFloat(s.salary || 0);
+      return sum + (s.salary_ccy === 'KHR' ? amt / 4000 : amt);
+    }, 0);
+    const totalLoan = active.reduce((sum, s) => {
+      const amt = parseFloat(s.loan_amount || 0);
+      return sum + (s.loan_ccy === 'USD' ? amt * 4000 : amt);
+    }, 0);
+    const statActive = getEl('statActiveStaff');
+    const statSalary = getEl('statTotalSalary');
+    const statLoan   = getEl('statTotalLoan');
+    if (statActive) statActive.textContent = active.length;
+    if (statSalary) statSalary.textContent = '$' + fmtRaw(totalSalary, 2);
+    if (statLoan)   statLoan.textContent   = '៛' + fmtRaw(totalLoan);
+  }
+
+  function renderStaffTable() {
+    const tbody       = getEl('staffTableBody');
+    if (!tbody) return;
+    const showInactive = getEl('showInactive')?.checked;
+    const rows = showInactive ? staffList : staffList.filter(s => s.is_active);
+
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="10" class="py-10 text-center text-slate-500">No staff found</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map((s, i) => {
+      const joinDate = s.join_date ? new Date(s.join_date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+      const statusBadge = s.is_active
+        ? '<span class="badge badge-active">Active</span>'
+        : '<span class="badge badge-inactive">Inactive</span>';
+      const salaryCcy = s.salary_ccy || 'USD';
+      const salaryDisplay = salaryCcy === 'KHR'
+        ? '៛' + fmtRaw(s.salary)
+        : '$' + fmtRaw(s.salary, 2);
+      const loanCcy = s.loan_ccy || 'KHR';
+      const loanSymbol = loanCcy === 'KHR' ? '៛' : '$';
+      const loanFmt = loanCcy === 'KHR' ? fmtRaw(s.loan_amount) : fmtRaw(s.loan_amount, 2);
+      const loanBadge = parseFloat(s.loan_amount) > 0
+        ? `<span class="badge badge-loan">${loanSymbol}${loanFmt}</span>`
+        : '<span class="text-slate-600 text-xs">—</span>';
+      const toggleLabel = s.is_active ? 'Deactivate' : 'Activate';
+      const toggleColor = s.is_active ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-emerald-400';
+      return `<tr class="staff-row border-b border-slate-800">
+        <td class="py-2.5 pr-3 text-slate-500 text-xs">${i + 1}</td>
+        <td class="py-2.5 pr-3 font-mono text-amber-400 text-xs font-semibold">${s.staff_id}</td>
+        <td class="py-2.5 pr-3 font-medium text-slate-100 text-xs">${s.full_name}</td>
+        <td class="py-2.5 pr-3 text-slate-300 text-xs">${s.position || '—'}</td>
+        <td class="py-2.5 pr-3 text-slate-400 text-xs whitespace-nowrap">${joinDate}</td>
+        <td class="py-2.5 pr-3 text-right text-emerald-400 font-semibold text-xs">${salaryDisplay}</td>
+        <td class="py-2.5 pr-3 text-slate-300 text-xs">${s.phone || '—'}</td>
+        <td class="py-2.5 pr-3 text-right text-xs">${loanBadge}</td>
+        <td class="py-2.5 pr-3 text-center">${statusBadge}</td>
+        <td class="py-2.5 text-center whitespace-nowrap">
+          ${userPermissions.staff?.can_write ? `
+          <button onclick="startEditStaff(${s.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-3">Edit</button>
+          <button onclick="toggleStaffStatus(${s.id}, ${!s.is_active})" class="text-xs ${toggleColor} mr-3">${toggleLabel}</button>
+          <button onclick="confirmDeleteStaff(${s.id})" class="text-xs text-red-500 hover:text-red-400">Delete</button>
+          ` : '<span class="text-xs text-slate-600">Read only</span>'}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function submitStaff(e) {
+    e.preventDefault();
+    const msg = getEl('staffMsg');
+    if (msg) msg.textContent = '';
+
+    const payload = {
+      staff_id:    getEl('staffId').value.trim(),
+      full_name:   getEl('staffFullName').value.trim(),
+      position:    getEl('staffPosition').value.trim(),
+      join_date:   getEl('staffJoinDate').value || null,
+      salary:      parseFloat(getEl('staffSalary').value) || 0,
+      salary_ccy:  getEl('staffSalaryCcy').value || 'USD',
+      phone:       getEl('staffPhone').value.trim() || null,
+      loan_amount: parseFloat(getEl('staffLoan').value) || 0,
+      loan_ccy:    getEl('staffLoanCcy').value || 'KHR',
+      notes:       getEl('staffNotes').value.trim() || null,
+    };
+
+    try {
+      const token = getToken();
+      const url    = editingStaffId ? `/api/staff/${editingStaffId}` : '/api/staff';
+      const method = editingStaffId ? 'PUT' : 'POST';
+      const r = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
+        body: JSON.stringify(editingStaffId ? { ...payload, is_active: true } : payload)
+      });
+      if (r.status === 401) { logout(); return; }
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        if (msg) msg.textContent = j.message || 'Failed to save.';
+        return;
+      }
+      if (msg) msg.textContent = editingStaffId ? 'Updated.' : 'Added.';
+      cancelEditStaff();
+      loadStaff();
+    } catch (err) {
+      console.error('Staff submit error:', err);
+      if (msg) msg.textContent = 'Error saving staff.';
+    }
+  }
+
+  function startEditStaff(id) {
+    const s = staffList.find(x => x.id === id);
+    if (!s) return;
+    editingStaffId = id;
+    getEl('staffId').value        = s.staff_id;
+    getEl('staffFullName').value  = s.full_name;
+    getEl('staffPosition').value  = s.position || '';
+    getEl('staffJoinDate').value  = s.join_date ? s.join_date.slice(0, 10) : '';
+    getEl('staffSalary').value    = s.salary;
+    getEl('staffSalaryCcy').value = s.salary_ccy || 'USD';
+    getEl('staffPhone').value     = s.phone || '';
+    getEl('staffLoan').value      = s.loan_amount;
+    getEl('staffLoanCcy').value   = s.loan_ccy || 'KHR';
+    getEl('staffNotes').value     = s.notes || '';
+    const titleEl = getEl('staffFormTitle');
+    const labelEl = getEl('staffSubmitLabel');
+    const cancelBtn = getEl('staffFormCancelBtn');
+    if (titleEl)    titleEl.textContent  = 'Edit Staff';
+    if (labelEl)    labelEl.textContent  = 'Save Changes';
+    if (cancelBtn)  cancelBtn.classList.remove('hidden');
+    window.scrollTo({ top: (getEl('staffForm')?.offsetTop ?? 0) - 80, behavior: 'smooth' });
+  }
+
+  function cancelEditStaff() {
+    editingStaffId = null;
+    getEl('staffForm')?.reset();
+    const titleEl   = getEl('staffFormTitle');
+    const labelEl   = getEl('staffSubmitLabel');
+    const cancelBtn = getEl('staffFormCancelBtn');
+    const msg       = getEl('staffMsg');
+    if (titleEl)    titleEl.textContent  = 'Add Staff';
+    if (labelEl)    labelEl.textContent  = 'Add Staff';
+    if (cancelBtn)  cancelBtn.classList.add('hidden');
+    if (msg)        msg.textContent      = '';
+  }
+
+  async function toggleStaffStatus(id, isActive) {
+    const s = staffList.find(x => x.id === id);
+    if (!s) return;
+    try {
+      const token = getToken();
+      const r = await fetch(`/api/staff/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
+        body: JSON.stringify({ ...s, join_date: s.join_date ? s.join_date.slice(0,10) : null, is_active: isActive })
+      });
+      if (r.status === 401) { logout(); return; }
+      if (!r.ok) return alert('Failed to update status.');
+      loadStaff();
+    } catch (err) {
+      console.error('Toggle status error:', err);
+    }
+  }
+
+  function confirmDeleteStaff(id) {
+    const s = staffList.find(x => x.id === id);
+    if (!confirm(`Delete ${s?.full_name ?? 'this staff member'}? This cannot be undone.`)) return;
+    deleteStaff(id);
+  }
+
+  async function deleteStaff(id) {
+    try {
+      const token = getToken();
+      const r = await fetch(`/api/staff/${id}`, { method: 'DELETE', headers: { 'Authorization': token ? 'Bearer ' + token : '' } });
+      if (r.status === 401) { logout(); return; }
+      if (!r.ok) { const j = await r.json().catch(() => ({})); return alert(j.message || 'Failed to delete.'); }
+      loadStaff();
+    } catch (err) {
+      console.error('Delete staff error:', err);
+    }
+  }
+
+  function exportStaffCSV() {
+    if (!staffList.length) return alert('No staff loaded.');
+    const showInactive = getEl('showInactive')?.checked;
+    const rows = showInactive ? staffList : staffList.filter(s => s.is_active);
+    const csvRows = [
+      ['Staff ID', 'Full Name', 'Position', 'Join Date', 'Salary', 'Salary CCY', 'Phone', 'Loan', 'Loan CCY', 'Status', 'Notes'],
+      ...rows.map(s => [
+        s.staff_id, s.full_name, s.position ?? '', s.join_date ? s.join_date.slice(0,10) : '',
+        s.salary, s.salary_ccy || 'USD', s.phone ?? '', s.loan_amount, s.loan_ccy || 'KHR', s.is_active ? 'Active' : 'Inactive', s.notes ?? ''
+      ])
+    ];
+    downloadCSV(`staff-${new Date().toISOString().slice(0,10)}.csv`, csvRows);
+  }
+
+  /* ===========================
+     Users & Permissions Management
+  =========================== */
+  let usersList = [];
+  let permissionsList = [];
+  let editingUserId = null;
+
+  async function loadUsersPage() {
+    await Promise.all([loadUsersList(), loadPermissionsList()]);
+  }
+
+  async function loadUsersList() {
+    const data = await fetchJSON('/api/users');
+    if (data?.error || !Array.isArray(data)) { window.location.href = '/'; return; }
+    usersList = data;
+    renderUsersTable();
+  }
+
+  async function loadPermissionsList() {
+    const data = await fetchJSON('/api/permissions');
+    permissionsList = Array.isArray(data) ? data : [];
+    renderPermissionsMatrix();
+  }
+
+  function renderUsersTable() {
+    const tbody = getEl('usersTableBody');
+    if (!tbody) return;
+    if (!usersList.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="py-10 text-center text-slate-500">No users found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = usersList.map((u, i) => {
+      const roleBadge = u.role === 'admin'
+        ? '<span class="badge" style="background:rgba(245,158,11,.15);color:#fbbf24">admin</span>'
+        : '<span class="badge" style="background:rgba(59,130,246,.12);color:#60a5fa">manager</span>';
+      const statusBadge = u.is_active
+        ? '<span class="badge" style="background:rgba(34,197,94,.12);color:#4ade80">Active</span>'
+        : '<span class="badge" style="background:rgba(100,116,139,.14);color:#94a3b8">Inactive</span>';
+      const toggleColor = u.is_active ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-emerald-400';
+      return `<tr class="border-b border-slate-800 hover:bg-slate-800/30">
+        <td class="py-2.5 pr-3 text-slate-500 text-xs">${i+1}</td>
+        <td class="py-2.5 pr-3 font-mono text-amber-400 text-xs font-semibold">${u.username}</td>
+        <td class="py-2.5 pr-3 text-slate-200 text-xs">${u.full_name || '—'}</td>
+        <td class="py-2.5 pr-3 text-slate-400 text-xs">${u.email}</td>
+        <td class="py-2.5 pr-3 text-xs">${roleBadge}</td>
+        <td class="py-2.5 pr-3 text-xs text-center">${statusBadge}</td>
+        <td class="py-2.5 text-center whitespace-nowrap">
+          <button onclick="startEditUser(${u.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-3">Edit</button>
+          <button onclick="toggleUserStatus(${u.id}, ${!u.is_active})" class="text-xs ${toggleColor} mr-3">${u.is_active ? 'Deactivate' : 'Activate'}</button>
+          <button onclick="confirmDeleteUser(${u.id})" class="text-xs text-red-500 hover:text-red-400">Delete</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPermissionsMatrix() {
+    const tbody = getEl('permissionsMatrixBody');
+    if (!tbody) return;
+    const pages = ['expenses', 'staff', 'receipts'];
+    const labels = { expenses: '💸 Expenses', staff: '👥 Staff', receipts: '🧾 Receipts' };
+    tbody.innerHTML = pages.map(page => {
+      const perm = permissionsList.find(p => p.role === 'manager' && p.page === page);
+      const checked = perm?.can_write ? 'checked' : '';
+      return `<tr class="border-b border-slate-800">
+        <td class="py-3 pr-4 text-sm text-slate-200">${labels[page]}</td>
+        <td class="py-3 pr-4 text-center text-xs text-emerald-400 font-semibold">✓ Always</td>
+        <td class="py-3 text-center">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" class="sr-only peer" ${checked}
+              onchange="togglePermission('manager','${page}',this.checked)"/>
+            <div class="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:bg-amber-500 relative
+              after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+              after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all
+              peer-checked:after:translate-x-5"></div>
+          </label>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function submitUser(e) {
+    e.preventDefault();
+    const msg = getEl('userMsg');
+    if (msg) msg.textContent = '';
+    const password = getEl('userPassword').value;
+    if (!editingUserId && !password) {
+      if (msg) msg.textContent = 'Password is required for new users.';
+      return;
+    }
+    const payload = {
+      email:     getEl('userEmail').value.trim(),
+      full_name: getEl('userFullName').value.trim() || null,
+      role:      getEl('userRole').value,
+    };
+    if (!editingUserId) payload.username = getEl('userUsername').value.trim();
+    if (password) payload.password = password;
+    try {
+      const token = getToken();
+      const url    = editingUserId ? `/api/users/${editingUserId}` : '/api/users';
+      const method = editingUserId ? 'PUT' : 'POST';
+      const r = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(payload)
+      });
+      if (r.status === 401) { logout(); return; }
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        if (msg) msg.textContent = j.message || 'Failed to save.';
+        return;
+      }
+      if (msg) msg.textContent = editingUserId ? 'Updated.' : 'User created.';
+      cancelEditUser();
+      loadUsersList();
+    } catch (err) {
+      if (msg) msg.textContent = 'Error saving user.';
+    }
+  }
+
+  function startEditUser(id) {
+    const u = usersList.find(x => x.id === id);
+    if (!u) return;
+    editingUserId = id;
+    const usernameEl = getEl('userUsername');
+    if (usernameEl) { usernameEl.value = u.username; usernameEl.disabled = true; }
+    getEl('userEmail').value     = u.email;
+    getEl('userFullName').value  = u.full_name || '';
+    getEl('userRole').value      = u.role;
+    getEl('userPassword').value  = '';
+    const pwdLabel = getEl('userPasswordLabel');
+    if (pwdLabel) pwdLabel.textContent = 'New Password (leave blank to keep)';
+    getEl('userFormTitle').textContent  = 'Edit User';
+    getEl('userSubmitLabel').textContent = 'Save Changes';
+    getEl('userFormCancelBtn')?.classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEditUser() {
+    editingUserId = null;
+    getEl('userForm')?.reset();
+    const usernameEl = getEl('userUsername');
+    if (usernameEl) usernameEl.disabled = false;
+    const pwdLabel = getEl('userPasswordLabel');
+    if (pwdLabel) pwdLabel.textContent = 'Password';
+    if (getEl('userFormTitle'))   getEl('userFormTitle').textContent  = 'Add User';
+    if (getEl('userSubmitLabel')) getEl('userSubmitLabel').textContent = 'Create User';
+    getEl('userFormCancelBtn')?.classList.add('hidden');
+    const msg = getEl('userMsg');
+    if (msg) msg.textContent = '';
+  }
+
+  async function toggleUserStatus(id, isActive) {
+    const u = usersList.find(x => x.id === id);
+    if (!u) return;
+    try {
+      const token = getToken();
+      const r = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ email: u.email, full_name: u.full_name, role: u.role, is_active: isActive })
+      });
+      if (!r.ok) return alert('Failed to update status.');
+      loadUsersList();
+    } catch (err) { console.error('Toggle user status error:', err); }
+  }
+
+  function confirmDeleteUser(id) {
+    const u = usersList.find(x => x.id === id);
+    if (!confirm(`Delete user "${u?.username}"? This cannot be undone.`)) return;
+    deleteUser(id);
+  }
+
+  async function deleteUser(id) {
+    try {
+      const token = getToken();
+      const r = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.message || 'Failed to delete.'); return; }
+      loadUsersList();
+    } catch (err) { console.error('Delete user error:', err); }
+  }
+
+  async function togglePermission(role, page, canWrite) {
+    try {
+      const token = getToken();
+      const r = await fetch('/api/permissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ role, page, can_write: canWrite })
+      });
+      if (!r.ok) { alert('Failed to update permission.'); loadPermissionsList(); }
+    } catch (err) { console.error('Toggle permission error:', err); loadPermissionsList(); }
   }
 
   /* ===========================

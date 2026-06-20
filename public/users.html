@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>User Management</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/css/style.css"/>
+<style>
+  body.app-shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 17rem; flex-shrink: 0; display: flex; flex-direction: column; transition: width .2s ease; }
+  .sidebar-collapsed .sidebar { width: 4.5rem; }
+  .sidebar-collapsed .sidebar-header .brand-meta,
+  .sidebar-collapsed .sidebar-footer { display: none; }
+  .sidebar-collapsed .nav-item { justify-content: center; }
+  .sidebar-collapsed .nav-label { display: none; }
+  .main-wrapper { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .nav-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.625rem 1rem; border-radius: 0.5rem;
+    font-size: 0.875rem; font-weight: 500; color: #cbd5e1;
+    border-left: 3px solid transparent;
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+  .nav-item.active { background: rgba(245,158,11,.12); color: #fbbf24; border-left-color: #fbbf24; }
+  .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 50; }
+  .sidebar-overlay.show { display: block; }
+  @media (max-width: 767px) {
+    .sidebar { position: fixed; top: 0; left: 0; bottom: 0; transform: translateX(-100%); z-index: 60; transition: transform .25s ease; }
+    .sidebar.sidebar-open { transform: translateX(0); }
+  }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.25rem; }
+  .section-title { font-size: 0.9375rem; font-weight: 700; color: #f8fafc; }
+  .field-input {
+    background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem;
+    color: #f8fafc; font-size: 0.8125rem; padding: 0.5rem 0.75rem;
+    transition: border-color .15s; outline: none; width: 100%;
+  }
+  .field-input:focus { border-color: #fbbf24; }
+  .field-input::placeholder { color: #475569; }
+  .field-input:disabled { opacity: 0.5; cursor: not-allowed; }
+  .badge { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+</style>
+</head>
+<body class="app-shell bg-slate-900 text-white min-h-screen">
+
+<!-- Sidebar -->
+<aside id="sidebar" class="sidebar bg-slate-800 border-r border-slate-700">
+  <div class="sidebar-header px-5 py-4 border-b border-slate-700 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div id="sidebarAvatar" class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 flex items-center justify-center font-bold text-black">U</div>
+      <div class="brand-meta">
+        <div class="flex items-center gap-2">
+          <div id="sidebarUserName" class="text-base font-bold text-amber-400">User</div>
+        </div>
+        <div class="text-xs text-slate-400 flex items-center gap-2">
+          <span id="sidebarUserRole">Role</span>
+          <button onclick="logout()" title="Sign out"
+            style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
+            onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
+            onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">Sign out</button>
+        </div>
+      </div>
+    </div>
+    <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Collapse sidebar">⇔</button>
+  </div>
+
+  <nav class="flex-1 px-3 py-4 space-y-1">
+    <a href="/" class="nav-item">
+      <span class="text-lg">📊</span>
+      <span class="nav-label">Dashboard</span>
+    </a>
+    <a href="/expenses.html" class="nav-item">
+      <span class="text-lg">💸</span>
+      <span class="nav-label">Expenses</span>
+    </a>
+    <a href="/receipts.html" class="nav-item">
+      <span class="text-lg">🧾</span>
+      <span class="nav-label">Receipts</span>
+    </a>
+    <a href="/staff.html" class="nav-item">
+      <span class="text-lg">👥</span>
+      <span class="nav-label">Staff</span>
+    </a>
+    <a href="/users.html" id="navUsers" class="nav-item active">
+      <span class="text-lg">⚙️</span>
+      <span class="nav-label">Users</span>
+    </a>
+  </nav>
+
+  <div class="px-5 py-4 border-t border-slate-700 sidebar-footer">
+    <div id="userInfo" class="text-xs text-slate-400"></div>
+  </div>
+</aside>
+
+<!-- Mobile overlay -->
+<div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Main content -->
+<div class="main-wrapper">
+  <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
+    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
+    <div>
+      <h2 class="text-lg font-semibold">User Management</h2>
+      <p class="text-xs text-slate-400">Manage users and role permissions</p>
+    </div>
+  </header>
+
+  <main class="p-4 md:p-6 space-y-6 w-full max-w-screen-xl mx-auto">
+
+    <!-- Add / Edit User Form -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title">👤 <span id="userFormTitle">Add User</span></h2>
+        <button id="userFormCancelBtn" onclick="cancelEditUser()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors">Cancel Edit</button>
+      </div>
+      <form id="userForm" onsubmit="submitUser(event)" class="grid md:grid-cols-3 gap-3">
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Username <span class="text-red-400">*</span></label>
+          <input id="userUsername" type="text" required placeholder="e.g. john" class="field-input"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Full Name</label>
+          <input id="userFullName" type="text" placeholder="Full name" class="field-input"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Email <span class="text-red-400">*</span></label>
+          <input id="userEmail" type="email" required placeholder="user@example.com" class="field-input"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Role <span class="text-red-400">*</span></label>
+          <select id="userRole" required class="field-input">
+            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div>
+          <label id="userPasswordLabel" class="text-xs text-slate-300 mb-1 block">Password <span class="text-red-400">*</span></label>
+          <input id="userPassword" type="password" placeholder="Password" class="field-input"/>
+        </div>
+        <div class="md:col-span-3 flex items-center gap-3 pt-1">
+          <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-5 py-2 rounded">
+            <span id="userSubmitLabel">Create User</span>
+          </button>
+          <span id="userMsg" class="text-sm text-slate-400"></span>
+        </div>
+      </form>
+    </div>
+
+    <!-- Users List -->
+    <div class="card">
+      <h2 class="section-title mb-4">📋 Users</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-slate-400 border-b border-slate-700 text-left text-xs">
+              <th class="pb-2 pr-3 font-medium">#</th>
+              <th class="pb-2 pr-3 font-medium">Username</th>
+              <th class="pb-2 pr-3 font-medium">Full Name</th>
+              <th class="pb-2 pr-3 font-medium">Email</th>
+              <th class="pb-2 pr-3 font-medium">Role</th>
+              <th class="pb-2 pr-3 font-medium text-center">Status</th>
+              <th class="pb-2 font-medium text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="7" class="py-10 text-center text-slate-500">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Permissions Matrix -->
+    <div class="card">
+      <div class="mb-4">
+        <h2 class="section-title">🔐 Role Permissions</h2>
+        <p class="text-xs text-slate-400 mt-1">Toggle write access per page for Manager role. Admin always has full access.</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-slate-400 border-b border-slate-700 text-xs">
+              <th class="pb-2 pr-4 font-medium text-left">Page</th>
+              <th class="pb-2 pr-4 font-medium text-center">Admin (Write)</th>
+              <th class="pb-2 font-medium text-center">Manager (Write)</th>
+            </tr>
+          </thead>
+          <tbody id="permissionsMatrixBody">
+            <tr><td colspan="3" class="py-10 text-center text-slate-500">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('sidebar-open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function toggleSidebarCollapse() {
+    document.body.classList.toggle('sidebar-collapsed');
+  }
+</script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

@@ -118,6 +118,14 @@
       <span class="text-lg">🧾</span>
       <span class="nav-label">Receipts</span>
     </a>
+    <a href="/staff.html" class="nav-item">
+      <span class="text-lg">👥</span>
+      <span class="nav-label">Staff</span>
+    </a>
+    <a href="/users.html" id="navUsers" class="nav-item" style="display:none">
+      <span class="text-lg">⚙️</span>
+      <span class="nav-label">Users</span>
+    </a>
   </nav>
 
   <div class="px-5 py-4 border-t border-slate-700 sidebar-footer">
@@ -149,7 +157,7 @@
         </div>
       </div>
 
-      <form id="expenseForm" class="grid md:grid-cols-3 gap-3 mb-4" onsubmit="submitExpense(event)">
+      <form id="expenseForm" data-write-page="expenses" class="grid md:grid-cols-3 gap-3 mb-4" onsubmit="submitExpense(event)">
         <div>
           <label class="text-xs text-slate-300">Date</label>
           <input id="expenseDate" type="date" required class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />

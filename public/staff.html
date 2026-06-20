@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Staff Management</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/css/style.css"/>
+<style>
+  body.app-shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 17rem; flex-shrink: 0; display: flex; flex-direction: column; transition: width .2s ease; }
+  .sidebar-collapsed .sidebar { width: 4.5rem; }
+  .sidebar-collapsed .sidebar-header .brand-meta,
+  .sidebar-collapsed .sidebar-footer { display: none; }
+  .sidebar-collapsed .nav-item { justify-content: center; }
+  .sidebar-collapsed .nav-label { display: none; }
+  .main-wrapper { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .nav-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.625rem 1rem; border-radius: 0.5rem;
+    font-size: 0.875rem; font-weight: 500; color: #cbd5e1;
+    border-left: 3px solid transparent;
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+  .nav-item.active { background: rgba(245,158,11,.12); color: #fbbf24; border-left-color: #fbbf24; }
+  .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 50; }
+  .sidebar-overlay.show { display: block; }
+  @media (max-width: 767px) {
+    .sidebar { position: fixed; top: 0; left: 0; bottom: 0; transform: translateX(-100%); z-index: 60; transition: transform .25s ease; }
+    .sidebar.sidebar-open { transform: translateX(0); }
+  }
+
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.25rem; }
+  .section-title { font-size: 0.9375rem; font-weight: 700; color: #f8fafc; }
+
+  .stat-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem;
+    padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.875rem;
+  }
+  .stat-icon { width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+
+  .staff-input {
+    background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem;
+    color: #f8fafc; font-size: 0.8125rem; padding: 0.5rem 0.75rem;
+    transition: border-color .15s; outline: none; width: 100%;
+  }
+  .staff-input:focus { border-color: #fbbf24; }
+  .staff-input::placeholder { color: #475569; }
+
+  .badge-active   { background: rgba(34,197,94,.12);  color: #4ade80; }
+  .badge-inactive { background: rgba(100,116,139,.14); color: #94a3b8; }
+  .badge-loan     { background: rgba(245,158,11,.12);  color: #fbbf24; }
+  .badge { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; }
+
+  .staff-row { transition: background .12s; }
+  .staff-row:hover td { background: rgba(255,255,255,.03); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+</style>
+</head>
+<body class="app-shell bg-slate-900 text-white min-h-screen">
+
+<!-- Sidebar -->
+<aside id="sidebar" class="sidebar bg-slate-800 border-r border-slate-700">
+  <div class="sidebar-header px-5 py-4 border-b border-slate-700 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div id="sidebarAvatar" class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 flex items-center justify-center font-bold text-black">U</div>
+      <div class="brand-meta">
+        <div class="flex items-center gap-2">
+          <div id="sidebarUserName" class="text-base font-bold text-amber-400">User</div>
+        </div>
+        <div class="text-xs text-slate-400 flex items-center gap-2">
+          <span id="sidebarUserRole">Role</span>
+          <button onclick="logout()" title="Sign out"
+            style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
+            onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
+            onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">Sign out</button>
+        </div>
+      </div>
+    </div>
+    <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Collapse sidebar">⇔</button>
+  </div>
+
+  <nav class="flex-1 px-3 py-4 space-y-1">
+    <a href="/" class="nav-item">
+      <span class="text-lg">📊</span>
+      <span class="nav-label">Dashboard</span>
+    </a>
+    <a href="/expenses.html" class="nav-item">
+      <span class="text-lg">💸</span>
+      <span class="nav-label">Expenses</span>
+    </a>
+    <a href="/receipts.html" class="nav-item">
+      <span class="text-lg">🧾</span>
+      <span class="nav-label">Receipts</span>
+    </a>
+    <a href="/staff.html" class="nav-item active">
+      <span class="text-lg">👥</span>
+      <span class="nav-label">Staff</span>
+    </a>
+    <a href="/users.html" id="navUsers" class="nav-item" style="display:none">
+      <span class="text-lg">⚙️</span>
+      <span class="nav-label">Users</span>
+    </a>
+  </nav>
+
+  <div class="px-5 py-4 border-t border-slate-700 sidebar-footer">
+    <div id="userInfo" class="text-xs text-slate-400"></div>
+  </div>
+</aside>
+
+<!-- Mobile overlay -->
+<div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Main content -->
+<div class="main-wrapper">
+  <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
+    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
+    <div>
+      <h2 class="text-lg font-semibold">Staff Management</h2>
+      <p class="text-xs text-slate-400">Manage staff profiles and records</p>
+    </div>
+  </header>
+
+  <main class="p-4 md:p-6 space-y-5 w-full max-w-screen-xl mx-auto">
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="stat-card">
+        <div class="stat-icon bg-slate-700">👥</div>
+        <div>
+          <div class="text-xs text-slate-400 mb-0.5">Active Staff</div>
+          <div class="text-2xl font-bold text-white" id="statActiveStaff">—</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(34,197,94,.12)">💵</div>
+        <div>
+          <div class="text-xs text-slate-400 mb-0.5">Monthly Salary</div>
+          <div class="text-2xl font-bold text-emerald-400" id="statTotalSalary">—</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(245,158,11,.12)">💳</div>
+        <div>
+          <div class="text-xs text-slate-400 mb-0.5">Total Loans</div>
+          <div class="text-2xl font-bold text-amber-400" id="statTotalLoan">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add / Edit form -->
+    <div class="card" data-write-page="staff">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title">👤 <span id="staffFormTitle">Add Staff</span></h2>
+        <button id="staffFormCancelBtn" onclick="cancelEditStaff()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors">Cancel Edit</button>
+      </div>
+      <form id="staffForm" onsubmit="submitStaff(event)" class="grid md:grid-cols-3 gap-3">
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Staff ID <span class="text-red-400">*</span></label>
+          <input id="staffId" type="text" required placeholder="e.g. 00-9" class="staff-input"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Full Name <span class="text-red-400">*</span></label>
+          <input id="staffFullName" type="text" required placeholder="Full name" class="staff-input"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Position</label>
+          <input id="staffPosition" type="text" list="positionList" placeholder="e.g. Waiter" class="staff-input"/>
+          <datalist id="positionList">
+            <option value="Owner/Biz"/>
+            <option value="Manager"/>
+            <option value="Waiter"/>
+            <option value="Waitress"/>
+            <option value="Assistance Chief"/>
+            <option value="Cleaner"/>
+            <option value="Cashier"/>
+          </datalist>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Join Date</label>
+          <input id="staffJoinDate" type="date" class="staff-input"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Salary</label>
+          <div class="flex gap-1.5">
+            <input id="staffSalary" type="number" step="0.01" min="0" placeholder="0.00" class="staff-input flex-1"/>
+            <select id="staffSalaryCcy" class="staff-input" style="width:5.5rem">
+              <option value="USD">USD</option>
+              <option value="KHR">KHR</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Phone</label>
+          <input id="staffPhone" type="text" placeholder="0xx-xxxxxxx" class="staff-input"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 mb-1 block">Loan</label>
+          <div class="flex gap-1.5">
+            <input id="staffLoan" type="number" min="0" placeholder="0" class="staff-input flex-1"/>
+            <select id="staffLoanCcy" class="staff-input" style="width:5.5rem">
+              <option value="KHR">KHR</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+        </div>
+        <div class="md:col-span-2">
+          <label class="text-xs text-slate-300 mb-1 block">Notes</label>
+          <input id="staffNotes" type="text" placeholder="Optional notes" class="staff-input"/>
+        </div>
+        <div class="md:col-span-3 flex items-center gap-3 pt-1">
+          <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-5 py-2 rounded">
+            <span id="staffSubmitLabel">Add Staff</span>
+          </button>
+          <span id="staffMsg" class="text-sm text-slate-400"></span>
+        </div>
+      </form>
+    </div>
+
+    <!-- Staff list -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h2 class="section-title">📋 Staff List</h2>
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+            <input type="checkbox" id="showInactive" onchange="renderStaffTable()" class="accent-amber-400"/>
+            Show inactive
+          </label>
+          <button onclick="exportStaffCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1">⬇ CSV</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-slate-400 border-b border-slate-700 text-left text-xs">
+              <th class="pb-2 pr-3 font-medium">#</th>
+              <th class="pb-2 pr-3 font-medium">ID</th>
+              <th class="pb-2 pr-3 font-medium">Name</th>
+              <th class="pb-2 pr-3 font-medium">Position</th>
+              <th class="pb-2 pr-3 font-medium">Join Date</th>
+              <th class="pb-2 pr-3 font-medium text-right">Salary</th>
+              <th class="pb-2 pr-3 font-medium">Phone</th>
+              <th class="pb-2 pr-3 font-medium text-right">Loan</th>
+              <th class="pb-2 pr-3 font-medium text-center">Status</th>
+              <th class="pb-2 font-medium text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="staffTableBody">
+            <tr><td colspan="10" class="py-10 text-center text-slate-500">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('sidebar-open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function toggleSidebarCollapse() {
+    document.body.classList.toggle('sidebar-collapsed');
+  }
+</script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

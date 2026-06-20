@@ -182,6 +182,36 @@ function growth(current, previous) {
   return parseFloat((((current - previous) / previous) * 100).toFixed(1));
 }
 
+// ─── Role & Permission Middleware ────────────────────────────────────────────
+
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+    next();
+  };
+}
+
+function requireWrite(page) {
+  return async (req, res, next) => {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+    if (req.user.role === 'admin') return next();
+    if (req.user.role === 'manager') {
+      try {
+        const r = await pool.query(
+          'SELECT can_write FROM role_permissions WHERE role=$1 AND page=$2',
+          ['manager', page]
+        );
+        if (r.rows[0]?.can_write) return next();
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+    return res.status(403).json({ message: 'Write access denied.' });
+  };
+}
+
 // Login Route ───────────────────────────────────────────
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
@@ -237,8 +267,25 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Verify token route (used by dashboard on load) ────────
-app.get('/api/auth/verify', requireAuth, (req, res) => {
-  res.json({ valid: true, user: req.user });
+app.get('/api/auth/verify', requireAuth, async (req, res) => {
+  try {
+    const pages = ['expenses', 'staff', 'receipts'];
+    const permissions = {};
+    if (req.user.role === 'admin') {
+      pages.forEach(p => { permissions[p] = { can_write: true }; });
+    } else {
+      pages.forEach(p => { permissions[p] = { can_write: false }; });
+      if (req.user.role === 'manager') {
+        const r = await pool.query(
+          'SELECT page, can_write FROM role_permissions WHERE role=$1', ['manager']
+        );
+        r.rows.forEach(row => { permissions[row.page] = { can_write: row.can_write }; });
+      }
+    }
+    res.json({ valid: true, user: req.user, permissions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Serve login page ──────────────────────────────────────
@@ -573,7 +620,7 @@ app.get('/api/expenses', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/expenses', requireAuth, async (req, res) => {
+app.post('/api/expenses', requireAuth, requireWrite('expenses'), async (req, res) => {
   const { expense_date, amount, remark, expense_by } = req.body;
   if (!expense_date || !amount || !expense_by) {
     return res.status(400).json({ message: 'expense_date, amount and expense_by are required.' });
@@ -594,7 +641,7 @@ app.post('/api/expenses', requireAuth, async (req, res) => {
 });
 
 // Update an expense
-app.put('/api/expenses/:id', requireAuth, async (req, res) => {
+app.put('/api/expenses/:id', requireAuth, requireWrite('expenses'), async (req, res) => {
   const id = parseInt(req.params.id);
   const { expense_date, amount, remark, expense_by } = req.body;
   if (!id || !expense_date || !amount || !expense_by) {
@@ -618,7 +665,7 @@ app.put('/api/expenses/:id', requireAuth, async (req, res) => {
 });
 
 // Delete an expense
-app.delete('/api/expenses/:id', requireAuth, async (req, res) => {
+app.delete('/api/expenses/:id', requireAuth, requireWrite('expenses'), async (req, res) => {
   const id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid id.' });
 
@@ -695,7 +742,7 @@ async function fetchReceipts(startDate, endDate) {
 
 }
 
-app.post('/api/gross-income', requireAuth, async (req, res) => {
+app.post('/api/gross-income', requireAuth, requireWrite('receipts'), async (req, res) => {
   try {
     const yesterday = dayjs().tz(TZ).subtract(1, 'day');
     const start = yesterday.startOf('day');
@@ -917,6 +964,173 @@ app.get('/api/receipts', requireAuth, async (req, res) => {
   }
 });
 
+// ─── API: Staff ──────────────────────────────────────────────────────────────
+app.get('/api/staff', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, staff_id, full_name, position, join_date, salary, salary_ccy, phone, loan_amount, loan_ccy, is_active, notes, created_at
+      FROM staff ORDER BY staff_id ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Staff GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/staff', requireAuth, requireWrite('staff'), async (req, res) => {
+  const { staff_id, full_name, position, join_date, salary, salary_ccy, phone, loan_amount, loan_ccy, notes } = req.body;
+  if (!staff_id || !full_name) return res.status(400).json({ message: 'staff_id and full_name are required.' });
+  try {
+    const result = await pool.query(`
+      INSERT INTO staff (staff_id, full_name, position, join_date, salary, salary_ccy, phone, loan_amount, loan_ccy, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
+    `, [staff_id, full_name, position || null, join_date || null, salary || 0, salary_ccy || 'USD', phone || null, loan_amount || 0, loan_ccy || 'KHR', notes || null]);
+    res.status(201).json({ staff: result.rows[0] });
+  } catch (err) {
+    console.error('Staff POST error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/staff/:id', requireAuth, requireWrite('staff'), async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { staff_id, full_name, position, join_date, salary, salary_ccy, phone, loan_amount, loan_ccy, is_active, notes } = req.body;
+  if (!id || !staff_id || !full_name) return res.status(400).json({ message: 'id, staff_id and full_name are required.' });
+  try {
+    const result = await pool.query(`
+      UPDATE staff SET staff_id=$1, full_name=$2, position=$3, join_date=$4, salary=$5, salary_ccy=$6,
+        phone=$7, loan_amount=$8, loan_ccy=$9, is_active=$10, notes=$11, updated_at=NOW()
+      WHERE id=$12 RETURNING *
+    `, [staff_id, full_name, position || null, join_date || null, salary || 0, salary_ccy || 'USD', phone || null, loan_amount || 0, loan_ccy || 'KHR', is_active !== undefined ? is_active : true, notes || null, id]);
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Staff not found.' });
+    res.json({ staff: result.rows[0] });
+  } catch (err) {
+    console.error('Staff PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/staff/:id', requireAuth, requireWrite('staff'), async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid id.' });
+  try {
+    const result = await pool.query('DELETE FROM staff WHERE id=$1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Staff not found.' });
+    res.json({ deleted: true, id });
+  } catch (err) {
+    console.error('Staff DELETE error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Users (admin only) ─────────────────────────────────────────────────
+
+app.get('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT id, username, email, full_name, role, is_active, created_at FROM users ORDER BY id ASC'
+    );
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
+  const { username, password, email, full_name, role } = req.body;
+  if (!username || !password || !email) {
+    return res.status(400).json({ message: 'username, password and email are required.' });
+  }
+  if (!['admin', 'manager'].includes(role)) {
+    return res.status(400).json({ message: 'role must be admin or manager.' });
+  }
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    const r = await pool.query(
+      `INSERT INTO users (username, password, email, full_name, role)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING id, username, email, full_name, role, is_active, created_at`,
+      [username.toLowerCase().trim(), hash, email.trim(), full_name || null, role]
+    );
+    res.status(201).json({ user: r.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'Username or email already exists.' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { email, full_name, role, is_active, password } = req.body;
+  if (!id) return res.status(400).json({ message: 'Invalid id.' });
+  if (id === req.user.id && role && role !== 'admin') {
+    return res.status(400).json({ message: 'Cannot change your own role.' });
+  }
+  try {
+    let r;
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      r = await pool.query(
+        `UPDATE users SET email=$1, full_name=$2, role=$3, is_active=$4, password=$5
+         WHERE id=$6 RETURNING id, username, email, full_name, role, is_active`,
+        [email, full_name || null, role, is_active !== undefined ? is_active : true, hash, id]
+      );
+    } else {
+      r = await pool.query(
+        `UPDATE users SET email=$1, full_name=$2, role=$3, is_active=$4
+         WHERE id=$5 RETURNING id, username, email, full_name, role, is_active`,
+        [email, full_name || null, role, is_active !== undefined ? is_active : true, id]
+      );
+    }
+    if (!r.rows.length) return res.status(404).json({ message: 'User not found.' });
+    res.json({ user: r.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid id.' });
+  if (id === req.user.id) return res.status(400).json({ message: 'Cannot delete your own account.' });
+  try {
+    const r = await pool.query('DELETE FROM users WHERE id=$1 RETURNING id', [id]);
+    if (!r.rows.length) return res.status(404).json({ message: 'User not found.' });
+    res.json({ deleted: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Permissions (admin only) ──────────────────────────────────────────
+
+app.get('/api/permissions', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT role, page, can_write FROM role_permissions ORDER BY role, page'
+    );
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/permissions', requireAuth, requireRole('admin'), async (req, res) => {
+  const { role, page, can_write } = req.body;
+  if (!role || !page) return res.status(400).json({ message: 'role and page are required.' });
+  try {
+    const r = await pool.query(
+      `INSERT INTO role_permissions (role, page, can_write) VALUES ($1,$2,$3)
+       ON CONFLICT (role, page) DO UPDATE SET can_write=$3 RETURNING *`,
+      [role, page, Boolean(can_write)]
+    );
+    res.json({ permission: r.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── DEBUG endpoint ──────────────────────────────────────────────────────────
 app.get('/api/debug', async (req, res) => {
   try {
@@ -995,6 +1209,10 @@ createAdmin();
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/users', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'users.html'));
 });
 
 app.listen(PORT, () => {
