@@ -743,6 +743,9 @@ async function submitExpense(e) {
     return;
   }
 
+  const action = editingId ? 'update this expense' : 'add this expense';
+  if (!confirm(`Are you sure you want to ${action}?`)) return;
+
   // use fetch directly with POST since we need to send a body and attach auth
   try {
     const token = getToken();
@@ -1273,6 +1276,9 @@ async function syncGrossIncome() {
       notes:       getEl('staffNotes').value.trim() || null,
     };
 
+    const staffAction = editingStaffId ? `update "${payload.full_name}"` : `add "${payload.full_name}"`;
+    if (!confirm(`Are you sure you want to ${staffAction}?`)) return;
+
     try {
       const token = getToken();
       const url    = editingStaffId ? `/api/staff/${editingStaffId}` : '/api/staff';
@@ -1479,6 +1485,10 @@ async function syncGrossIncome() {
     };
     if (!editingUserId) payload.username = getEl('userUsername').value.trim();
     if (password) payload.password = password;
+
+    const userAction = editingUserId ? `update user "${payload.email}"` : `create user "${payload.username}"`;
+    if (!confirm(`Are you sure you want to ${userAction}?`)) return;
+
     try {
       const token = getToken();
       const url    = editingUserId ? `/api/users/${editingUserId}` : '/api/users';
@@ -1565,6 +1575,11 @@ async function syncGrossIncome() {
   }
 
   async function togglePermission(role, page, canWrite) {
+    const permAction = canWrite ? 'enable' : 'disable';
+    if (!confirm(`Are you sure you want to ${permAction} write permission for "${role}" on "${page}"?`)) {
+      loadPermissionsList();
+      return;
+    }
     try {
       const token = getToken();
       const r = await fetch('/api/permissions', {

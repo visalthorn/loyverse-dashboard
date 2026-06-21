@@ -1,0 +1,129 @@
+import { checkAuth, logout } from './auth.js';
+import { state } from './state.js';
+import { getEl } from './utils.js';
+
+// Page modules — loaded on demand
+import * as Dashboard from './pages/dashboard.js';
+import * as Expenses  from './pages/expenses.js';
+import * as Receipts  from './pages/receipts.js';
+import * as Staff     from './pages/staff.js';
+import * as Users     from './pages/users.js';
+
+// ─── Shared UI ───────────────────────────────────────────────────────────────
+
+function renderUserHeader(user) {
+  const el = getEl('userInfo');
+  if (el) {
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="text-align:right;">
+          <div style="font-size:13px;font-weight:600;color:#e2e8f0;">${user.fullName || user.username}</div>
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">${user.role}</div>
+        </div>
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0b1120;">
+          ${(user.fullName || user.username).charAt(0).toUpperCase()}
+        </div>
+        <button onclick="logout()" title="Sign out"
+          style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
+          onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
+          onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">
+          Sign out
+        </button>
+      </div>`;
+  }
+
+  const sidebarName   = getEl('sidebarUserName');
+  const sidebarRole   = getEl('sidebarUserRole');
+  const sidebarAvatar = getEl('sidebarAvatar');
+  if (sidebarName)   sidebarName.textContent   = user.fullName || user.username || 'User';
+  if (sidebarRole)   sidebarRole.textContent   = (user.role || '').toUpperCase();
+  if (sidebarAvatar) sidebarAvatar.textContent = (user.fullName || user.username || 'U').charAt(0).toUpperCase();
+}
+
+function applyPermissions() {
+  document.querySelectorAll('[data-write-page]').forEach(el => {
+    const page = el.dataset.writePage;
+    if (!state.userPermissions[page]?.can_write) el.style.display = 'none';
+  });
+}
+
+// ─── Page detection ───────────────────────────────────────────────────────────
+
+function detectPage() {
+  if (document.getElementById('grossIncomeChart'))  return 'dashboard';
+  if (document.getElementById('expensesList'))      return 'expenses';
+  if (document.getElementById('receiptsTbody'))     return 'receipts';
+  if (document.getElementById('staffTableBody'))    return 'staff';
+  if (document.getElementById('usersTableBody'))    return 'users';
+  return null;
+}
+
+// ─── Expose globals needed by HTML onclick handlers ───────────────────────────
+
+window.logout = logout;
+
+// Dashboard
+window.setPeriod        = Dashboard.setPeriod;
+window.applyCustomRange = Dashboard.applyCustomRange;
+window.syncGrossIncome  = Dashboard.syncGrossIncome;
+
+// Expenses
+window.submitExpense        = Expenses.submitExpense;
+window.startEditExpense     = Expenses.startEditExpense;
+window.confirmDeleteExpense = Expenses.confirmDeleteExpense;
+window.exportExpensesCSV    = Expenses.exportExpensesCSV;
+
+// Receipts
+window.loadReceipts       = Receipts.loadReceipts;
+window.onApiFilterChange  = Receipts.onApiFilterChange;
+window.onSearchChange     = Receipts.onSearchChange;
+window.resetFilters       = Receipts.resetFilters;
+window.changePage         = Receipts.changePage;
+window.selectReceipt      = Receipts.selectReceipt;
+window.exportReceiptsCSV  = Receipts.exportReceiptsCSV;
+window.exportReceiptPDF   = Receipts.exportReceiptPDF;
+
+// Staff
+window.submitStaff        = Staff.submitStaff;
+window.startEditStaff     = Staff.startEditStaff;
+window.cancelEditStaff    = Staff.cancelEditStaff;
+window.toggleStaffStatus  = Staff.toggleStaffStatus;
+window.confirmDeleteStaff = Staff.confirmDeleteStaff;
+window.exportStaffCSV     = Staff.exportStaffCSV;
+window.renderStaffTable   = Staff.renderStaffTable;
+
+// Users
+window.submitUser         = Users.submitUser;
+window.startEditUser      = Users.startEditUser;
+window.cancelEditUser     = Users.cancelEditUser;
+window.toggleUserStatus   = Users.toggleUserStatus;
+window.confirmDeleteUser  = Users.confirmDeleteUser;
+window.togglePermission   = Users.togglePermission;
+
+// ─── Bootstrap ───────────────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', async () => {
+  const authData = await checkAuth();
+  if (!authData) return;
+
+  state.userPermissions = authData.permissions || {};
+  state.currentUserRole = authData.user?.role  || '';
+
+  renderUserHeader(authData.user);
+  applyPermissions();
+
+  const navUsers = getEl('navUsers');
+  if (navUsers) navUsers.style.display = state.currentUserRole === 'admin' ? '' : 'none';
+
+  if (document.getElementById('usersTableBody') && state.currentUserRole !== 'admin') {
+    window.location.href = '/';
+    return;
+  }
+
+  const page = detectPage();
+  if (page === 'dashboard') Dashboard.init();
+  if (page === 'expenses')  Expenses.init();
+  if (page === 'receipts')  Receipts.init();
+  if (page === 'staff')     Staff.init();
+  if (page === 'users')     Users.init();
+});
