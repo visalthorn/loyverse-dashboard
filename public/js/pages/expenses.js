@@ -131,7 +131,7 @@ export async function submitExpense(e) {
     return;
   }
 
-  if (!confirm(`Are you sure you want to ${editingId ? 'update' : 'add'} this expense?`)) return;
+  if (state.currentUserRole !== 'admin' && !confirm(`Are you sure you want to ${editingId ? 'update' : 'add'} this expense?`)) return;
 
   const body = { expense_date, amount, remark, expense_by };
   const res  = editingId

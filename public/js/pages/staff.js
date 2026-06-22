@@ -103,7 +103,7 @@ export async function submitStaff(e) {
     notes:       getEl('staffNotes').value.trim() || null,
   };
 
-  if (!confirm(`Are you sure you want to ${editingStaffId ? `update "${payload.full_name}"` : `add "${payload.full_name}"`}?`)) return;
+  if (state.currentUserRole !== 'admin' && !confirm(`Are you sure you want to ${editingStaffId ? `update "${payload.full_name}"` : `add "${payload.full_name}"`}?`)) return;
 
   const body = editingStaffId ? { ...payload, is_active: true } : payload;
   const res  = editingStaffId

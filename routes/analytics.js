@@ -1,15 +1,16 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, growth } = require('../utils/date');
+const { buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, getPeriodDays, getPrevPeriodDays, growth } = require('../utils/date');
 
 router.get('/kpis', requireAuth, async (req, res) => {
   const { period = 'today', start, end } = req.query;
-  const filter     = buildPeriodFilter(period, start, end);
-  const prevFilter = getPrevPeriodSQL(period, start, end);
-  const expFilter  = buildPeriodFilter(period, start, end, 'e', 1, 'expense_date');
+  const filter        = buildPeriodFilter(period, start, end);
+  const prevFilter    = getPrevPeriodSQL(period, start, end);
+  const expFilter     = buildPeriodFilter(period, start, end, 'e', 1, 'expense_date');
+  const prevExpFilter = getPrevPeriodSQL(period, start, end, 'e', 'expense_date');
   try {
-    const [curr, prev, expRes] = await Promise.all([
+    const [curr, prev, expRes, prevExpRes] = await Promise.all([
       pool.query(`
         SELECT COALESCE(SUM(total_money),0) AS gross_income, COUNT(*) AS orders, COALESCE(AVG(total_money),0) AS aov
         FROM receipts r WHERE ${filter.clause}
@@ -23,18 +24,36 @@ router.get('/kpis', requireAuth, async (req, res) => {
       pool.query(`
         SELECT COALESCE(SUM(amount),0) AS total_expense FROM expenses e WHERE ${expFilter.clause}
       `, expFilter.params),
+      pool.query(`
+        SELECT COALESCE(SUM(amount),0) AS total_expense FROM expenses e WHERE ${prevExpFilter.clause}
+      `, prevExpFilter.params),
     ]);
 
     const c = curr.rows[0];
     const p = prev.rows[0];
-    const expensesTotal = parseFloat(expRes.rows[0]?.total_expense || 0);
+    const expensesTotal     = parseFloat(expRes.rows[0]?.total_expense     || 0);
+    const prevExpensesTotal = parseFloat(prevExpRes.rows[0]?.total_expense || 0);
+
+    // Per-day averages: avg(gross_i - expense_i) = total_gross/days - total_expense/days
+    const days     = getPeriodDays(period, start, end);
+    const prevDays = getPrevPeriodDays(period, start, end);
+
+    const avgGross       = parseFloat(c.gross_income) / days;
+    const prevAvgGross   = parseFloat(p.gross_income) / prevDays;
+    const avgExpense     = expensesTotal     / days;
+    const prevAvgExpense = prevExpensesTotal / prevDays;
+    const avgNet         = avgGross - avgExpense;
+    const prevAvgNet     = prevAvgGross - prevAvgExpense;
 
     res.json({
-      gross_income: { value: parseFloat(c.gross_income).toFixed(2), growth: growth(c.gross_income, p.gross_income) },
-      orders:       { value: parseInt(c.orders),                    growth: growth(c.orders, p.orders) },
-      aov:          { value: parseFloat(c.aov).toFixed(2),          growth: growth(c.aov, p.aov) },
-      expenses:     { total: expensesTotal },
-      net_revenue:  parseFloat((parseFloat(c.gross_income) - expensesTotal).toFixed(2)),
+      gross_income:     { value: parseFloat(c.gross_income).toFixed(2), growth: growth(c.gross_income, p.gross_income) },
+      orders:           { value: parseInt(c.orders) || 0,               growth: growth(c.orders, p.orders) },
+      aov:              { value: parseFloat(c.aov).toFixed(2),          growth: growth(c.aov, p.aov) },
+      expenses:         { value: expensesTotal,                         growth: growth(expensesTotal, prevExpensesTotal) },
+      net_revenue:      parseFloat((parseFloat(c.gross_income) - expensesTotal).toFixed(2)),
+      avg_gross_income: { value: avgGross.toFixed(2),    growth: growth(avgGross,    prevAvgGross) },
+      avg_expense:      { value: avgExpense.toFixed(2),  growth: growth(avgExpense,  prevAvgExpense) },
+      net_per_order:    { value: avgNet.toFixed(2),       growth: growth(avgNet,      prevAvgNet) },
     });
   } catch (err) {
     console.error(err);

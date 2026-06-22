@@ -1,6 +1,7 @@
 import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
 import { getEl } from '../utils.js';
 import { logout } from '../auth.js';
+import { state } from '../state.js';
 
 let usersList       = [];
 let permissionsList = [];
@@ -110,7 +111,7 @@ export async function submitUser(e) {
   if (password)       payload.password = password;
 
   const label = editingUserId ? `update user "${payload.email}"` : `create user "${payload.username}"`;
-  if (!confirm(`Are you sure you want to ${label}?`)) return;
+  if (state.currentUserRole !== 'admin' && !confirm(`Are you sure you want to ${label}?`)) return;
 
   const res = editingUserId
     ? await apiPut(`/api/users/${editingUserId}`, payload)
@@ -183,7 +184,7 @@ async function deleteUser(id) {
 
 export async function togglePermission(role, page, canWrite) {
   const action = canWrite ? 'enable' : 'disable';
-  if (!confirm(`Are you sure you want to ${action} write permission for "${role}" on "${page}"?`)) {
+  if (state.currentUserRole !== 'admin' && !confirm(`Are you sure you want to ${action} write permission for "${role}" on "${page}"?`)) {
     loadPermissionsList();
     return;
   }

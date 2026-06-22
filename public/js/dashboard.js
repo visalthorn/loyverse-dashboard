@@ -281,8 +281,8 @@ async function loadKPIs() {
   const cards = [
     { icon:'💰', label:'Gross Income',     value: '៛' + fmtRaw(data.gross_income.value),  growth: data.gross_income.growth, sub: 'Net Profit: ៛' + fmtRaw(data.net_revenue) },
     { icon:'🧾', label:'Orders',           value: data.orders.value,                      growth: data.orders.growth },
-    { icon:'📊', label:'Avg Order Value',  value: '៛' + fmtRaw(data.aov.value),           growth: data.aov.growth },
     { icon:'💸', label:'Total Expenses',   value: '-៛' + fmtRaw(data.expenses.total),     growth: 0, valueClass: 'text-red-400' },
+    { icon:'📊', label:'Avg Order Value',  value: '៛' + fmtRaw(data.aov.value),           growth: data.aov.growth },
   ];
 
   const kpiCards = getEl('kpiCards');

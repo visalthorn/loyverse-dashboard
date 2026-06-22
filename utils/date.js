@@ -44,8 +44,8 @@ function getTrendPeriod(period, startDate, endDate) {
   return 'day';
 }
 
-function getPrevPeriodSQL(period, startDate, endDate, alias = 'r') {
-  const col = `${alias}.receipt_date`;
+function getPrevPeriodSQL(period, startDate, endDate, alias = 'r', colName = 'receipt_date') {
+  const col = `${alias}.${colName}`;
   switch (period) {
     case 'week':
       return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '13 days' AND CURRENT_DATE - INTERVAL '7 days'`, params: [] };
@@ -76,4 +76,42 @@ function growth(current, previous) {
   return parseFloat((((current - previous) / previous) * 100).toFixed(1));
 }
 
-module.exports = { toCambodiaTime, buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, growth };
+function isLeapYear(yr) {
+  return yr % 4 === 0 && (yr % 100 !== 0 || yr % 400 === 0);
+}
+
+// Number of calendar days covered by the current-period SQL filter
+function getPeriodDays(period, startDate, endDate) {
+  if (startDate && endDate) {
+    return Math.max(1, dayjs(endDate).diff(dayjs(startDate), 'day') + 1);
+  }
+  switch (period) {
+    case 'today': return 1;
+    case 'week':  return 7;
+    case 'month': return dayjs().subtract(1, 'month').daysInMonth();
+    case 'year': {
+      const yr = dayjs().subtract(1, 'year').year();
+      return isLeapYear(yr) ? 366 : 365;
+    }
+    default: return 1;
+  }
+}
+
+// Number of calendar days covered by the previous-period SQL filter
+function getPrevPeriodDays(period, startDate, endDate) {
+  if (startDate && endDate) {
+    return Math.max(1, dayjs(endDate).diff(dayjs(startDate), 'day') + 1);
+  }
+  switch (period) {
+    case 'today': return 1;
+    case 'week':  return 7;
+    case 'month': return dayjs().subtract(2, 'month').daysInMonth();
+    case 'year': {
+      const yr = dayjs().subtract(2, 'year').year();
+      return isLeapYear(yr) ? 366 : 365;
+    }
+    default: return 1;
+  }
+}
+
+module.exports = { toCambodiaTime, buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, getPeriodDays, getPrevPeriodDays, growth };

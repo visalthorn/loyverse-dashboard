@@ -38,11 +38,22 @@ async function loadKPIs() {
   const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}`);
   if (!data) return;
 
+  const avgGrossIncome = data.avg_gross_income ?? { value: '0', growth: 0 };
+  const avgExpense     = data.avg_expense      ?? { value: '0', growth: 0 };
+  const netPerOrder    = data.net_per_order    ?? { value: '0', growth: 0 };
+  const netPerOrderVal = parseFloat(netPerOrder.value);
   const cards = [
     { icon: '💰', label: 'Gross Income',    value: '៛' + fmtRaw(data.gross_income.value), growth: data.gross_income.growth, sub: 'Net Profit: ៛' + fmtRaw(data.net_revenue) },
     { icon: '🧾', label: 'Orders',          value: data.orders.value,                     growth: data.orders.growth },
-    { icon: '📊', label: 'Avg Order Value', value: '៛' + fmtRaw(data.aov.value),          growth: data.aov.growth },
-    { icon: '💸', label: 'Total Expenses',  value: '-៛' + fmtRaw(data.expenses.total),    growth: 0, valueClass: 'text-red-400' },
+    { icon: '💸', label: 'Total Expenses',  value: '-៛' + fmtRaw(data.expenses.value),    growth: data.expenses.growth, valueClass: 'text-red-400' },
+    { icon: '📊', label: 'Sale Averages', value: '៛' + fmtRaw(data.aov.value),          growth: null, noMainValue: true,
+      details: [
+        { label: 'Avg Order Value',  value: '៛'  + fmtRaw(data.aov.value),        growth: data.aov.growth },
+        { label: 'Avg Gross Income', value: '៛'  + fmtRaw(avgGrossIncome.value),  growth: avgGrossIncome.growth },
+        { label: 'Avg Expense',      value: '-៛' + fmtRaw(avgExpense.value),      growth: avgExpense.growth,   cls: 'text-red-400' },
+        { label: 'Net Profit / Day', value: '៛'  + fmtRaw(netPerOrder.value),     growth: netPerOrder.growth,  cls: netPerOrderVal >= 0 ? 'text-emerald-400' : 'text-red-400', highlight: true },
+      ],
+    },
   ];
 
   const kpiCards = getEl('kpiCards');
@@ -50,12 +61,26 @@ async function loadKPIs() {
     <div class="kpi-card">
       <div class="flex items-start justify-between">
         <span class="text-2xl">${c.icon}</span>
-        ${growthBadge(c.growth)}
+        ${ c.growth ? growthBadge(c.growth) : '' }
       </div>
       <div class="mt-2">
-        <div class="text-2xl font-bold ${c.valueClass || 'text-white'}">${c.value}</div>
-        <div class="text-xs text-slate-400 mt-1">${c.label}</div>
+        ${c.noMainValue ? '' : `<div class="text-2xl font-bold ${c.valueClass || 'text-white'}">${c.value}</div>`}
+        <div class="text-xs text-slate-400 ${c.noMainValue ? '' : 'mt-1'}">${c.label}</div>
         ${c.sub ? `<div class="text-xs text-green-400 mt-1">${c.sub}</div>` : ''}
+        ${c.details ? `
+          <div class="mt-2.5 pt-2.5 border-t border-slate-700/50 space-y-1">
+            ${c.details.map(d => `
+              ${d.highlight ? '<div class="border-t border-slate-600/50 my-1.5"></div>' : ''}
+              <div class="flex items-center justify-between rounded-md px-2 py-1.5 ${d.highlight ? (d.cls && d.cls.includes('emerald') ? 'bg-emerald-950/60 border border-emerald-800/30' : 'bg-red-950/60 border border-red-800/30') : 'bg-slate-800/50'}">
+                <span class="text-xs ${d.highlight ? 'font-semibold ' + (d.cls || 'text-slate-300') : 'text-slate-400'}">${d.label}</span>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs font-bold ${d.cls || 'text-slate-200'}">${d.value}</span>
+                  ${growthBadge(d.growth)}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
     </div>
   `).join('');
