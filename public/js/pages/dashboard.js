@@ -28,8 +28,8 @@ function getGrossIncomeTrendGranularity() {
 // ─── KPIs ────────────────────────────────────────────────────────────────────
 
 function growthBadge(g) {
-  if (g > 0) return `<span class="badge-up">▲ ${g}%</span>`;
-  if (g < 0) return `<span class="badge-down">▼ ${Math.abs(g)}%</span>`;
+  if (g > 0) return `<span class="badge-up">▲ ${g > 100 ? '>100' : g}%</span>`;
+  if (g < 0) return `<span class="badge-down">▼ ${Math.abs(g) > 100 ? '>100' : Math.abs(g)}%</span>`;
   return `<span class="badge-flat">— 0%</span>`;
 }
 
@@ -74,7 +74,7 @@ async function loadKPIs() {
               <div class="flex items-center justify-between rounded-md px-2 py-1.5 ${d.highlight ? (d.cls && d.cls.includes('emerald') ? 'bg-emerald-950/60 border border-emerald-800/30' : 'bg-red-950/60 border border-red-800/30') : 'bg-slate-800/50'}">
                 <span class="text-xs ${d.highlight ? 'font-semibold ' + (d.cls || 'text-slate-300') : 'text-slate-400'}">${d.label}</span>
                 <div class="flex items-center gap-1.5">
-                  <span class="text-xs font-bold ${d.cls || 'text-slate-200'}">${d.value}</span>
+                  <span class="text-xs font-bold whitespace-nowrap ${d.cls || 'text-slate-200'}">${d.value}</span>
                   ${growthBadge(d.growth)}
                 </div>
               </div>

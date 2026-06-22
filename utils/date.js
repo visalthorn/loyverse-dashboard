@@ -76,42 +76,75 @@ function growth(current, previous) {
   return parseFloat((((current - previous) / previous) * 100).toFixed(1));
 }
 
-function isLeapYear(yr) {
-  return yr % 4 === 0 && (yr % 100 !== 0 || yr % 400 === 0);
-}
-
-// Number of calendar days covered by the current-period SQL filter
-function getPeriodDays(period, startDate, endDate) {
-  if (startDate && endDate) {
-    return Math.max(1, dayjs(endDate).diff(dayjs(startDate), 'day') + 1);
-  }
+// Exact start/end dates for the current period (used by generate_series daily-avg query)
+function getPeriodDateRange(period, startDate, endDate) {
+  if (startDate && endDate) return { start: startDate, end: endDate };
+  const now = dayjs().tz(TZ);
   switch (period) {
-    case 'today': return 1;
-    case 'week':  return 7;
-    case 'month': return dayjs().subtract(1, 'month').daysInMonth();
-    case 'year': {
-      const yr = dayjs().subtract(1, 'year').year();
-      return isLeapYear(yr) ? 366 : 365;
+    case 'today': {
+      const d = now.format('YYYY-MM-DD');
+      return { start: d, end: d };
     }
-    default: return 1;
+    case 'week':
+      return { start: now.subtract(7, 'day').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'month': {
+      const m = now.subtract(1, 'month');
+      return { start: m.startOf('month').format('YYYY-MM-DD'), end: m.endOf('month').format('YYYY-MM-DD') };
+    }
+    case 'year': {
+      const y = now.subtract(1, 'year');
+      return { start: y.startOf('year').format('YYYY-MM-DD'), end: y.endOf('year').format('YYYY-MM-DD') };
+    }
+    default: {
+      const d = now.format('YYYY-MM-DD');
+      return { start: d, end: d };
+    }
   }
 }
 
-// Number of calendar days covered by the previous-period SQL filter
-function getPrevPeriodDays(period, startDate, endDate) {
-  if (startDate && endDate) {
-    return Math.max(1, dayjs(endDate).diff(dayjs(startDate), 'day') + 1);
-  }
+// Exact start/end dates for the previous comparison period
+function getPrevPeriodDateRange(period, startDate, endDate) {
+  const now = dayjs().tz(TZ);
   switch (period) {
-    case 'today': return 1;
-    case 'week':  return 7;
-    case 'month': return dayjs().subtract(2, 'month').daysInMonth();
-    case 'year': {
-      const yr = dayjs().subtract(2, 'year').year();
-      return isLeapYear(yr) ? 366 : 365;
+    case 'today': {
+      const d = now.subtract(2, 'day').format('YYYY-MM-DD');
+      return { start: d, end: d };
     }
-    default: return 1;
+    case 'week':
+      return {
+        start: now.subtract(13, 'day').format('YYYY-MM-DD'),
+        end:   now.subtract(7,  'day').format('YYYY-MM-DD'),
+      };
+    case 'month': {
+      const m = now.subtract(2, 'month');
+      return { start: m.startOf('month').format('YYYY-MM-DD'), end: m.endOf('month').format('YYYY-MM-DD') };
+    }
+    case 'year': {
+      const y = now.subtract(2, 'year');
+      return { start: y.startOf('year').format('YYYY-MM-DD'), end: y.endOf('year').format('YYYY-MM-DD') };
+    }
+    case 'range': {
+      if (startDate && endDate) {
+        const s    = dayjs(startDate);
+        const e    = dayjs(endDate);
+        const days = e.diff(s, 'day') + 1;
+        const prevEnd   = s.subtract(1, 'day');
+        const prevStart = prevEnd.subtract(days - 1, 'day');
+        return { start: prevStart.format('YYYY-MM-DD'), end: prevEnd.format('YYYY-MM-DD') };
+      }
+      const d = now.subtract(2, 'day').format('YYYY-MM-DD');
+      return { start: d, end: d };
+    }
+    default: {
+      const d = now.subtract(2, 'day').format('YYYY-MM-DD');
+      return { start: d, end: d };
+    }
   }
 }
 
-module.exports = { toCambodiaTime, buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, getPeriodDays, getPrevPeriodDays, growth };
+module.exports = {
+  toCambodiaTime,
+  buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL,
+  getPeriodDateRange, getPrevPeriodDateRange,
+  growth,
+};

@@ -1,7 +1,36 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, getPeriodDays, getPrevPeriodDays, growth } = require('../utils/date');
+const { buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, getPeriodDateRange, getPrevPeriodDateRange, growth } = require('../utils/date');
+
+// Per-day average query: for each calendar day in [start,end], compute
+// daily_gross and daily_expense, derive daily_net = gross - expense, then AVG all three.
+const DAILY_AVG_SQL = `
+  SELECT
+    COALESCE(AVG(gross),   0) AS avg_gross,
+    COALESCE(AVG(expense), 0) AS avg_expense,
+    COALESCE(AVG(net),     0) AS avg_net
+  FROM (
+    SELECT
+      COALESCE(r.daily_gross,   0)                              AS gross,
+      COALESCE(e.daily_expense, 0)                              AS expense,
+      COALESCE(r.daily_gross,   0) - COALESCE(e.daily_expense, 0) AS net
+    FROM generate_series($1::date, $2::date, '1 day'::interval) AS gs(day)
+    LEFT JOIN (
+      SELECT DATE(receipt_date) AS day, SUM(total_money) AS daily_gross
+      FROM receipts
+      WHERE DATE(receipt_date) BETWEEN $1 AND $2
+        AND ((receipt_type = 'SALE' AND cancelled_at IS NULL) OR (receipt_type = 'REFUND' AND cancelled_at IS NOT NULL))
+      GROUP BY DATE(receipt_date)
+    ) r ON r.day = gs.day::date
+    LEFT JOIN (
+      SELECT DATE(expense_date) AS day, SUM(amount) AS daily_expense
+      FROM expenses
+      WHERE DATE(expense_date) BETWEEN $1 AND $2
+      GROUP BY DATE(expense_date)
+    ) e ON e.day = gs.day::date
+  ) daily
+`;
 
 router.get('/kpis', requireAuth, async (req, res) => {
   const { period = 'today', start, end } = req.query;
@@ -9,8 +38,10 @@ router.get('/kpis', requireAuth, async (req, res) => {
   const prevFilter    = getPrevPeriodSQL(period, start, end);
   const expFilter     = buildPeriodFilter(period, start, end, 'e', 1, 'expense_date');
   const prevExpFilter = getPrevPeriodSQL(period, start, end, 'e', 'expense_date');
+  const currRange     = getPeriodDateRange(period, start, end);
+  const prevRange     = getPrevPeriodDateRange(period, start, end);
   try {
-    const [curr, prev, expRes, prevExpRes] = await Promise.all([
+    const [curr, prev, expRes, prevExpRes, currAvg, prevAvg] = await Promise.all([
       pool.query(`
         SELECT COALESCE(SUM(total_money),0) AS gross_income, COUNT(*) AS orders, COALESCE(AVG(total_money),0) AS aov
         FROM receipts r WHERE ${filter.clause}
@@ -27,6 +58,8 @@ router.get('/kpis', requireAuth, async (req, res) => {
       pool.query(`
         SELECT COALESCE(SUM(amount),0) AS total_expense FROM expenses e WHERE ${prevExpFilter.clause}
       `, prevExpFilter.params),
+      pool.query(DAILY_AVG_SQL, [currRange.start, currRange.end]),
+      pool.query(DAILY_AVG_SQL, [prevRange.start, prevRange.end]),
     ]);
 
     const c = curr.rows[0];
@@ -34,26 +67,29 @@ router.get('/kpis', requireAuth, async (req, res) => {
     const expensesTotal     = parseFloat(expRes.rows[0]?.total_expense     || 0);
     const prevExpensesTotal = parseFloat(prevExpRes.rows[0]?.total_expense || 0);
 
-    // Per-day averages: avg(gross_i - expense_i) = total_gross/days - total_expense/days
-    const days     = getPeriodDays(period, start, end);
-    const prevDays = getPrevPeriodDays(period, start, end);
+    const avgGross       = parseFloat(currAvg.rows[0].avg_gross   || 0);
+    const avgExpense     = parseFloat(currAvg.rows[0].avg_expense || 0);
+    const avgNet         = parseFloat(currAvg.rows[0].avg_net     || 0);
+    const prevAvgGross   = parseFloat(prevAvg.rows[0].avg_gross   || 0);
+    const prevAvgExpense = parseFloat(prevAvg.rows[0].avg_expense || 0);
+    const prevAvgNet     = parseFloat(prevAvg.rows[0].avg_net     || 0);
 
-    const avgGross       = parseFloat(c.gross_income) / days;
-    const prevAvgGross   = parseFloat(p.gross_income) / prevDays;
-    const avgExpense     = expensesTotal     / days;
-    const prevAvgExpense = prevExpensesTotal / prevDays;
-    const avgNet         = avgGross - avgExpense;
-    const prevAvgNet     = prevAvgGross - prevAvgExpense;
+    // Only suppress expense-related growth when the CURRENT period has no expenses —
+    // showing growth from 0 is meaningless. When PREVIOUS has no expenses, prevAvgNet
+    // and prevAvgExpense are still valid SQL-computed values (gross − 0 = gross), so
+    // let growth() handle the zero-previous case naturally (it already returns 0 when
+    // previous == 0, which covers the avg_expense case automatically).
+    const hasNoExpense = expensesTotal === 0;
 
     res.json({
       gross_income:     { value: parseFloat(c.gross_income).toFixed(2), growth: growth(c.gross_income, p.gross_income) },
       orders:           { value: parseInt(c.orders) || 0,               growth: growth(c.orders, p.orders) },
       aov:              { value: parseFloat(c.aov).toFixed(2),          growth: growth(c.aov, p.aov) },
-      expenses:         { value: expensesTotal,                         growth: growth(expensesTotal, prevExpensesTotal) },
+      expenses:         { value: expensesTotal,                         growth: hasNoExpense ? 0 : growth(expensesTotal, prevExpensesTotal) },
       net_revenue:      parseFloat((parseFloat(c.gross_income) - expensesTotal).toFixed(2)),
-      avg_gross_income: { value: avgGross.toFixed(2),    growth: growth(avgGross,    prevAvgGross) },
-      avg_expense:      { value: avgExpense.toFixed(2),  growth: growth(avgExpense,  prevAvgExpense) },
-      net_per_order:    { value: avgNet.toFixed(2),       growth: growth(avgNet,      prevAvgNet) },
+      avg_gross_income: { value: avgGross.toFixed(2),   growth: growth(avgGross,   prevAvgGross) },
+      avg_expense:      { value: avgExpense.toFixed(2), growth: hasNoExpense ? 0 : growth(avgExpense, prevAvgExpense) },
+      net_per_order:    { value: avgNet.toFixed(2),     growth: growth(avgNet,     prevAvgNet) },
     });
   } catch (err) {
     console.error(err);
