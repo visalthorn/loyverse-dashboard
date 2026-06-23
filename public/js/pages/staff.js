@@ -6,7 +6,9 @@ import { logout } from '../auth.js';
 let staffList     = [];
 let editingStaffId = null;
 
-// ─── Load ────────────────────────────────────────────────────────────────────
+const SHIFT_COLORS = { M: '#60a5fa', A: '#c084fc' };
+
+// ─── Load ─────────────────────────────────────────────────────────────────────
 
 export async function loadStaff() {
   const data = await fetchJSON('/api/staff');
@@ -15,7 +17,7 @@ export async function loadStaff() {
   renderStaffTable();
 }
 
-// ─── Stats ───────────────────────────────────────────────────────────────────
+// ─── Stats ────────────────────────────────────────────────────────────────────
 
 function renderStaffStats() {
   const active = staffList.filter(s => s.is_active);
@@ -36,7 +38,7 @@ function renderStaffStats() {
   set('statTotalLoan',   '៛' + fmtRaw(totalLoan));
 }
 
-// ─── Table ───────────────────────────────────────────────────────────────────
+// ─── Table ────────────────────────────────────────────────────────────────────
 
 export function renderStaffTable() {
   const tbody = getEl('staffTableBody');
@@ -46,7 +48,7 @@ export function renderStaffTable() {
   const rows = showInactive ? staffList : staffList.filter(s => s.is_active);
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="py-10 text-center text-slate-500">No staff found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-500">No staff found</td></tr>`;
     return;
   }
 
@@ -62,6 +64,10 @@ export function renderStaffTable() {
     const toggleLabel = s.is_active ? 'Deactivate' : 'Activate';
     const toggleColor = s.is_active ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-emerald-400';
 
+    const shiftBadge = s.default_shift
+      ? `<span style="background:${s.default_shift === 'M' ? 'rgba(59,130,246,0.18)' : 'rgba(168,85,247,0.18)'};color:${SHIFT_COLORS[s.default_shift]};padding:2px 7px;border-radius:4px;font-size:0.6875rem;font-weight:700">${s.default_shift}</span>`
+      : '<span class="text-slate-600 text-xs">—</span>';
+
     return `<tr class="staff-row border-b border-slate-800">
       <td class="py-2.5 pr-3 text-slate-500 text-xs">${i + 1}</td>
       <td class="py-2.5 pr-3 font-mono text-amber-400 text-xs font-semibold">${s.staff_id}</td>
@@ -72,18 +78,20 @@ export function renderStaffTable() {
       <td class="py-2.5 pr-3 text-slate-300 text-xs">${s.phone || '—'}</td>
       <td class="py-2.5 pr-3 text-right text-xs">${loanBadge}</td>
       <td class="py-2.5 pr-3 text-center">${statusBadge}</td>
+      <td class="py-2.5 pr-3 text-center">${shiftBadge}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
+        ${s.join_date && s.position ? `<button onclick="viewInSchedule(${s.id})" class="text-xs text-slate-400 hover:text-blue-400 mr-2" title="View in schedule">📅</button>` : ''}
         ${state.userPermissions.staff?.can_write ? `
-          <button onclick="startEditStaff(${s.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-3">Edit</button>
-          <button onclick="toggleStaffStatus(${s.id}, ${!s.is_active})" class="text-xs ${toggleColor} mr-3">${toggleLabel}</button>
+          <button onclick="startEditStaff(${s.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-2">Edit</button>
+          <button onclick="toggleStaffStatus(${s.id}, ${!s.is_active})" class="text-xs ${toggleColor} mr-2">${toggleLabel}</button>
           <button onclick="confirmDeleteStaff(${s.id})" class="text-xs text-red-500 hover:text-red-400">Delete</button>
-        ` : '<span class="text-xs text-slate-600">Read only</span>'}
+        ` : ''}
       </td>
     </tr>`;
   }).join('');
 }
 
-// ─── CRUD ────────────────────────────────────────────────────────────────────
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
 
 export async function submitStaff(e) {
   e.preventDefault();
@@ -91,22 +99,28 @@ export async function submitStaff(e) {
   if (msg) msg.textContent = '';
 
   const payload = {
-    staff_id:    getEl('staffId').value.trim(),
-    full_name:   getEl('staffFullName').value.trim(),
-    position:    getEl('staffPosition').value.trim(),
-    join_date:   getEl('staffJoinDate').value || null,
-    salary:      parseFloat(getEl('staffSalary').value) || 0,
-    salary_ccy:  getEl('staffSalaryCcy').value || 'USD',
-    phone:       getEl('staffPhone').value.trim() || null,
-    loan_amount: parseFloat(getEl('staffLoan').value) || 0,
-    loan_ccy:    getEl('staffLoanCcy').value || 'KHR',
-    notes:       getEl('staffNotes').value.trim() || null,
+    staff_id:      getEl('staffId').value.trim(),
+    full_name:     getEl('staffFullName').value.trim(),
+    position:      getEl('staffPosition').value.trim(),
+    join_date:     getEl('staffJoinDate').value || null,
+    salary:        parseFloat(getEl('staffSalary').value) || 0,
+    salary_ccy:    getEl('staffSalaryCcy').value || 'USD',
+    phone:         getEl('staffPhone').value.trim() || null,
+    loan_amount:   parseFloat(getEl('staffLoan').value) || 0,
+    loan_ccy:      getEl('staffLoanCcy').value || 'KHR',
+    notes:         getEl('staffNotes').value.trim() || null,
+    default_shift: getEl('staffDefaultShift').value || null,
   };
 
   if (state.currentUserRole !== 'admin' && !confirm(`Are you sure you want to ${editingStaffId ? `update "${payload.full_name}"` : `add "${payload.full_name}"`}?`)) return;
 
-  const body = editingStaffId ? { ...payload, is_active: true } : payload;
-  const res  = editingStaffId
+  const existing = editingStaffId ? staffList.find(x => x.id === editingStaffId) : null;
+  const body = editingStaffId
+    ? { ...payload, is_active: existing?.is_active ?? true,
+        last_salary_date: existing?.last_salary_date ? existing.last_salary_date.slice(0, 10) : null }
+    : payload;
+
+  const res = editingStaffId
     ? await apiPut(`/api/staff/${editingStaffId}`, body)
     : await apiPost('/api/staff', body);
 
@@ -118,6 +132,7 @@ export async function submitStaff(e) {
   if (msg) msg.textContent = editingStaffId ? 'Updated.' : 'Added.';
   cancelEditStaff();
   loadStaff();
+  window.reloadScheduleIfLoaded?.();
 }
 
 export function startEditStaff(id) {
@@ -125,19 +140,20 @@ export function startEditStaff(id) {
   if (!s) return;
   editingStaffId = id;
 
-  getEl('staffId').value        = s.staff_id;
-  getEl('staffFullName').value  = s.full_name;
-  getEl('staffPosition').value  = s.position || '';
-  getEl('staffJoinDate').value  = s.join_date ? s.join_date.slice(0, 10) : '';
-  getEl('staffSalary').value    = s.salary;
-  getEl('staffSalaryCcy').value = s.salary_ccy || 'USD';
-  getEl('staffPhone').value     = s.phone || '';
-  getEl('staffLoan').value      = s.loan_amount;
-  getEl('staffLoanCcy').value   = s.loan_ccy || 'KHR';
-  getEl('staffNotes').value     = s.notes || '';
+  getEl('staffId').value           = s.staff_id;
+  getEl('staffFullName').value     = s.full_name;
+  getEl('staffPosition').value     = s.position || '';
+  getEl('staffJoinDate').value     = s.join_date ? s.join_date.slice(0, 10) : '';
+  getEl('staffSalary').value       = s.salary;
+  getEl('staffSalaryCcy').value    = s.salary_ccy || 'USD';
+  getEl('staffPhone').value        = s.phone || '';
+  getEl('staffLoan').value         = s.loan_amount;
+  getEl('staffLoanCcy').value      = s.loan_ccy || 'KHR';
+  getEl('staffNotes').value        = s.notes || '';
+  getEl('staffDefaultShift').value = s.default_shift || 'A';
 
-  const titleEl  = getEl('staffFormTitle');
-  const labelEl  = getEl('staffSubmitLabel');
+  const titleEl   = getEl('staffFormTitle');
+  const labelEl   = getEl('staffSubmitLabel');
   const cancelBtn = getEl('staffFormCancelBtn');
   if (titleEl)   titleEl.textContent  = 'Edit Staff';
   if (labelEl)   labelEl.textContent  = 'Save Changes';
@@ -148,8 +164,8 @@ export function startEditStaff(id) {
 export function cancelEditStaff() {
   editingStaffId = null;
   getEl('staffForm')?.reset();
-  const titleEl  = getEl('staffFormTitle');
-  const labelEl  = getEl('staffSubmitLabel');
+  const titleEl   = getEl('staffFormTitle');
+  const labelEl   = getEl('staffSubmitLabel');
   const cancelBtn = getEl('staffFormCancelBtn');
   const msg       = getEl('staffMsg');
   if (titleEl)   titleEl.textContent  = 'Add Staff';
@@ -163,11 +179,13 @@ export async function toggleStaffStatus(id, isActive) {
   if (!s) return;
   const res = await apiPut(`/api/staff/${id}`, {
     ...s,
-    join_date: s.join_date ? s.join_date.slice(0, 10) : null,
+    join_date:        s.join_date        ? s.join_date.slice(0, 10)        : null,
+    last_salary_date: s.last_salary_date ? s.last_salary_date.slice(0, 10) : null,
     is_active: isActive,
   });
   if (!res.ok) { alert('Failed to update status.'); return; }
   loadStaff();
+  window.reloadScheduleIfLoaded?.();
 }
 
 export function confirmDeleteStaff(id) {
@@ -182,22 +200,22 @@ async function deleteStaff(id) {
   loadStaff();
 }
 
-// ─── Export ──────────────────────────────────────────────────────────────────
+// ─── Export ───────────────────────────────────────────────────────────────────
 
 export function exportStaffCSV() {
   if (!staffList.length) return alert('No staff loaded.');
   const showInactive = getEl('showInactive')?.checked;
   const rows = showInactive ? staffList : staffList.filter(s => s.is_active);
   downloadCSV(`staff-${new Date().toISOString().slice(0, 10)}.csv`, [
-    ['Staff ID','Full Name','Position','Join Date','Salary','Salary CCY','Phone','Loan','Loan CCY','Status','Notes'],
+    ['Staff ID','Full Name','Position','Join Date','Salary','Salary CCY','Phone','Loan','Loan CCY','Status','Default Shift','Notes'],
     ...rows.map(s => [
       s.staff_id, s.full_name, s.position ?? '', s.join_date ? s.join_date.slice(0,10) : '',
       s.salary, s.salary_ccy || 'USD', s.phone ?? '', s.loan_amount, s.loan_ccy || 'KHR',
-      s.is_active ? 'Active' : 'Inactive', s.notes ?? '',
+      s.is_active ? 'Active' : 'Inactive', s.default_shift ?? '', s.notes ?? '',
     ]),
   ]);
 }
 
-// ─── Init ────────────────────────────────────────────────────────────────────
+// ─── Init ─────────────────────────────────────────────────────────────────────
 
 export function init() { loadStaff(); }

@@ -7,6 +7,7 @@ import * as Dashboard from './pages/dashboard.js';
 import * as Expenses  from './pages/expenses.js';
 import * as Receipts  from './pages/receipts.js';
 import * as Staff     from './pages/staff.js';
+import * as Schedule  from './pages/schedule.js';
 import * as Users     from './pages/users.js';
 
 // ─── Shared UI ───────────────────────────────────────────────────────────────
@@ -91,6 +92,36 @@ window.toggleStaffStatus  = Staff.toggleStaffStatus;
 window.confirmDeleteStaff = Staff.confirmDeleteStaff;
 window.exportStaffCSV     = Staff.exportStaffCSV;
 window.renderStaffTable   = Staff.renderStaffTable;
+
+// Schedule
+window.openShiftPicker = Schedule.openShiftPicker;
+window.applyShift      = Schedule.applyShift;
+window.prevMonth       = Schedule.prevMonth;
+window.nextMonth       = Schedule.nextMonth;
+
+// Schedule helpers
+window.reloadScheduleIfLoaded = Schedule.reloadIfLoaded;
+
+// Tab switcher — async so callers can await the schedule load
+window.switchTab = async function(tabName) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  const content = getEl(`tab-${tabName}`);
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  if (content) content.classList.remove('hidden');
+  if (btn) btn.classList.add('active');
+  if (tabName === 'schedule') await Schedule.init();
+};
+
+// Jump from staff list to schedule, highlight the staff row
+window.viewInSchedule = async function(staffId) {
+  await window.switchTab('schedule');
+  const row = document.querySelector(`tr[data-staff-id="${staffId}"]`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.add('sch-row--highlight');
+  setTimeout(() => row.classList.remove('sch-row--highlight'), 2500);
+};
 
 // Users
 window.submitUser         = Users.submitUser;

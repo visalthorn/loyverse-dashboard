@@ -28,6 +28,7 @@ function getGrossIncomeTrendGranularity() {
 // ─── KPIs ────────────────────────────────────────────────────────────────────
 
 function growthBadge(g) {
+  if (g == null) return '';
   if (g > 0) return `<span class="badge-up">▲ ${g > 100 ? '>100' : g}%</span>`;
   if (g < 0) return `<span class="badge-down">▼ ${Math.abs(g) > 100 ? '>100' : Math.abs(g)}%</span>`;
   return `<span class="badge-flat">— 0%</span>`;
@@ -38,50 +39,108 @@ async function loadKPIs() {
   const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}`);
   if (!data) return;
 
-  const avgGrossIncome = data.avg_gross_income ?? { value: '0', growth: 0 };
-  const avgExpense     = data.avg_expense      ?? { value: '0', growth: 0 };
-  const netPerOrder    = data.net_per_order    ?? { value: '0', growth: 0 };
-  const netPerOrderVal = parseFloat(netPerOrder.value);
-  const cards = [
-    { icon: '💰', label: 'Gross Income',    value: '៛' + fmtRaw(data.gross_income.value), growth: data.gross_income.growth, sub: 'Net Profit: ៛' + fmtRaw(data.net_revenue) },
-    { icon: '🧾', label: 'Orders',          value: data.orders.value,                     growth: data.orders.growth },
-    { icon: '💸', label: 'Total Expenses',  value: '-៛' + fmtRaw(data.expenses.value),    growth: data.expenses.growth, valueClass: 'text-red-400' },
-    { icon: '📊', label: 'Sale Averages', value: '៛' + fmtRaw(data.aov.value),          growth: null, noMainValue: true,
-      details: [
-        { label: 'Avg Order Value',  value: '៛'  + fmtRaw(data.aov.value),        growth: data.aov.growth },
-        { label: 'Avg Gross Income', value: '៛'  + fmtRaw(avgGrossIncome.value),  growth: avgGrossIncome.growth },
-        { label: 'Avg Expense',      value: '-៛' + fmtRaw(avgExpense.value),      growth: avgExpense.growth,   cls: 'text-red-400' },
-        { label: 'Net Profit / Day', value: '៛'  + fmtRaw(netPerOrder.value),     growth: netPerOrder.growth,  cls: netPerOrderVal >= 0 ? 'text-emerald-400' : 'text-red-400', highlight: true },
-      ],
+  const grossVal  = parseFloat(data.gross_income.value);
+  const netVal    = parseFloat(data.net_revenue);
+  const expVal    = parseFloat(data.expenses.value);
+  const avgNetVal = parseFloat(data.net_per_order?.value ?? 0);
+
+  const netPositive  = netVal >= 0;
+  const netAccent    = netPositive ? 'emerald' : 'red';
+  const netValClass  = netPositive ? 'text-emerald-400' : 'text-red-400';
+  const netIcon      = netPositive ? '📈' : '📉';
+  const margin       = grossVal > 0 ? Math.round((netVal / grossVal) * 100) : 0;
+  const expPct       = grossVal > 0 ? Math.round((expVal / grossVal) * 100) : 0;
+
+  const avgNetPositive = avgNetVal >= 0;
+  const avgNetAccent   = avgNetPositive ? 'emerald' : 'red';
+  const avgNetClass    = avgNetPositive ? 'text-emerald-400' : 'text-red-400';
+
+  // ── Section 1: Period totals ────────────────────────────────────────────────
+  const primary = [
+    {
+      accent: 'amber', icon: '💰', label: 'Gross Income',
+      val: '៛' + fmtRaw(grossVal), valClass: 'text-amber-400',
+      growth: data.gross_income.growth,
+      sub: `<span class="${netValClass} font-semibold">Net ៛${fmtRaw(Math.abs(netVal))}</span>`
+         + `<span class="text-slate-600"> · ${margin}% margin</span>`,
+    },
+    {
+      accent: netAccent, icon: netIcon, label: 'Net Profit',
+      val: (netPositive ? '' : '-') + '៛' + fmtRaw(Math.abs(netVal)),
+      valClass: netValClass,
+      growth: null,
+      sub: `<span class="text-slate-500">Gross minus expenses</span>`,
+    },
+    {
+      accent: 'blue', icon: '🧾', label: 'Orders',
+      val: fmtRaw(data.orders.value), valClass: 'text-sky-400',
+      growth: data.orders.growth,
+      sub: `<span class="text-slate-500">AOV </span>`
+         + `<span class="text-slate-300 font-semibold">៛${fmtRaw(data.aov.value)}</span>`,
+    },
+    {
+      accent: 'red', icon: '💸', label: 'Expenses',
+      val: '-៛' + fmtRaw(expVal), valClass: 'text-red-400',
+      growth: data.expenses.growth,
+      sub: `<span class="text-slate-600">${expPct}% of gross income</span>`,
     },
   ];
 
-  const kpiCards = getEl('kpiCards');
-  if (kpiCards) kpiCards.innerHTML = cards.map(c => `
-    <div class="kpi-card">
-      <div class="flex items-start justify-between">
-        <span class="text-2xl">${c.icon}</span>
-        ${ c.growth ? growthBadge(c.growth) : '' }
+  const primaryEl = getEl('kpiPrimary');
+  if (primaryEl) primaryEl.innerHTML = primary.map(c => `
+    <div class="kpi-primary kpi-primary--${c.accent}">
+      <div class="flex items-start justify-between gap-2">
+        <div class="kpi-icon kpi-icon--${c.accent}">${c.icon}</div>
+        ${growthBadge(c.growth)}
       </div>
-      <div class="mt-2">
-        ${c.noMainValue ? '' : `<div class="text-2xl font-bold ${c.valueClass || 'text-white'}">${c.value}</div>`}
-        <div class="text-xs text-slate-400 ${c.noMainValue ? '' : 'mt-1'}">${c.label}</div>
-        ${c.sub ? `<div class="text-xs text-green-400 mt-1">${c.sub}</div>` : ''}
-        ${c.details ? `
-          <div class="mt-2.5 pt-2.5 border-t border-slate-700/50 space-y-1">
-            ${c.details.map(d => `
-              ${d.highlight ? '<div class="border-t border-slate-600/50 my-1.5"></div>' : ''}
-              <div class="flex items-center justify-between rounded-md px-2 py-1.5 ${d.highlight ? (d.cls && d.cls.includes('emerald') ? 'bg-emerald-950/60 border border-emerald-800/30' : 'bg-red-950/60 border border-red-800/30') : 'bg-slate-800/50'}">
-                <span class="text-xs ${d.highlight ? 'font-semibold ' + (d.cls || 'text-slate-300') : 'text-slate-400'}">${d.label}</span>
-                <div class="flex items-center gap-1.5">
-                  <span class="text-xs font-bold whitespace-nowrap ${d.cls || 'text-slate-200'}">${d.value}</span>
-                  ${growthBadge(d.growth)}
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
+      <div class="kpi-primary-val ${c.valClass}">${c.val}</div>
+      <div class="kpi-primary-lbl">${c.label}</div>
+      ${c.sub ? `<div class="kpi-primary-sub">${c.sub}</div>` : ''}
+    </div>
+  `).join('');
+
+  // ── Section 2: Daily benchmarks (same order & terms as Section 1) ───────────
+  const averages = [
+    {
+      accent: 'amber', label: 'Gross Income',
+      val: '៛' + fmtRaw(data.avg_gross_income?.value ?? 0),
+      valClass: 'text-amber-400',
+      growth: data.avg_gross_income?.growth,
+      sub: 'per day · avg',
+    },
+    {
+      accent: avgNetAccent, label: 'Net Profit',
+      val: (avgNetPositive ? '' : '-') + '៛' + fmtRaw(Math.abs(avgNetVal)),
+      valClass: avgNetClass,
+      growth: data.net_per_order?.growth,
+      sub: 'per day · avg',
+      highlight: true,
+    },
+    {
+      accent: 'violet', label: 'Orders',
+      val: '៛' + fmtRaw(data.aov?.value ?? 0),
+      valClass: 'text-violet-400',
+      growth: data.aov?.growth,
+      sub: 'avg value per order',
+    },
+    {
+      accent: 'red', label: 'Expenses',
+      val: '-៛' + fmtRaw(data.avg_expense?.value ?? 0),
+      valClass: 'text-red-400',
+      growth: data.avg_expense?.growth,
+      sub: 'per day · avg',
+    },
+  ];
+
+  const avgEl = getEl('kpiAverage');
+  if (avgEl) avgEl.innerHTML = averages.map(c => `
+    <div class="kpi-avg kpi-avg--${c.accent}${c.highlight ? ' kpi-avg--highlight' : ''}">
+      <div class="flex items-start justify-between gap-1 mb-1">
+        <div class="kpi-avg-lbl">${c.label}</div>
+        ${growthBadge(c.growth)}
       </div>
+      <div class="kpi-avg-val ${c.valClass}">${c.val}</div>
+      <div class="kpi-avg-sub">${c.sub}</div>
     </div>
   `).join('');
 }

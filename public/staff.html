@@ -56,6 +56,144 @@
   .staff-row { transition: background .12s; }
   .staff-row:hover td { background: rgba(255,255,255,.03); }
 
+  /* ── Tabs ── */
+  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid #334155; margin-bottom: 1.25rem; }
+  .tab-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.625rem 1.125rem; font-size: 0.875rem; font-weight: 500;
+    color: #94a3b8; border: none; border-bottom: 2px solid transparent;
+    background: none; cursor: pointer; margin-bottom: -1px;
+    transition: color .15s, border-color .15s;
+  }
+  .tab-btn:hover { color: #e2e8f0; }
+  .tab-btn.active { color: #fbbf24; border-bottom-color: #fbbf24; }
+
+  /* ── Schedule grid ── */
+  .sch-scroll-wrap { overflow-x: auto; }
+  .sch-table { border-collapse: collapse; font-size: 0.6875rem; white-space: nowrap; width: 100%; }
+  .sch-table thead tr { border-bottom: 2px solid #334155; background: #162032; }
+  .sch-table tbody tr { border-bottom: 1px solid rgba(51,65,85,0.5); }
+  .sch-table tbody tr:hover .sch-day-cell { background: rgba(255,255,255,0.025); }
+  .sch-table tbody tr:hover .sch-weekend  { background: rgba(127,29,29,0.1); }
+
+  .sch-th-name {
+    min-width: 155px; text-align: left; padding: 0.5rem 0.75rem;
+    position: sticky; left: 0; background: #162032; z-index: 5;
+    color: #94a3b8; font-weight: 600; border-right: 1px solid #334155;
+  }
+  .sch-th-day { width: 34px; text-align: center; padding: 4px 1px; color: #94a3b8; font-weight: 500; line-height: 1.3; }
+  .sch-th-day small { display: block; color: #475569; font-size: 0.5625rem; }
+  .sch-th-day.sch-weekend small { color: #b91c1c; }
+  .sch-th-sum {
+    min-width: 170px; text-align: left; padding: 0.5rem 0.875rem;
+    position: sticky; right: 0; background: #162032; z-index: 5;
+    color: #94a3b8; font-weight: 600; border-left: 1px solid #334155;
+  }
+
+  .sch-name-cell {
+    position: sticky; left: 0; background: #1e293b;
+    padding: 0.4rem 0.75rem; border-right: 1px solid #334155;
+    min-width: 155px; z-index: 2;
+  }
+  .sch-name { font-weight: 600; color: #f1f5f9; font-size: 0.75rem; }
+
+  .sch-day-cell { width: 34px; text-align: center; padding: 3px 1px; transition: background .1s; }
+  .sch-day-cell[onclick] { cursor: pointer; }
+  .sch-day-cell[onclick]:hover { background: rgba(255,255,255,0.07) !important; }
+  .sch-day-cell.sch-weekend { background: rgba(127,29,29,0.05); }
+
+  .sch-badge {
+    display: inline-block; padding: 2px 5px; border-radius: 3px;
+    font-weight: 700; font-size: 0.5625rem; line-height: 1.5;
+    pointer-events: none;
+  }
+
+  .sch-sum-cell {
+    position: sticky; right: 0; background: #1e293b;
+    padding: 0.625rem 0.875rem; border-left: 1px solid #334155; z-index: 2;
+    min-width: 170px;
+  }
+  .sch-sum-main  { font-size: 1.75rem; font-weight: 800; color: #f1f5f9; line-height: 1; letter-spacing: -0.02em; }
+  .sch-sum-unit  { font-size: 1rem; font-weight: 600; color: #64748b; margin-left: 1px; }
+  .sch-sum-label { font-size: 0.75rem; color: #64748b; margin-top: 5px; }
+  .sch-sum-next  { font-size: 0.75rem; color: #f59e0b; font-weight: 600; margin-top: 3px; }
+
+  /* ── Picker ── */
+  .sch-picker {
+    position: fixed; z-index: 9999;
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 8px; padding: 4px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.6);
+    min-width: 196px;
+  }
+  .sch-picker-opt {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.4375rem 0.75rem; border-radius: 5px;
+    font-size: 0.8125rem; color: #cbd5e1;
+    background: none; border: none; cursor: pointer; width: 100%; text-align: left;
+    transition: background .12s;
+  }
+  .sch-picker-opt:hover { background: rgba(255,255,255,.08); color: #fff; }
+  .sch-picker-badge { padding: 2px 7px; border-radius: 3px; font-weight: 700; font-size: 0.6875rem; pointer-events: none; }
+  .sch-picker-clear {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(100,116,139,0.18); color: #94a3b8; font-size: 0.625rem;
+    pointer-events: none;
+  }
+
+  /* ── Schedule: name cell meta ── */
+  .sch-staff-meta { color: #64748b; font-size: 0.5625rem; font-family: monospace; margin-top: 1px; }
+
+  /* ── Auto-filled badge ── */
+  .sch-badge--auto { opacity: 0.45; }
+
+  /* ── Today column ── */
+  .sch-th-today { color: #fbbf24 !important; }
+  .sch-th-today small { color: #f59e0b !important; }
+  .sch-today-cell { background: rgba(245,158,11,0.06) !important; }
+
+  /* ── Future columns ── */
+  .sch-th-future { color: #1f2937 !important; }
+  .sch-th-future small { color: #111827 !important; }
+  .sch-future-cell { background: rgba(0,0,0,0.12) !important; cursor: default !important; }
+
+  /* ── Pay-date column marker ── */
+  .sch-pay-mark-col { border-right: 2px solid rgba(245,158,11,0.6) !important; }
+
+
+  /* ── Month nav ── */
+  .sch-nav-btn {
+    background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+    color: #94a3b8; padding: 4px 12px; cursor: pointer;
+    font-size: 0.875rem; transition: all .12s;
+  }
+  .sch-nav-btn:hover { background: #334155; color: #fff; }
+
+  .legend-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    color: #94a3b8; font-size: 0.75rem;
+  }
+
+  /* ── Row highlight (linked from staff tab) ── */
+  @keyframes sch-name-flash {
+    0%   { background: rgba(251,191,36,0.22); box-shadow: inset 3px 0 0 #f59e0b; }
+    100% { background: #1e293b; box-shadow: none; }
+  }
+  @keyframes sch-cell-flash {
+    0%   { background: rgba(251,191,36,0.10); }
+    100% { background: transparent; }
+  }
+  .sch-row--highlight .sch-name-cell {
+    animation: sch-name-flash 2.5s ease-out forwards !important;
+  }
+  .sch-row--highlight .sch-sum-cell {
+    animation: sch-name-flash 2.5s ease-out forwards !important;
+  }
+  .sch-row--highlight .sch-day-cell {
+    animation: sch-cell-flash 2.5s ease-out forwards !important;
+  }
+
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
@@ -120,141 +258,204 @@
   <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
     <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
     <div>
-      <h2 class="text-lg font-semibold">Staff Management</h2>
-      <p class="text-xs text-slate-400">Manage staff profiles and records</p>
+      <h2 class="text-lg font-semibold">Staff</h2>
+      <p class="text-xs text-slate-400">Manage staff profiles and monthly schedule</p>
     </div>
   </header>
 
-  <main class="p-4 md:p-6 space-y-5 w-full max-w-screen-xl mx-auto">
+  <main class="p-4 md:p-6 w-full max-w-screen-xl mx-auto">
 
-    <!-- Stats -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div class="stat-card">
-        <div class="stat-icon bg-slate-700">👥</div>
-        <div>
-          <div class="text-xs text-slate-400 mb-0.5">Active Staff</div>
-          <div class="text-2xl font-bold text-white" id="statActiveStaff">—</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(34,197,94,.12)">💵</div>
-        <div>
-          <div class="text-xs text-slate-400 mb-0.5">Monthly Salary</div>
-          <div class="text-2xl font-bold text-emerald-400" id="statTotalSalary">—</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(245,158,11,.12)">💳</div>
-        <div>
-          <div class="text-xs text-slate-400 mb-0.5">Total Loans</div>
-          <div class="text-2xl font-bold text-amber-400" id="statTotalLoan">—</div>
-        </div>
-      </div>
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="staff" onclick="switchTab('staff')">
+        👥 Staff Management
+      </button>
+      <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')">
+        📅 Schedule
+      </button>
     </div>
 
-    <!-- Add / Edit form -->
-    <div class="card" data-write-page="staff">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="section-title">👤 <span id="staffFormTitle">Add Staff</span></h2>
-        <button id="staffFormCancelBtn" onclick="cancelEditStaff()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors">Cancel Edit</button>
-      </div>
-      <form id="staffForm" onsubmit="submitStaff(event)" class="grid md:grid-cols-3 gap-3">
-        <div>
-          <label class="text-xs text-slate-300 mb-1 block">Staff ID <span class="text-red-400">*</span></label>
-          <input id="staffId" type="text" required placeholder="e.g. 00-9" class="staff-input"/>
-        </div>
-        <div>
-          <label class="text-xs text-slate-300 mb-1 block">Full Name <span class="text-red-400">*</span></label>
-          <input id="staffFullName" type="text" required placeholder="Full name" class="staff-input"/>
-        </div>
-        <div>
-          <label class="text-xs text-slate-300 mb-1 block">Position</label>
-          <input id="staffPosition" type="text" list="positionList" placeholder="e.g. Waiter" class="staff-input"/>
-          <datalist id="positionList">
-            <option value="Owner/Biz"/>
-            <option value="Manager"/>
-            <option value="Waiter"/>
-            <option value="Waitress"/>
-            <option value="Assistance Chief"/>
-            <option value="Cleaner"/>
-            <option value="Cashier"/>
-          </datalist>
-        </div>
-        <div>
-          <label class="text-xs text-slate-300 mb-1 block">Join Date</label>
-          <input id="staffJoinDate" type="date" class="staff-input"/>
-        </div>
-        <div>
-          <label class="text-xs text-slate-300 mb-1 block">Salary</label>
-          <div class="flex gap-1.5">
-            <input id="staffSalary" type="number" step="0.01" min="0" placeholder="0.00" class="staff-input flex-1"/>
-            <select id="staffSalaryCcy" class="staff-input" style="width:5.5rem">
-              <option value="USD">USD</option>
-              <option value="KHR">KHR</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label class="text-xs text-slate-300 mb-1 block">Phone</label>
-          <input id="staffPhone" type="text" placeholder="0xx-xxxxxxx" class="staff-input"/>
-        </div>
-        <div>
-          <label class="text-xs text-slate-300 mb-1 block">Loan</label>
-          <div class="flex gap-1.5">
-            <input id="staffLoan" type="number" min="0" placeholder="0" class="staff-input flex-1"/>
-            <select id="staffLoanCcy" class="staff-input" style="width:5.5rem">
-              <option value="KHR">KHR</option>
-              <option value="USD">USD</option>
-            </select>
-          </div>
-        </div>
-        <div class="md:col-span-2">
-          <label class="text-xs text-slate-300 mb-1 block">Notes</label>
-          <input id="staffNotes" type="text" placeholder="Optional notes" class="staff-input"/>
-        </div>
-        <div class="md:col-span-3 flex items-center gap-3 pt-1">
-          <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-5 py-2 rounded">
-            <span id="staffSubmitLabel">Add Staff</span>
-          </button>
-          <span id="staffMsg" class="text-sm text-slate-400"></span>
-        </div>
-      </form>
-    </div>
+    <!-- ── Staff Management Tab ── -->
+    <div id="tab-staff" class="tab-content space-y-5">
 
-    <!-- Staff list -->
-    <div class="card">
+      <!-- Stats -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="stat-card">
+          <div class="stat-icon bg-slate-700">👥</div>
+          <div>
+            <div class="text-xs text-slate-400 mb-0.5">Active Staff</div>
+            <div class="text-2xl font-bold text-white" id="statActiveStaff">—</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(34,197,94,.12)">💵</div>
+          <div>
+            <div class="text-xs text-slate-400 mb-0.5">Monthly Salary</div>
+            <div class="text-2xl font-bold text-emerald-400" id="statTotalSalary">—</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(245,158,11,.12)">💳</div>
+          <div>
+            <div class="text-xs text-slate-400 mb-0.5">Total Loans</div>
+            <div class="text-2xl font-bold text-amber-400" id="statTotalLoan">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add / Edit form -->
+      <div class="card" data-write-page="staff">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="section-title">👤 <span id="staffFormTitle">Add Staff</span></h2>
+          <button id="staffFormCancelBtn" onclick="cancelEditStaff()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors">Cancel Edit</button>
+        </div>
+        <form id="staffForm" onsubmit="submitStaff(event)" class="grid md:grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Staff ID <span class="text-red-400">*</span></label>
+            <input id="staffId" type="text" required placeholder="e.g. 00-9" class="staff-input"/>
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Full Name <span class="text-red-400">*</span></label>
+            <input id="staffFullName" type="text" required placeholder="Full name" class="staff-input"/>
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Position</label>
+            <input id="staffPosition" type="text" list="positionList" placeholder="e.g. Waiter" class="staff-input"/>
+            <datalist id="positionList">
+              <option value="Owner/Biz"/>
+              <option value="Manager"/>
+              <option value="Waiter"/>
+              <option value="Waitress"/>
+              <option value="Assistance Chief"/>
+              <option value="Cleaner"/>
+              <option value="Cashier"/>
+            </datalist>
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Join Date</label>
+            <input id="staffJoinDate" type="date" class="staff-input"/>
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Salary</label>
+            <div class="flex gap-1.5">
+              <input id="staffSalary" type="number" step="0.01" min="0" placeholder="0.00" class="staff-input flex-1"/>
+              <select id="staffSalaryCcy" class="staff-input" style="width:5.5rem">
+                <option value="USD">USD</option>
+                <option value="KHR">KHR</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Phone</label>
+            <input id="staffPhone" type="text" placeholder="0xx-xxxxxxx" class="staff-input"/>
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Loan</label>
+            <div class="flex gap-1.5">
+              <input id="staffLoan" type="number" min="0" placeholder="0" class="staff-input flex-1"/>
+              <select id="staffLoanCcy" class="staff-input" style="width:5.5rem">
+                <option value="KHR">KHR</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Default Shift</label>
+            <select id="staffDefaultShift" class="staff-input">
+              <option value="">— None —</option>
+              <option value="M">M · Morning (11am–10pm)</option>
+              <option value="A" selected>A · Afternoon (2pm–1am)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 mb-1 block">Notes</label>
+            <input id="staffNotes" type="text" placeholder="Optional notes" class="staff-input"/>
+          </div>
+          <div class="md:col-span-3 flex items-center gap-3 pt-1">
+            <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-5 py-2 rounded">
+              <span id="staffSubmitLabel">Add Staff</span>
+            </button>
+            <span id="staffMsg" class="text-sm text-slate-400"></span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Staff list -->
+      <div class="card">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h2 class="section-title">📋 Staff List</h2>
+          <div class="flex items-center gap-3">
+            <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+              <input type="checkbox" id="showInactive" onchange="renderStaffTable()" class="accent-amber-400"/>
+              Show inactive
+            </label>
+            <button onclick="exportStaffCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1">⬇ CSV</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-700 text-left text-xs">
+                <th class="pb-2 pr-3 font-medium">#</th>
+                <th class="pb-2 pr-3 font-medium">ID</th>
+                <th class="pb-2 pr-3 font-medium">Name</th>
+                <th class="pb-2 pr-3 font-medium">Position</th>
+                <th class="pb-2 pr-3 font-medium">Join Date</th>
+                <th class="pb-2 pr-3 font-medium text-right">Salary</th>
+                <th class="pb-2 pr-3 font-medium">Phone</th>
+                <th class="pb-2 pr-3 font-medium text-right">Loan</th>
+                <th class="pb-2 pr-3 font-medium text-center">Status</th>
+                <th class="pb-2 pr-3 font-medium text-center">Shift</th>
+                <th class="pb-2 font-medium text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="staffTableBody">
+              <tr><td colspan="10" class="py-10 text-center text-slate-500">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /tab-staff -->
+
+    <!-- ── Schedule Tab ── -->
+    <div id="tab-schedule" class="tab-content hidden">
+
+      <!-- Header: month nav + legend -->
       <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h2 class="section-title">📋 Staff List</h2>
         <div class="flex items-center gap-3">
-          <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
-            <input type="checkbox" id="showInactive" onchange="renderStaffTable()" class="accent-amber-400"/>
-            Show inactive
-          </label>
-          <button onclick="exportStaffCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1">⬇ CSV</button>
+          <button onclick="prevMonth()" class="sch-nav-btn">◀</button>
+          <span id="scheduleMonthTitle" class="text-base font-bold text-white min-w-[140px] text-center">—</span>
+          <button onclick="nextMonth()" class="sch-nav-btn">▶</button>
+        </div>
+        <div class="flex items-center gap-4 flex-wrap">
+          <span class="legend-chip">
+            <span class="sch-badge" style="background:rgba(59,130,246,0.22);color:#60a5fa">M</span>
+            11am – 10pm
+          </span>
+          <span class="legend-chip">
+            <span class="sch-badge" style="background:rgba(168,85,247,0.22);color:#c084fc">A</span>
+            2pm – 1am
+          </span>
+          <span class="legend-chip">
+            <span class="sch-badge" style="background:rgba(239,68,68,0.2);color:#f87171">Off</span>
+            Day Off
+          </span>
         </div>
       </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-slate-400 border-b border-slate-700 text-left text-xs">
-              <th class="pb-2 pr-3 font-medium">#</th>
-              <th class="pb-2 pr-3 font-medium">ID</th>
-              <th class="pb-2 pr-3 font-medium">Name</th>
-              <th class="pb-2 pr-3 font-medium">Position</th>
-              <th class="pb-2 pr-3 font-medium">Join Date</th>
-              <th class="pb-2 pr-3 font-medium text-right">Salary</th>
-              <th class="pb-2 pr-3 font-medium">Phone</th>
-              <th class="pb-2 pr-3 font-medium text-right">Loan</th>
-              <th class="pb-2 pr-3 font-medium text-center">Status</th>
-              <th class="pb-2 font-medium text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="staffTableBody">
-            <tr><td colspan="10" class="py-10 text-center text-slate-500">Loading…</td></tr>
-          </tbody>
-        </table>
+
+      <!-- Grid card -->
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <div id="scheduleGridContainer">
+          <div class="py-10 text-center text-slate-500 text-sm">Click the Schedule tab to load.</div>
+        </div>
       </div>
-    </div>
+
+      <p id="scheduleReadOnlyNote" class="hidden text-xs text-slate-500 mt-2">
+        Read-only — you don't have write permission for staff.
+      </p>
+
+    </div><!-- /tab-schedule -->
 
   </main>
 </div>
