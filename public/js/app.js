@@ -94,10 +94,13 @@ window.exportStaffCSV     = Staff.exportStaffCSV;
 window.renderStaffTable   = Staff.renderStaffTable;
 
 // Schedule
-window.openShiftPicker = Schedule.openShiftPicker;
-window.applyShift      = Schedule.applyShift;
-window.prevMonth       = Schedule.prevMonth;
-window.nextMonth       = Schedule.nextMonth;
+window.openShiftPicker  = Schedule.openShiftPicker;
+window.applyShift       = Schedule.applyShift;
+window.prevMonth        = Schedule.prevMonth;
+window.nextMonth        = Schedule.nextMonth;
+window.exportScheduleCSV = Schedule.exportScheduleCSV;
+window.openRosterFill   = Schedule.openRosterFill;
+window.applyRosterFill  = Schedule.applyRosterFill;
 
 // Schedule helpers
 window.reloadScheduleIfLoaded = Schedule.reloadIfLoaded;

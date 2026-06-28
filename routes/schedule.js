@@ -50,4 +50,47 @@ router.put('/', requireAuth, requireWrite('staff'), async (req, res) => {
   }
 });
 
+// Bulk upsert/clear entries for roster fill
+router.put('/bulk', requireAuth, requireWrite('staff'), async (req, res) => {
+  const { entries } = req.body;
+  if (!Array.isArray(entries) || entries.length === 0)
+    return res.status(400).json({ message: 'entries array is required.' });
+
+  const validShifts = ['M', 'A', 'Off'];
+  for (const e of entries) {
+    if (!e.staff_id || !e.schedule_date)
+      return res.status(400).json({ message: 'Each entry requires staff_id and schedule_date.' });
+    if (e.shift != null && !validShifts.includes(e.shift))
+      return res.status(400).json({ message: `Invalid shift: ${e.shift}` });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const e of entries) {
+      if (!e.shift) {
+        await client.query(
+          'DELETE FROM staff_schedule WHERE staff_id=$1 AND schedule_date=$2',
+          [e.staff_id, e.schedule_date]
+        );
+      } else {
+        await client.query(`
+          INSERT INTO staff_schedule (staff_id, schedule_date, shift)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (staff_id, schedule_date)
+          DO UPDATE SET shift=$3, updated_at=NOW()
+        `, [e.staff_id, e.schedule_date, e.shift]);
+      }
+    }
+    await client.query('COMMIT');
+    res.json({ updated: entries.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Schedule bulk error:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

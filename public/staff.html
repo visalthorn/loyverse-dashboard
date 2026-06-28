@@ -153,10 +153,12 @@
   .sch-th-today small { color: #f59e0b !important; }
   .sch-today-cell { background: rgba(245,158,11,0.06) !important; }
 
-  /* ── Future columns ── */
-  .sch-th-future { color: #1f2937 !important; }
-  .sch-th-future small { color: #111827 !important; }
-  .sch-future-cell { background: rgba(0,0,0,0.12) !important; cursor: default !important; }
+  /* ── Future columns — dimmed but visible and editable ── */
+  .sch-th-future { color: #475569 !important; }
+  .sch-th-future small { color: #334155 !important; }
+  .sch-future-cell { background: rgba(0,0,0,0.08) !important; opacity: 0.75; }
+  .sch-future-cell[onclick] { cursor: pointer; opacity: 1; }
+  .sch-future-cell[onclick]:hover { background: rgba(255,255,255,0.07) !important; }
 
   /* ── Pay-date column marker ── */
   .sch-pay-mark-col { border-right: 2px solid rgba(245,158,11,0.6) !important; }
@@ -197,6 +199,48 @@
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+
+  /* ── Roster fill button (inside name cell) ── */
+  .sch-fill-btn {
+    display: inline-flex; align-items: center; gap: 3px; margin-top: 4px;
+    font-size: 0.5625rem; font-weight: 600; padding: 2px 7px; border-radius: 3px;
+    background: rgba(245,158,11,0.1); color: #fbbf24;
+    border: 1px solid rgba(245,158,11,0.25); cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  .sch-fill-btn:hover { background: rgba(245,158,11,0.22); border-color: rgba(245,158,11,0.5); }
+
+  /* ── Roster picker popup ── */
+  .sch-roster-picker {
+    position: fixed; z-index: 9999;
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 10px; padding: 8px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.65);
+    min-width: 270px;
+  }
+  .sch-roster-title {
+    font-size: 0.6875rem; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 4px 8px 8px; border-bottom: 1px solid #334155; margin-bottom: 4px;
+  }
+  .sch-roster-opt {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: 5px; width: 100%; text-align: left;
+    font-size: 0.8125rem; color: #cbd5e1;
+    background: none; border: none; cursor: pointer;
+    transition: background .12s;
+  }
+  .sch-roster-opt:hover { background: rgba(255,255,255,.08); color: #fff; }
+  .sch-roster-divider { border: none; border-top: 1px solid #334155; margin: 6px 0; }
+
+  /* ── Future month indicator ── */
+  .sch-future-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 9999px;
+    background: rgba(99,102,241,0.15); color: #818cf8;
+    border: 1px solid rgba(99,102,241,0.3);
+  }
+
 </style>
 </head>
 <body class="app-shell bg-slate-900 text-white min-h-screen">
@@ -421,12 +465,13 @@
     <!-- ── Schedule Tab ── -->
     <div id="tab-schedule" class="tab-content hidden">
 
-      <!-- Header: month nav + legend -->
+      <!-- Header: month nav + legend + export -->
       <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div class="flex items-center gap-3">
           <button onclick="prevMonth()" class="sch-nav-btn">◀</button>
           <span id="scheduleMonthTitle" class="text-base font-bold text-white min-w-[140px] text-center">—</span>
           <button onclick="nextMonth()" class="sch-nav-btn">▶</button>
+          <span id="scheduleFutureNote" class="hidden sch-future-badge">Planning ahead</span>
         </div>
         <div class="flex items-center gap-4 flex-wrap">
           <span class="legend-chip">
@@ -441,6 +486,7 @@
             <span class="sch-badge" style="background:rgba(239,68,68,0.2);color:#f87171">Off</span>
             Day Off
           </span>
+          <button onclick="exportScheduleCSV()" class="sch-nav-btn" title="Export roster as CSV" style="margin-left:4px">⬇ CSV</button>
         </div>
       </div>
 

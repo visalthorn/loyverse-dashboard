@@ -10,7 +10,7 @@ let scheduleByDate = {};     // staffId → { 'YYYY-MM-DD': shift } current + pr
 
 let currentYear  = new Date().getFullYear();
 let currentMonth = new Date().getMonth() + 1;
-let loaded       = false;   // true once init() has been called at least once
+let loaded       = false;
 
 const _now    = new Date();
 const _todayY = _now.getFullYear();
@@ -38,7 +38,6 @@ function isPastOrToday(y, m, d) {
   return d <= _todayD;
 }
 
-// True if (y,m,d) is on or after the staff join date
 function isOnOrAfterJoin(y, m, d, joinStr) {
   if (!joinStr) return true;
   const [jy, jm, jd] = joinStr.split('-').map(Number);
@@ -57,26 +56,21 @@ function shortDate(dateStr) {
   return `${MONTH_NAMES[sm - 1].slice(0, 3)} ${sd}`;
 }
 
-// Effective shift: DB entry wins, then auto-fill for days within [join_date, today]
+// DB entry wins (including explicit Off); otherwise auto-fill with default shift for all days on/after join date
 function effectiveShift(staffId, day, defaultShift, joinStr) {
   const dbVal = scheduleMap[staffId]?.[day];
   if (dbVal !== undefined) return { shift: dbVal, auto: false };
-  if (isPastOrToday(currentYear, currentMonth, day) &&
-      isOnOrAfterJoin(currentYear, currentMonth, day, joinStr) &&
-      defaultShift)
+  if (isOnOrAfterJoin(currentYear, currentMonth, day, joinStr) && defaultShift)
     return { shift: defaultShift, auto: true };
   return { shift: null, auto: false };
 }
 
 // ── Payment cycle helpers ─────────────────────────────────────────────────────
-// For join days 29/30/31: use the last valid day of each target month.
-// HR convention: e.g. joined Mar 31 → pay on Jan 31, Feb 28/29, Mar 31, Apr 30 …
 
 function payDayInMonth(joinDay, y, m) {
   return Math.min(joinDay, daysInMonth(y, m));
 }
 
-// Most recent payment date on or before today
 function getLastPayDate(joinStr) {
   if (!joinStr) return null;
   const joinDay = parseInt(joinStr.slice(8, 10), 10);
@@ -89,7 +83,6 @@ function getLastPayDate(joinStr) {
   return toDateStr(prevY, prevM, payDayInMonth(joinDay, prevY, prevM));
 }
 
-// Next payment date = one month after last
 function getNextPayDate(joinStr) {
   const last = getLastPayDate(joinStr);
   if (!last) return null;
@@ -100,8 +93,6 @@ function getNextPayDate(joinStr) {
   return toDateStr(nxtY, nxtM, payDayInMonth(joinDay, nxtY, nxtM));
 }
 
-// Days worked since fromDateStr (exclusive) to today.
-// Off entries in DB don't count; everything else (auto-fill or explicit M/A) does.
 function computeWorkedSince(staffId, defaultShift, fromStr, joinStr) {
   if (!fromStr) return 0;
   const [fy, fm, fd] = fromStr.split('-').map(Number);
@@ -111,7 +102,6 @@ function computeWorkedSince(staffId, defaultShift, fromStr, joinStr) {
 
   while (cur <= end) {
     const ds  = toDateStr(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
-    // Skip days before join date
     if (!isOnOrAfterJoin(cur.getFullYear(), cur.getMonth() + 1, cur.getDate(), joinStr)) {
       cur.setDate(cur.getDate() + 1);
       continue;
@@ -133,7 +123,6 @@ export async function init() {
   await load();
 }
 
-// Called after staff save/edit to refresh the grid without re-showing the tab
 export async function reloadIfLoaded() {
   if (loaded) await load();
 }
@@ -148,6 +137,40 @@ export function nextMonth() {
   currentMonth++;
   if (currentMonth > 12) { currentMonth = 1; currentYear++; }
   load();
+}
+
+export function exportScheduleCSV() {
+  const days    = daysInMonth(currentYear, currentMonth);
+  const monthLabel = `${MONTH_NAMES[currentMonth - 1]}_${currentYear}`;
+
+  const dayHeaders = [];
+  for (let d = 1; d <= days; d++) {
+    dayHeaders.push(`${d} ${DAY_SHORT[dowOf(currentYear, currentMonth, d)]}`);
+  }
+
+  const headers = ['Staff Name', 'Staff ID', 'Position', ...dayHeaders];
+
+  const dataRows = staffList.map(s => {
+    const defaultShift = s.default_shift || 'A';
+    const cells = [];
+    for (let d = 1; d <= days; d++) {
+      const { shift } = effectiveShift(s.id, d, defaultShift, s.join_date);
+      cells.push(shift || '');
+    }
+    return [s.full_name, s.staff_id, s.position, ...cells];
+  });
+
+  const csv = [headers, ...dataRows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\r\n');
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `roster_${monthLabel}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -166,7 +189,6 @@ async function load() {
     fetchJSON(`/api/schedule?year=${prevY}&month=${prevM}`),
   ]);
 
-  // Only staff with both join_date and position appear in the schedule
   staffList = (Array.isArray(staff) ? staff : [])
     .filter(s => s.is_active && s.join_date && s.position);
 
@@ -210,11 +232,15 @@ function render() {
   const note = getEl('scheduleReadOnlyNote');
   if (note) note.classList.toggle('hidden', canEdit);
 
-  // Header row
+  // Indicate if we're viewing a future month
+  const isFutureMonth = currentYear > _todayY || (currentYear === _todayY && currentMonth > _todayM);
+  const futureNote = getEl('scheduleFutureNote');
+  if (futureNote) futureNote.classList.toggle('hidden', !isFutureMonth);
+
   let head = `<th class="sch-th-name">Staff</th>`;
   for (let d = 1; d <= days; d++) {
-    const dw       = dowOf(currentYear, currentMonth, d);
-    const we       = dw === 0 || dw === 6;
+    const dw      = dowOf(currentYear, currentMonth, d);
+    const we      = dw === 0 || dw === 6;
     const isFuture = !isPastOrToday(currentYear, currentMonth, d);
     const isToday  = currentYear === _todayY && currentMonth === _todayM && d === _todayD;
     head += `<th class="sch-th-day${we ? ' sch-weekend' : ''}${isFuture ? ' sch-th-future' : ''}${isToday ? ' sch-th-today' : ''}">${d}<br><small>${DAY_SHORT[dw]}</small></th>`;
@@ -236,18 +262,21 @@ function render() {
 
 function buildRow(s, days, canEdit) {
   const defaultShift = s.default_shift || 'A';
-  const joinStr      = s.join_date;   // guaranteed "YYYY-MM-DD" from backend
+  const joinStr      = s.join_date;
   const joinDay      = parseInt(joinStr.slice(8, 10), 10);
   const lastPayDate  = getLastPayDate(joinStr);
   const nextPayDate  = getNextPayDate(joinStr);
   const workedDays   = computeWorkedSince(s.id, defaultShift, lastPayDate, joinStr);
+  const payColDay    = payDayInMonth(joinDay, currentYear, currentMonth);
 
-  // Payment-cycle marker column for this month (clamped for short months)
-  const payColDay = payDayInMonth(joinDay, currentYear, currentMonth);
+  const fillBtn = canEdit
+    ? `<button class="sch-fill-btn" onclick="openRosterFill(event,${s.id})">⊞ Fill</button>`
+    : '';
 
   let cells = `<td class="sch-name-cell">
     <div class="sch-name">${s.full_name}</div>
     <div class="sch-staff-meta">${s.staff_id} · <span style="color:${SHIFTS[defaultShift].color};font-weight:700">${defaultShift}</span> · <span style="color:#94a3b8">${s.position}</span></div>
+    ${fillBtn}
   </td>`;
 
   for (let d = 1; d <= days; d++) {
@@ -258,12 +287,14 @@ function buildRow(s, days, canEdit) {
     const isToday  = currentYear === _todayY && currentMonth === _todayM && d === _todayD;
     const isPayDay = d === payColDay;
     const dateStr  = toDateStr(currentYear, currentMonth, d);
+    const eligible = isOnOrAfterJoin(currentYear, currentMonth, d, joinStr);
 
     const badge = shift
       ? `<span class="sch-badge${auto ? ' sch-badge--auto' : ''}" style="background:${SHIFTS[shift].bg};color:${SHIFTS[shift].color}">${shift}</span>`
       : '';
 
-    const clickAttr = canEdit && !isFuture && isOnOrAfterJoin(currentYear, currentMonth, d, joinStr)
+    // Allow editing both past/today AND future dates so managers can plan ahead
+    const clickAttr = canEdit && eligible
       ? ` onclick="openShiftPicker(event,${s.id},'${dateStr}')"`
       : '';
 
@@ -286,6 +317,7 @@ let activePicker = null;
 export function openShiftPicker(event, staffId, dateStr) {
   event.stopPropagation();
   closeShiftPicker();
+  closeRosterFill();
 
   const opts = [
     { shift: 'M',   label: 'Morning (11am–10pm)' },
@@ -333,6 +365,101 @@ export async function applyShift(staffId, dateStr, shift) {
   }
 
   render();
+}
+
+// ── Roster fill ───────────────────────────────────────────────────────────────
+
+let activeRosterPicker = null;
+
+export function openRosterFill(event, staffId) {
+  event.stopPropagation();
+  closeShiftPicker();
+  closeRosterFill();
+
+  const staff = staffList.find(s => s.id === staffId);
+  const name  = staff ? staff.full_name : 'Staff';
+
+  const patterns = [
+    { key: 'all-M',   badge: 'M',   badgeStyle: `background:${SHIFTS.M.bg};color:${SHIFTS.M.color}`,     label: 'All days Morning (11am–10pm)'        },
+    { key: 'all-A',   badge: 'A',   badgeStyle: `background:${SHIFTS.A.bg};color:${SHIFTS.A.color}`,     label: 'All days Afternoon (2pm–1am)'        },
+    { key: 'all-Off', badge: 'Off', badgeStyle: `background:${SHIFTS.Off.bg};color:${SHIFTS.Off.color}`, label: 'All days Off'                        },
+    { key: 'wd-M',    badge: 'M',   badgeStyle: `background:${SHIFTS.M.bg};color:${SHIFTS.M.color}`,     label: 'Weekdays Morning · Weekend Off'      },
+    { key: 'wd-A',    badge: 'A',   badgeStyle: `background:${SHIFTS.A.bg};color:${SHIFTS.A.color}`,     label: 'Weekdays Afternoon · Weekend Off'    },
+  ];
+
+  const picker = document.createElement('div');
+  picker.className = 'sch-roster-picker';
+  picker.innerHTML = `
+    <div class="sch-roster-title">Fill Roster · ${name}</div>
+    ${patterns.map(p => `
+      <button class="sch-roster-opt" onclick="applyRosterFill(${staffId},'${p.key}')">
+        <span class="sch-picker-badge" style="${p.badgeStyle}">${p.badge}</span>
+        <span>${p.label}</span>
+      </button>`).join('')}
+    <hr class="sch-roster-divider"/>
+    <button class="sch-roster-opt" style="color:#f87171" onclick="applyRosterFill(${staffId},'clear')">
+      <span class="sch-picker-clear" style="background:rgba(239,68,68,0.15);color:#f87171">✕</span>
+      <span>Clear all entries this month</span>
+    </button>`;
+
+  document.body.appendChild(picker);
+  activeRosterPicker = picker;
+  _positionNear(picker, event, 270, 250);
+  setTimeout(() => document.addEventListener('click', closeRosterFill, { once: true }), 0);
+}
+
+export function closeRosterFill() {
+  activeRosterPicker?.remove();
+  activeRosterPicker = null;
+}
+
+export async function applyRosterFill(staffId, pattern) {
+  closeRosterFill();
+
+  const entries = _buildRosterEntries(staffId, pattern);
+  const res = await apiPut('/api/schedule/bulk', { entries });
+  if (!res.ok) { alert('Failed to apply roster.'); return; }
+
+  if (!scheduleMap[staffId])    scheduleMap[staffId]    = {};
+  if (!scheduleByDate[staffId]) scheduleByDate[staffId] = {};
+
+  for (const e of entries) {
+    const day = parseInt(e.schedule_date.split('-')[2], 10);
+    if (e.shift) {
+      scheduleMap[staffId][day]            = e.shift;
+      scheduleByDate[staffId][e.schedule_date] = e.shift;
+    } else {
+      delete scheduleMap[staffId][day];
+      delete scheduleByDate[staffId][e.schedule_date];
+    }
+  }
+
+  render();
+}
+
+function _buildRosterEntries(staffId, pattern) {
+  const days    = daysInMonth(currentYear, currentMonth);
+  const entries = [];
+
+  for (let d = 1; d <= days; d++) {
+    const dateStr  = toDateStr(currentYear, currentMonth, d);
+    const dw       = dowOf(currentYear, currentMonth, d);
+    const isWeekend = dw === 0 || dw === 6;
+
+    let shift;
+    switch (pattern) {
+      case 'all-M':   shift = 'M';   break;
+      case 'all-A':   shift = 'A';   break;
+      case 'all-Off': shift = 'Off'; break;
+      case 'wd-M':    shift = isWeekend ? 'Off' : 'M'; break;
+      case 'wd-A':    shift = isWeekend ? 'Off' : 'A'; break;
+      default:        shift = null;  // 'clear'
+    }
+
+    entries.push({ staff_id: staffId, schedule_date: dateStr, shift });
+  }
+
+  return entries;
 }
 
 // ── Positioning utility ───────────────────────────────────────────────────────
