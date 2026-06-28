@@ -99,6 +99,7 @@ window.applyShift       = Schedule.applyShift;
 window.prevMonth        = Schedule.prevMonth;
 window.nextMonth        = Schedule.nextMonth;
 window.exportScheduleCSV = Schedule.exportScheduleCSV;
+window.printSchedule     = Schedule.printSchedule;
 window.openRosterFill   = Schedule.openRosterFill;
 window.applyRosterFill  = Schedule.applyRosterFill;
 
@@ -122,8 +123,8 @@ window.viewInSchedule = async function(staffId) {
   const row = document.querySelector(`tr[data-staff-id="${staffId}"]`);
   if (!row) return;
   row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  row.classList.add('sch-row--highlight');
-  setTimeout(() => row.classList.remove('sch-row--highlight'), 2500);
+  row.classList.add('rst-row--highlight');
+  setTimeout(() => row.classList.remove('rst-row--highlight'), 2500);
 };
 
 // Users

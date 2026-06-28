@@ -68,57 +68,15 @@
   .tab-btn:hover { color: #e2e8f0; }
   .tab-btn.active { color: #fbbf24; border-bottom-color: #fbbf24; }
 
-  /* ── Schedule grid ── */
-  .sch-scroll-wrap { overflow-x: auto; }
-  .sch-table { border-collapse: collapse; font-size: 0.6875rem; white-space: nowrap; width: 100%; }
-  .sch-table thead tr { border-bottom: 2px solid #334155; background: #162032; }
-  .sch-table tbody tr { border-bottom: 1px solid rgba(51,65,85,0.5); }
-  .sch-table tbody tr:hover .sch-day-cell { background: rgba(255,255,255,0.025); }
-  .sch-table tbody tr:hover .sch-weekend  { background: rgba(127,29,29,0.1); }
-
-  .sch-th-name {
-    min-width: 155px; text-align: left; padding: 0.5rem 0.75rem;
-    position: sticky; left: 0; background: #162032; z-index: 5;
-    color: #94a3b8; font-weight: 600; border-right: 1px solid #334155;
+  /* ── Month nav ── */
+  .sch-nav-btn {
+    background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+    color: #94a3b8; padding: 4px 12px; cursor: pointer;
+    font-size: 0.875rem; transition: all .12s;
   }
-  .sch-th-day { width: 34px; text-align: center; padding: 4px 1px; color: #94a3b8; font-weight: 500; line-height: 1.3; }
-  .sch-th-day small { display: block; color: #475569; font-size: 0.5625rem; }
-  .sch-th-day.sch-weekend small { color: #b91c1c; }
-  .sch-th-sum {
-    min-width: 170px; text-align: left; padding: 0.5rem 0.875rem;
-    position: sticky; right: 0; background: #162032; z-index: 5;
-    color: #94a3b8; font-weight: 600; border-left: 1px solid #334155;
-  }
+  .sch-nav-btn:hover { background: #334155; color: #fff; }
 
-  .sch-name-cell {
-    position: sticky; left: 0; background: #1e293b;
-    padding: 0.4rem 0.75rem; border-right: 1px solid #334155;
-    min-width: 155px; z-index: 2;
-  }
-  .sch-name { font-weight: 600; color: #f1f5f9; font-size: 0.75rem; }
-
-  .sch-day-cell { width: 34px; text-align: center; padding: 3px 1px; transition: background .1s; }
-  .sch-day-cell[onclick] { cursor: pointer; }
-  .sch-day-cell[onclick]:hover { background: rgba(255,255,255,0.07) !important; }
-  .sch-day-cell.sch-weekend { background: rgba(127,29,29,0.05); }
-
-  .sch-badge {
-    display: inline-block; padding: 2px 5px; border-radius: 3px;
-    font-weight: 700; font-size: 0.5625rem; line-height: 1.5;
-    pointer-events: none;
-  }
-
-  .sch-sum-cell {
-    position: sticky; right: 0; background: #1e293b;
-    padding: 0.625rem 0.875rem; border-left: 1px solid #334155; z-index: 2;
-    min-width: 170px;
-  }
-  .sch-sum-main  { font-size: 1.75rem; font-weight: 800; color: #f1f5f9; line-height: 1; letter-spacing: -0.02em; }
-  .sch-sum-unit  { font-size: 1rem; font-weight: 600; color: #64748b; margin-left: 1px; }
-  .sch-sum-label { font-size: 0.75rem; color: #64748b; margin-top: 5px; }
-  .sch-sum-next  { font-size: 0.75rem; color: #f59e0b; font-weight: 600; margin-top: 3px; }
-
-  /* ── Picker ── */
+  /* ── Shift picker popup ── */
   .sch-picker {
     position: fixed; z-index: 9999;
     background: #1e293b; border: 1px solid #334155;
@@ -142,75 +100,7 @@
     pointer-events: none;
   }
 
-  /* ── Schedule: name cell meta ── */
-  .sch-staff-meta { color: #64748b; font-size: 0.5625rem; font-family: monospace; margin-top: 1px; }
-
-  /* ── Auto-filled badge ── */
-  .sch-badge--auto { opacity: 0.45; }
-
-  /* ── Today column ── */
-  .sch-th-today { color: #fbbf24 !important; }
-  .sch-th-today small { color: #f59e0b !important; }
-  .sch-today-cell { background: rgba(245,158,11,0.06) !important; }
-
-  /* ── Future columns — dimmed but visible and editable ── */
-  .sch-th-future { color: #475569 !important; }
-  .sch-th-future small { color: #334155 !important; }
-  .sch-future-cell { background: rgba(0,0,0,0.08) !important; opacity: 0.75; }
-  .sch-future-cell[onclick] { cursor: pointer; opacity: 1; }
-  .sch-future-cell[onclick]:hover { background: rgba(255,255,255,0.07) !important; }
-
-  /* ── Pay-date column marker ── */
-  .sch-pay-mark-col { border-right: 2px solid rgba(245,158,11,0.6) !important; }
-
-
-  /* ── Month nav ── */
-  .sch-nav-btn {
-    background: #1e293b; border: 1px solid #334155; border-radius: 6px;
-    color: #94a3b8; padding: 4px 12px; cursor: pointer;
-    font-size: 0.875rem; transition: all .12s;
-  }
-  .sch-nav-btn:hover { background: #334155; color: #fff; }
-
-  .legend-chip {
-    display: inline-flex; align-items: center; gap: 5px;
-    color: #94a3b8; font-size: 0.75rem;
-  }
-
-  /* ── Row highlight (linked from staff tab) ── */
-  @keyframes sch-name-flash {
-    0%   { background: rgba(251,191,36,0.22); box-shadow: inset 3px 0 0 #f59e0b; }
-    100% { background: #1e293b; box-shadow: none; }
-  }
-  @keyframes sch-cell-flash {
-    0%   { background: rgba(251,191,36,0.10); }
-    100% { background: transparent; }
-  }
-  .sch-row--highlight .sch-name-cell {
-    animation: sch-name-flash 2.5s ease-out forwards !important;
-  }
-  .sch-row--highlight .sch-sum-cell {
-    animation: sch-name-flash 2.5s ease-out forwards !important;
-  }
-  .sch-row--highlight .sch-day-cell {
-    animation: sch-cell-flash 2.5s ease-out forwards !important;
-  }
-
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
-
-  /* ── Roster fill button (inside name cell) ── */
-  .sch-fill-btn {
-    display: inline-flex; align-items: center; gap: 3px; margin-top: 4px;
-    font-size: 0.5625rem; font-weight: 600; padding: 2px 7px; border-radius: 3px;
-    background: rgba(245,158,11,0.1); color: #fbbf24;
-    border: 1px solid rgba(245,158,11,0.25); cursor: pointer;
-    transition: background .12s, border-color .12s;
-  }
-  .sch-fill-btn:hover { background: rgba(245,158,11,0.22); border-color: rgba(245,158,11,0.5); }
-
-  /* ── Roster picker popup ── */
+  /* ── Roster fill popup ── */
   .sch-roster-picker {
     position: fixed; z-index: 9999;
     background: #1e293b; border: 1px solid #334155;
@@ -227,13 +117,12 @@
     display: flex; align-items: center; gap: 8px;
     padding: 5px 8px; border-radius: 5px; width: 100%; text-align: left;
     font-size: 0.8125rem; color: #cbd5e1;
-    background: none; border: none; cursor: pointer;
-    transition: background .12s;
+    background: none; border: none; cursor: pointer; transition: background .12s;
   }
   .sch-roster-opt:hover { background: rgba(255,255,255,.08); color: #fff; }
   .sch-roster-divider { border: none; border-top: 1px solid #334155; margin: 6px 0; }
 
-  /* ── Future month indicator ── */
+  /* ── Future month badge ── */
   .sch-future-badge {
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 9999px;
@@ -241,6 +130,152 @@
     border: 1px solid rgba(99,102,241,0.3);
   }
 
+  /* ── Roster spreadsheet table ── */
+  .rst-outer { background: #fff; overflow: hidden; }
+  .rst-title {
+    background: #1d4ed8; color: #fff;
+    font-size: 0.9375rem; font-weight: 700;
+    padding: 10px 16px; text-align: center; letter-spacing: 0.02em;
+  }
+  .rst-scroll { overflow-x: auto; }
+  .rst-table {
+    border-collapse: collapse; white-space: nowrap;
+    font-size: 0.6875rem; min-width: 100%;
+  }
+  .rst-table th, .rst-table td {
+    border: 1px solid #d1d5db; padding: 3px 5px;
+    text-align: center; vertical-align: middle;
+  }
+  /* Header meta cells (#, ID, Name) */
+  .rst-th-meta { background: #374151; color: #f9fafb; font-weight: 700; border-color: #4b5563; }
+  .rst-th-num   { min-width: 16px; width: 16px; }
+  .rst-th-id    { min-width: 46px; }
+  .rst-th-name-h { min-width: 130px; text-align: left; padding-left: 10px; }
+  /* Header day-number row */
+  .rst-th-day { background: #4b5563; color: #f9fafb; font-weight: 700; width: 24px; min-width: 24px; padding: 3px 1px; border-color: #4b5563; }
+  /* Header day-of-week row */
+  .rst-th-dow { background: #374151; color: #9ca3af; font-size: 0.5625rem; font-weight: 500; width: 24px; padding: 3px 1px; border-color: #4b5563; }
+  /* Weekend / today overrides for header */
+  .rst-th-we    { background: #7f1d1d !important; color: #fca5a5 !important; border-color: #991b1b !important; }
+  .rst-th-today { background: #92400e !important; color: #fef3c7 !important; border-color: #b45309 !important; }
+
+  /* Body meta cells */
+  .rst-td-num  { color: #9ca3af; font-size: 0.5625rem; background: #f9fafb; min-width: 16px; width: 16px; }
+  .rst-td-id   { color: #374151; font-weight: 700; font-family: monospace; background: #f9fafb; min-width: 46px; }
+  .rst-td-name {
+    text-align: left; padding-left: 10px; padding-right: 38px;
+    font-weight: 600; color: #111827; background: #fff;
+    min-width: 130px; position: relative;
+  }
+  /* Alternating row tint on meta cells */
+  .rst-row-alt .rst-td-num,
+  .rst-row-alt .rst-td-id,
+  .rst-row-alt .rst-td-name { background: #eef2ff; }
+
+  /* Day data cells */
+  .rst-td { font-weight: 700; cursor: default; user-select: none; width: 24px; min-width: 24px; padding: 3px 1px; }
+  .rst-td[onclick] { cursor: pointer; }
+  .rst-td[onclick]:hover { filter: brightness(0.85); }
+  .rst-we { background: rgba(254,202,202,0.3); }
+
+  /* Shift colours */
+  .rst-m   { background: #3b82f6 !important; color: #fff !important; }
+  .rst-a   { background: #fbbf24 !important; color: #78350f !important; }
+  .rst-off { background: #f87171 !important; color: #7f1d1d !important; }
+  .rst-auto { opacity: 0.55; }
+
+  /* Today column ring */
+  .rst-today-cell { box-shadow: inset 0 0 0 2px #f59e0b !important; }
+
+  /* Pay-date column marker */
+  .rst-pay-col {
+    border-right: 4px solid #f59e0b !important;
+    border-left: 4px solid #f59e0b !important;
+  }
+  /* Amber tint when no shift is set (shift colours use !important so they still win) */
+  .rst-pay-col:not(.rst-m):not(.rst-a):not(.rst-off) {
+    background: rgba(245,158,11,0.18) !important;
+  }
+
+  /* Since Last Pay summary column */
+  .rst-th-sum { min-width: 110px; text-align: left; padding-left: 10px; border-left: 2px solid #6b7280 !important; }
+  .rst-sum-cell {
+    text-align: left; padding: 5px 10px;
+    background: #f9fafb; border-left: 2px solid #d1d5db;
+    min-width: 110px; vertical-align: middle;
+  }
+  .rst-sum-alt { background: #eef2ff; }
+  .rst-sum-days { font-size: 1.5rem; font-weight: 800; color: #111827; line-height: 1; letter-spacing: -0.02em; }
+  .rst-sum-unit { font-size: 0.75rem; font-weight: 600; color: #6b7280; margin-left: 1px; }
+  .rst-sum-label { font-size: 0.625rem; color: #6b7280; margin-top: 3px; }
+  .rst-sum-next  { font-size: 0.625rem; color: #d97706; font-weight: 700; margin-top: 2px; }
+
+  /* Fill button — appears on name-cell hover */
+  .rst-fill-btn {
+    position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+    font-size: 0.5rem; line-height: 1.4; padding: 1px 5px; border-radius: 3px;
+    background: rgba(245,158,11,0.12); color: #b45309;
+    border: 1px solid rgba(245,158,11,0.3); cursor: pointer;
+    opacity: 0; transition: opacity .15s; pointer-events: none;
+  }
+  .rst-td-name:hover .rst-fill-btn { opacity: 1; pointer-events: auto; }
+
+  /* Legend bar */
+  .rst-legend {
+    display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+    padding: 8px 14px; background: #f9fafb; border-top: 1px solid #e5e7eb;
+  }
+  .rst-leg { display: inline-flex; align-items: center; font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: 4px; }
+  .rst-leg-m   { background: #3b82f6; color: #fff; }
+  .rst-leg-a   { background: #fbbf24; color: #78350f; }
+  .rst-leg-off { background: #f87171; color: #7f1d1d; }
+
+  /* Row highlight from staff-tab link */
+  @keyframes rst-row-flash {
+    0%   { background: rgba(245,158,11,0.35) !important; }
+    100% { }
+  }
+  .rst-row--highlight td { animation: rst-row-flash 2.5s ease-out forwards !important; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+
+  /* ── Print ── */
+  @media print {
+    @page { size: landscape; margin: 5mm; }
+
+    .sidebar, .sidebar-overlay, header, .tab-bar,
+    #tab-staff, #scheduleReadOnlyNote, #scheduleFutureNote,
+    .sch-picker, .sch-roster-picker, .sch-nav-btn,
+    .rst-fill-btn { display: none !important; }
+
+    body { background: #fff !important; }
+    .main-wrapper { display: block !important; }
+    main { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+    #tab-schedule { display: block !important; }
+    .card { border: none !important; padding: 0 !important; box-shadow: none !important; }
+
+    /* Ensure backgrounds print */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+    /* Compact sizing to fit landscape A4 */
+    .rst-title { font-size: 0.75rem !important; padding: 6px 10px !important; }
+    .rst-scroll { overflow: visible !important; }
+    .rst-table { font-size: 0.45rem !important; }
+    .rst-table th, .rst-table td { padding: 2px 2px !important; }
+    .rst-th-day, .rst-th-dow, .rst-td { width: 20px !important; min-width: 20px !important; }
+    .rst-th-name-h, .rst-td-name { min-width: 90px !important; padding-right: 4px !important; }
+    .rst-th-id, .rst-td-id { min-width: 38px !important; }
+    .rst-th-sum, .rst-sum-cell { min-width: 80px !important; padding: 2px 4px !important; }
+    .rst-sum-days { font-size: 0.875rem !important; }
+    .rst-sum-days { font-size: 0.875rem !important; }
+    .rst-legend { padding: 4px 10px !important; gap: 12px !important; }
+    .rst-leg { font-size: 0.5rem !important; padding: 1px 6px !important; }
+
+    /* Nav/action row above table */
+    .flex.items-center.justify-between { display: none !important; }
+  }
 </style>
 </head>
 <body class="app-shell bg-slate-900 text-white min-h-screen">
@@ -465,7 +500,7 @@
     <!-- ── Schedule Tab ── -->
     <div id="tab-schedule" class="tab-content hidden">
 
-      <!-- Header: month nav + legend + export -->
+      <!-- Header: month nav + actions -->
       <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div class="flex items-center gap-3">
           <button onclick="prevMonth()" class="sch-nav-btn">◀</button>
@@ -473,20 +508,9 @@
           <button onclick="nextMonth()" class="sch-nav-btn">▶</button>
           <span id="scheduleFutureNote" class="hidden sch-future-badge">Planning ahead</span>
         </div>
-        <div class="flex items-center gap-4 flex-wrap">
-          <span class="legend-chip">
-            <span class="sch-badge" style="background:rgba(59,130,246,0.22);color:#60a5fa">M</span>
-            11am – 10pm
-          </span>
-          <span class="legend-chip">
-            <span class="sch-badge" style="background:rgba(168,85,247,0.22);color:#c084fc">A</span>
-            2pm – 1am
-          </span>
-          <span class="legend-chip">
-            <span class="sch-badge" style="background:rgba(239,68,68,0.2);color:#f87171">Off</span>
-            Day Off
-          </span>
-          <button onclick="exportScheduleCSV()" class="sch-nav-btn" title="Export roster as CSV" style="margin-left:4px">⬇ CSV</button>
+        <div class="flex items-center gap-2">
+          <button onclick="exportScheduleCSV()" class="sch-nav-btn" title="Export as CSV">⬇ CSV</button>
+          <button onclick="printSchedule()" class="sch-nav-btn" title="Print / Save as PDF">🖨 Print</button>
         </div>
       </div>
 

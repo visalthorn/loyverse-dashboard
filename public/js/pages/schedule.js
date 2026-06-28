@@ -139,6 +139,10 @@ export function nextMonth() {
   load();
 }
 
+export function printSchedule() {
+  window.print();
+}
+
 export function exportScheduleCSV() {
   const days    = daysInMonth(currentYear, currentMonth);
   const monthLabel = `${MONTH_NAMES[currentMonth - 1]}_${currentYear}`;
@@ -232,35 +236,56 @@ function render() {
   const note = getEl('scheduleReadOnlyNote');
   if (note) note.classList.toggle('hidden', canEdit);
 
-  // Indicate if we're viewing a future month
   const isFutureMonth = currentYear > _todayY || (currentYear === _todayY && currentMonth > _todayM);
   const futureNote = getEl('scheduleFutureNote');
   if (futureNote) futureNote.classList.toggle('hidden', !isFutureMonth);
 
-  let head = `<th class="sch-th-name">Staff</th>`;
+  // Two-row header: day numbers (row 1) + day abbreviations (row 2)
+  // #, ID, Name cells span both rows via rowspan="2"
+  let head1 = `
+    <th rowspan="2" class="rst-th-meta rst-th-num">#</th>
+    <th rowspan="2" class="rst-th-meta rst-th-id">ID</th>
+    <th rowspan="2" class="rst-th-meta rst-th-name-h">Name</th>`;
+  let head2 = '';
+
   for (let d = 1; d <= days; d++) {
-    const dw      = dowOf(currentYear, currentMonth, d);
-    const we      = dw === 0 || dw === 6;
-    const isFuture = !isPastOrToday(currentYear, currentMonth, d);
-    const isToday  = currentYear === _todayY && currentMonth === _todayM && d === _todayD;
-    head += `<th class="sch-th-day${we ? ' sch-weekend' : ''}${isFuture ? ' sch-th-future' : ''}${isToday ? ' sch-th-today' : ''}">${d}<br><small>${DAY_SHORT[dw]}</small></th>`;
+    const dw     = dowOf(currentYear, currentMonth, d);
+    const we     = dw === 0 || dw === 6;
+    const isToday = currentYear === _todayY && currentMonth === _todayM && d === _todayD;
+    const weCls  = we ? ' rst-th-we' : '';
+    const todCls = isToday ? ' rst-th-today' : '';
+    head1 += `<th class="rst-th-day${weCls}${todCls}">${d}</th>`;
+    head2 += `<th class="rst-th-dow${weCls}${todCls}">${DAY_SHORT[dw]}</th>`;
   }
-  head += `<th class="sch-th-sum">Since Last Pay</th>`;
+
+  // Summary column spans both header rows
+  head1 += `<th rowspan="2" class="rst-th-meta rst-th-sum">Since Last Pay</th>`;
 
   const rows = staffList.length
-    ? staffList.map(s => buildRow(s, days, canEdit)).join('')
-    : `<tr><td colspan="${days + 2}" class="py-8 text-center text-slate-500 text-sm">No active staff with join date and position set.</td></tr>`;
+    ? staffList.map((s, i) => buildRosterRow(s, days, canEdit, i)).join('')
+    : `<tr><td colspan="${days + 4}" style="background:#fff;padding:2rem;text-align:center;color:#6b7280;font-size:0.875rem">No active staff with join date and position set.</td></tr>`;
 
   container.innerHTML = `
-    <div class="sch-scroll-wrap">
-      <table class="sch-table">
-        <thead><tr>${head}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+    <div class="rst-outer">
+      <div class="rst-title">${MONTH_NAMES[currentMonth - 1]} ${currentYear} — Staff Roster</div>
+      <div class="rst-scroll">
+        <table class="rst-table">
+          <thead>
+            <tr>${head1}</tr>
+            <tr>${head2}</tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="rst-legend">
+        <span class="rst-leg rst-leg-m">M · 11am – 10pm</span>
+        <span class="rst-leg rst-leg-a">A · 2pm – 1am</span>
+        <span class="rst-leg rst-leg-off">Off · Day Off</span>
+      </div>
     </div>`;
 }
 
-function buildRow(s, days, canEdit) {
+function buildRosterRow(s, days, canEdit, index) {
   const defaultShift = s.default_shift || 'A';
   const joinStr      = s.join_date;
   const joinDay      = parseInt(joinStr.slice(8, 10), 10);
@@ -270,44 +295,42 @@ function buildRow(s, days, canEdit) {
   const payColDay    = payDayInMonth(joinDay, currentYear, currentMonth);
 
   const fillBtn = canEdit
-    ? `<button class="sch-fill-btn" onclick="openRosterFill(event,${s.id})">⊞ Fill</button>`
+    ? `<button class="rst-fill-btn" onclick="openRosterFill(event,${s.id})">⊞ Fill</button>`
     : '';
 
-  let cells = `<td class="sch-name-cell">
-    <div class="sch-name">${s.full_name}</div>
-    <div class="sch-staff-meta">${s.staff_id} · <span style="color:${SHIFTS[defaultShift].color};font-weight:700">${defaultShift}</span> · <span style="color:#94a3b8">${s.position}</span></div>
-    ${fillBtn}
-  </td>`;
+  const alt = index % 2 === 1;
+
+  let cells = `
+    <td class="rst-td-num">${index + 1}</td>
+    <td class="rst-td-id">${s.staff_id}</td>
+    <td class="rst-td-name">${s.full_name}${fillBtn}</td>`;
 
   for (let d = 1; d <= days; d++) {
     const { shift, auto } = effectiveShift(s.id, d, defaultShift, joinStr);
-    const dw       = dowOf(currentYear, currentMonth, d);
-    const we       = dw === 0 || dw === 6;
-    const isFuture = !isPastOrToday(currentYear, currentMonth, d);
-    const isToday  = currentYear === _todayY && currentMonth === _todayM && d === _todayD;
+    const dw      = dowOf(currentYear, currentMonth, d);
+    const we      = dw === 0 || dw === 6;
+    const isToday = currentYear === _todayY && currentMonth === _todayM && d === _todayD;
     const isPayDay = d === payColDay;
     const dateStr  = toDateStr(currentYear, currentMonth, d);
     const eligible = isOnOrAfterJoin(currentYear, currentMonth, d, joinStr);
 
-    const badge = shift
-      ? `<span class="sch-badge${auto ? ' sch-badge--auto' : ''}" style="background:${SHIFTS[shift].bg};color:${SHIFTS[shift].color}">${shift}</span>`
-      : '';
-
-    // Allow editing both past/today AND future dates so managers can plan ahead
     const clickAttr = canEdit && eligible
       ? ` onclick="openShiftPicker(event,${s.id},'${dateStr}')"`
       : '';
 
-    cells += `<td class="sch-day-cell${we ? ' sch-weekend' : ''}${isFuture ? ' sch-future-cell' : ''}${isToday ? ' sch-today-cell' : ''}${isPayDay ? ' sch-pay-mark-col' : ''}"${clickAttr}>${badge}</td>`;
+    const shiftCls = shift === 'M' ? ' rst-m' : shift === 'A' ? ' rst-a' : shift === 'Off' ? ' rst-off' : '';
+    const cls = `rst-td${we ? ' rst-we' : ''}${shiftCls}${auto ? ' rst-auto' : ''}${isToday ? ' rst-today-cell' : ''}${isPayDay ? ' rst-pay-col' : ''}`;
+
+    cells += `<td class="${cls}"${clickAttr}>${shift || ''}</td>`;
   }
 
-  cells += `<td class="sch-sum-cell">
-    <div class="sch-sum-main">${workedDays}<span class="sch-sum-unit">d</span></div>
-    <div class="sch-sum-label">since ${shortDate(lastPayDate)}</div>
-    <div class="sch-sum-next">Next: ${shortDate(nextPayDate)}</div>
+  cells += `<td class="rst-sum-cell${alt ? ' rst-sum-alt' : ''}">
+    <div><span class="rst-sum-days">${workedDays}</span><span class="rst-sum-unit">d</span></div>
+    <div class="rst-sum-label">since ${shortDate(lastPayDate)}</div>
+    <div class="rst-sum-next">Next: ${shortDate(nextPayDate)}</div>
   </td>`;
 
-  return `<tr class="sch-row" data-staff-id="${s.id}">${cells}</tr>`;
+  return `<tr class="rst-row${alt ? ' rst-row-alt' : ''}" data-staff-id="${s.id}">${cells}</tr>`;
 }
 
 // ── Shift picker ──────────────────────────────────────────────────────────────
