@@ -18,9 +18,9 @@ const _todayM = _now.getMonth() + 1;
 const _todayD = _now.getDate();
 
 const SHIFTS = {
-  M:   { bg: 'rgba(59,130,246,0.22)', color: '#60a5fa', label: 'Morning (11am–10pm)' },
-  A:   { bg: 'rgba(168,85,247,0.22)', color: '#c084fc', label: 'Afternoon (2pm–1am)' },
-  Off: { bg: 'rgba(239,68,68,0.20)',  color: '#f87171', label: 'Day Off'              },
+  M:   { bg: 'rgba(59,130,246,0.22)',  color: '#60a5fa', label: 'Morning (11am–10pm)' },
+  A:   { bg: 'rgba(251,207,232,0.7)',  color: '#9d174d', label: 'Afternoon (2pm–1am)' },
+  Off: { bg: 'rgba(254,240,138,0.75)', color: '#92400e', label: 'Day Off'              },
 };
 
 const MONTH_NAMES = ['January','February','March','April','May','June',
@@ -255,7 +255,7 @@ function render() {
     const weCls  = we ? ' rst-th-we' : '';
     const todCls = isToday ? ' rst-th-today' : '';
     head1 += `<th class="rst-th-day${weCls}${todCls}">${d}</th>`;
-    head2 += `<th class="rst-th-dow${weCls}${todCls}">${DAY_SHORT[dw]}</th>`;
+    head2 += `<th class="rst-th-dow${weCls}${todCls}">${isToday ? '●' : DAY_SHORT[dw]}</th>`;
   }
 
   // Summary column spans both header rows
@@ -288,11 +288,9 @@ function render() {
 function buildRosterRow(s, days, canEdit, index) {
   const defaultShift = s.default_shift || 'A';
   const joinStr      = s.join_date;
-  const joinDay      = parseInt(joinStr.slice(8, 10), 10);
   const lastPayDate  = getLastPayDate(joinStr);
   const nextPayDate  = getNextPayDate(joinStr);
   const workedDays   = computeWorkedSince(s.id, defaultShift, lastPayDate, joinStr);
-  const payColDay    = payDayInMonth(joinDay, currentYear, currentMonth);
 
   const fillBtn = canEdit
     ? `<button class="rst-fill-btn" onclick="openRosterFill(event,${s.id})">⊞ Fill</button>`
@@ -309,17 +307,15 @@ function buildRosterRow(s, days, canEdit, index) {
     const { shift, auto } = effectiveShift(s.id, d, defaultShift, joinStr);
     const dw      = dowOf(currentYear, currentMonth, d);
     const we      = dw === 0 || dw === 6;
-    const isToday = currentYear === _todayY && currentMonth === _todayM && d === _todayD;
-    const isPayDay = d === payColDay;
     const dateStr  = toDateStr(currentYear, currentMonth, d);
     const eligible = isOnOrAfterJoin(currentYear, currentMonth, d, joinStr);
 
     const clickAttr = canEdit && eligible
-      ? ` onclick="openShiftPicker(event,${s.id},'${dateStr}')"`
+      ? ` onclick="openShiftPicker(event,${s.id},'${dateStr}','${defaultShift}')"`
       : '';
 
     const shiftCls = shift === 'M' ? ' rst-m' : shift === 'A' ? ' rst-a' : shift === 'Off' ? ' rst-off' : '';
-    const cls = `rst-td${we ? ' rst-we' : ''}${shiftCls}${auto ? ' rst-auto' : ''}${isToday ? ' rst-today-cell' : ''}${isPayDay ? ' rst-pay-col' : ''}`;
+    const cls = `rst-td${we ? ' rst-we' : ''}${shiftCls}${auto ? ' rst-auto' : ''}`;
 
     cells += `<td class="${cls}"${clickAttr}>${shift || ''}</td>`;
   }
@@ -337,7 +333,7 @@ function buildRosterRow(s, days, canEdit, index) {
 
 let activePicker = null;
 
-export function openShiftPicker(event, staffId, dateStr) {
+export function openShiftPicker(event, staffId, dateStr, defaultShift) {
   event.stopPropagation();
   closeShiftPicker();
   closeRosterFill();
@@ -347,7 +343,7 @@ export function openShiftPicker(event, staffId, dateStr) {
     { shift: 'A',   label: 'Afternoon (2pm–1am)' },
     { shift: 'Off', label: 'Day Off'              },
     { shift: null,  label: 'Clear'                },
-  ];
+  ].filter(o => o.shift !== defaultShift);
 
   const picker = document.createElement('div');
   picker.className = 'sch-picker';
