@@ -98,7 +98,7 @@ router.post('/sync', requireAuth, requireWrite('receipts'), async (req, res) => 
           for (const payment of r.payments || []) {
             await pool.query(`
               INSERT INTO receipt_payments (receipt_number,payment_type_id,payment_name,payment_type,money_amount,paid_at)
-              VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING
+              VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (receipt_number,payment_type_id) DO NOTHING
             `, [r.receipt_number, payment.payment_type_id, payment.name, payment.type, payment.money_amount, toCambodiaTime(payment.paid_at)]);
           }
         }

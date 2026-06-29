@@ -176,7 +176,7 @@ router.get('/payment-methods', requireAuth, async (req, res) => {
     const result = await pool.query(`
       SELECT rp.payment_name, rp.payment_type, COUNT(*) AS transactions, SUM(rp.money_amount) AS total
       FROM receipt_payments rp JOIN receipts r ON r.receipt_number = rp.receipt_number
-      WHERE ${filter.clause} AND r.cancelled_at IS NULL
+      WHERE ${filter.clause} AND r.cancelled_at IS NULL AND r.receipt_type = 'SALE'
       GROUP BY rp.payment_name, rp.payment_type ORDER BY total DESC
     `, filter.params);
     res.json(result.rows);
