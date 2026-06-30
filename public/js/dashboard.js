@@ -645,9 +645,6 @@ async function fetchJSON(url) {
 function fmt(n) {
   const num = parseFloat(n);
   if (isNaN(num)) return '0';
-  // KHR: show in millions for large numbers
-  if (num >= 1000000) return (num / 1000000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M';
-  if (num >= 1000)    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
   return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
