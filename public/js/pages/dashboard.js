@@ -414,13 +414,60 @@ export function applyCustomRange() {
 }
 
 export async function syncGrossIncome() {
+  const btn = getEl('syncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
   try {
     const res = await apiPost('/api/receipts/sync', {});
-    if (!res.ok) { console.error('Sync failed:', res.data); return; }
-    console.log('Sync complete');
-    loadGrossIncomeTrend();
+    const data = res.data || {};
+    if (res.ok) {
+      const msg = data.status === 'skipped'
+        ? 'Already synced for yesterday'
+        : `Synced ${data.inserted ?? 0} receipt(s)`;
+      showSyncToast(msg, 'success');
+      loadGrossIncomeTrend();
+      loadLastSync();
+    } else {
+      showSyncToast(data.error || 'Sync failed', 'error');
+    }
   } catch (err) {
-    console.error('Sync error:', err);
+    showSyncToast('Sync failed — check connection', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sync Gross Income'; }
+  }
+}
+
+function showSyncToast(message, type) {
+  let toast = getEl('syncToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'syncToast';
+    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.4);transition:opacity .3s';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.style.background = type === 'error' ? '#ef4444' : '#22c55e';
+  toast.style.color = '#fff';
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 3500);
+}
+
+export async function loadLastSync() {
+  const chip = getEl('lastSyncChip');
+  if (!chip) return;
+  try {
+    const rows = await fetchJSON('/api/sync-logs/latest?limit=1');
+    if (!rows || !rows.length) return;
+    const row = rows[0];
+    const icon = row.status === 'success' ? '✅' : row.status === 'skipped' ? '⏭' : '❌';
+    const date = new Date(row.created_at).toLocaleString('en-US', {
+      timeZone: TZ, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    const by = row.triggered_by === 'auto' ? 'auto' : 'manual';
+    chip.textContent = `${icon} Last sync: ${date} (${by})`;
+    chip.classList.remove('hidden');
+  } catch {
+    // non-critical
   }
 }
 
@@ -435,5 +482,6 @@ export async function init() {
     badge.dataset.env = env;
   }
   loadAll();
+  loadLastSync();
   setInterval(loadAll, 5 * 60 * 1000);
 }
