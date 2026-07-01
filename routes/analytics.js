@@ -260,6 +260,127 @@ router.get('/cancelled-orders', async (req, res) => {
   }
 });
 
+router.get('/dining-trend', requireAuth, async (req, res) => {
+  const { period = 'month', start, end } = req.query;
+  const filter = buildPeriodFilter(period, start, end, 'r', 2);
+  const trunc  = getTrendPeriod(period, start, end);
+  try {
+    const result = await pool.query(`
+      SELECT DATE_TRUNC($1, r.receipt_date) AS period,
+             COALESCE(r.dining_option, 'Unknown') AS dining_option,
+             COUNT(*) AS orders,
+             COALESCE(SUM(r.total_money), 0) AS revenue
+      FROM receipts r
+      WHERE ${filter.clause}
+        AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
+      GROUP BY 1, 2
+      ORDER BY 1, 4 DESC
+    `, [trunc, ...filter.params]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/payment-trend', requireAuth, async (req, res) => {
+  const { period = 'month', start, end } = req.query;
+  const filter = buildPeriodFilter(period, start, end, 'r', 2);
+  const trunc  = getTrendPeriod(period, start, end);
+  try {
+    const result = await pool.query(`
+      SELECT DATE_TRUNC($1, r.receipt_date) AS period,
+             rp.payment_name,
+             COUNT(*) AS transactions,
+             COALESCE(SUM(rp.money_amount), 0) AS total
+      FROM receipt_payments rp
+      JOIN receipts r ON r.receipt_number = rp.receipt_number
+      WHERE ${filter.clause}
+        AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
+      GROUP BY 1, 2
+      ORDER BY 1, 4 DESC
+    `, [trunc, ...filter.params]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/item-comparison', requireAuth, async (req, res) => {
+  const { period = 'month', start, end, order = 'desc', limit = 20 } = req.query;
+  const sortDir    = order === 'asc' ? 'ASC' : 'DESC';
+  const rowLimit   = Math.min(parseInt(limit) || 20, 50);
+  const filter     = buildPeriodFilter(period, start, end);
+  const prevFilter = getPrevPeriodSQL(period, start, end);
+  try {
+    const [curr, prev] = await Promise.all([
+      pool.query(`
+        SELECT ri.item_name, ri.sku,
+               SUM(ri.gross_total) AS revenue,
+               SUM(ri.quantity)    AS qty
+        FROM receipt_items ri
+        JOIN receipts r ON r.receipt_number = ri.receipt_number
+        WHERE ${filter.clause}
+          AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
+        GROUP BY ri.item_name, ri.sku
+        ORDER BY revenue ${sortDir}
+        LIMIT ${rowLimit}
+      `, filter.params),
+      pool.query(`
+        SELECT ri.sku, SUM(ri.gross_total) AS revenue
+        FROM receipt_items ri
+        JOIN receipts r ON r.receipt_number = ri.receipt_number
+        WHERE ${prevFilter.clause}
+          AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
+        GROUP BY ri.sku
+      `, prevFilter.params),
+    ]);
+
+    const prevMap = {};
+    prev.rows.forEach(r => { prevMap[r.sku] = parseFloat(r.revenue); });
+
+    res.json(curr.rows.map(r => {
+      const currRev = parseFloat(r.revenue);
+      const prevRev = prevMap[r.sku] || 0;
+      return {
+        item_name:    r.item_name,
+        sku:          r.sku,
+        revenue:      currRev,
+        qty:          parseInt(r.qty),
+        prev_revenue: prevRev,
+        growth:       prevRev > 0 ? parseFloat(((currRev - prevRev) / prevRev * 100).toFixed(1)) : null,
+      };
+    }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/refund-analysis', requireAuth, async (req, res) => {
+  const { period = 'month', start, end } = req.query;
+  const filter = buildPeriodFilter(period, start, end, 'r', 2);
+  const trunc  = getTrendPeriod(period, start, end);
+  try {
+    const result = await pool.query(`
+      SELECT DATE_TRUNC($1, r.receipt_date) AS period,
+             COUNT(*) FILTER (WHERE r.receipt_type = 'SALE'   AND r.cancelled_at IS NULL)     AS sales,
+             COUNT(*) FILTER (WHERE r.receipt_type = 'REFUND' AND r.cancelled_at IS NOT NULL) AS refunds,
+             COUNT(*) FILTER (WHERE r.receipt_type = 'SALE'   AND r.cancelled_at IS NOT NULL) AS cancellations,
+             COALESCE(SUM(r.total_money) FILTER (WHERE r.receipt_type = 'REFUND' AND r.cancelled_at IS NOT NULL), 0) AS refund_amount
+      FROM receipts r
+      WHERE ${filter.clause}
+      GROUP BY 1
+      ORDER BY 1
+    `, [trunc, ...filter.params]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/debug', async (req, res) => {
   try {
     const [dateRange, sample, payments, items] = await Promise.all([

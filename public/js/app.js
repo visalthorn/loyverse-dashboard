@@ -9,6 +9,7 @@ import * as Receipts  from './pages/receipts.js';
 import * as Staff     from './pages/staff.js';
 import * as Schedule  from './pages/schedule.js';
 import * as Users     from './pages/users.js';
+import * as Report    from './pages/report.js';
 
 // ─── Shared UI ───────────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ function detectPage() {
   if (document.getElementById('receiptsTbody'))     return 'receipts';
   if (document.getElementById('staffTableBody'))    return 'staff';
   if (document.getElementById('usersTableBody'))    return 'users';
+  if (document.getElementById('report-page'))       return 'report';
   return null;
 }
 
@@ -127,6 +129,11 @@ window.viewInSchedule = async function(staffId) {
   setTimeout(() => row.classList.remove('rst-row--highlight'), 2500);
 };
 
+// Report
+window.reportSetPeriod         = Report.setPeriod;
+window.reportApplyRange        = Report.applyCustomRange;
+window.reportToggleSlowMovers  = Report.reportToggleSlowMovers;
+
 // Users
 window.submitUser         = Users.submitUser;
 window.startEditUser      = Users.startEditUser;
@@ -161,4 +168,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (page === 'receipts')  Receipts.init();
   if (page === 'staff')     Staff.init();
   if (page === 'users')     Users.init();
+  if (page === 'report')    Report.init();
 });
