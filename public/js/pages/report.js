@@ -94,7 +94,7 @@ async function loadReportKPIs() {
     {
       accent: 'emerald', icon: '📊', label: 'Net Margin',
       val: margin + '%', valClass: netVal >= 0 ? 'text-blue-400' : 'text-red-400',
-      sub: `<span class="text-slate-500">Net ៛${fmtRaw(Math.abs(netVal))}</span>`,
+      sub: `<span class="text-blue-500">Net ៛${fmtRaw(Math.abs(netVal))}</span>`,
     },
   ].map(c => `
     <div class="kpi-primary kpi-primary--${c.accent}"${c.id ? ` id="${c.id}"` : ''}>
