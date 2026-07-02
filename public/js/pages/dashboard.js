@@ -308,16 +308,26 @@ function renderProductRows(rows, tbodyId, startRank = 1) {
   `).join('');
 }
 
+let topProductsCategory = '';
+
 async function loadTopItems() {
-  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=20`);
+  const categoryQuery = topProductsCategory ? `&category=${topProductsCategory}` : '';
+  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=20${categoryQuery}`);
   if (!data) return;
   renderProductRows(data, 'productTableBody');
 }
 
 async function loadSlowMovers() {
-  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=asc&limit=10`);
+  const categoryQuery = topProductsCategory ? `&category=${topProductsCategory}` : '';
+  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=asc&limit=10${categoryQuery}`);
   if (!data) return;
   renderProductRows(data, 'slowMoversBody', 1);
+}
+
+export function setTopProductsCategory(val) {
+  topProductsCategory = val;
+  loadTopItems();
+  if (!getEl('slowMoversSection')?.classList.contains('hidden')) loadSlowMovers();
 }
 
 export function toggleSlowMovers() {

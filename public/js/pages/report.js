@@ -222,11 +222,19 @@ async function loadPaymentTrend() {
 
 // ─── Section 3c: Top Product Performance ─────────────────────────────────────
 
-let topProductsLimit = 5;
+let topProductsLimit    = 5;
+let topProductsCategory = '';
 
 async function loadTopProducts() {
-  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=${topProductsLimit}`);
-  if (!data?.length) return;
+  const categoryQuery = topProductsCategory ? `&category=${topProductsCategory}` : '';
+  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=${topProductsLimit}${categoryQuery}`);
+  const legend = getEl('topProductsLegend');
+
+  if (!data?.length) {
+    destroyChart('topProductsChart');
+    if (legend) legend.innerHTML = `<p class="text-slate-500 text-sm">No ${topProductsCategory || ''} items for this period</p>`;
+    return;
+  }
 
   const labels  = data.map(r => r.item_name);
   const revenue = data.map(r => parseFloat(r.revenue));
@@ -239,7 +247,6 @@ async function loadTopProducts() {
     options: pieOpts(false),
   });
 
-  const legend = getEl('topProductsLegend');
   if (legend) legend.innerHTML = data.map((r, i) => `
     <div class="flex items-center justify-between py-2 border-b border-slate-800 last:border-0">
       <span class="flex items-center gap-2 text-sm">
@@ -252,6 +259,11 @@ async function loadTopProducts() {
 
 export function setTopProductsLimit(val) {
   topProductsLimit = parseInt(val) || 5;
+  loadTopProducts();
+}
+
+export function setTopProductsCategory(val) {
+  topProductsCategory = val;
   loadTopProducts();
 }
 

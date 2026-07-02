@@ -26,6 +26,7 @@
   position: relative;
   overflow: hidden;
   transition: transform .2s, box-shadow .2s;
+  container-type: inline-size;
 }
 .kpi-primary:hover {
   transform: translateY(-2px);
@@ -60,14 +61,14 @@
 .kpi-icon--blue    { background: rgba(96, 165,250,.14); }
 
 .kpi-primary-val {
-  font-size: 1.875rem;
+  font-size: clamp(1rem, 14cqw, 1.875rem);
   font-weight: 800;
   letter-spacing: -0.035em;
   line-height: 1;
   margin-top: 14px;
-}
-@media (max-width: 480px) {
-  .kpi-primary-val { font-size: 1.375rem; }
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kpi-primary-lbl {
   font-size: 0.6875rem;
@@ -215,6 +216,16 @@
   color: #475569;
   text-align: center;
 }
+
+.filter-select {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  padding: 6px 10px;
+}
+.filter-select:focus { outline: none; border-color: #f59e0b; }
 
 /* Badges */
 .badge-up {

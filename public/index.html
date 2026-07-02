@@ -242,7 +242,14 @@
     <section class="card">
       <div class="flex items-center justify-between mb-4">
         <h2 class="section-title">🛒 Top Products</h2>
-        <span class="text-xs text-slate-400">Top 20 by revenue · green = growing · red = declining</span>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400">Top 20 by revenue · green = growing · red = declining</span>
+          <select id="topProductsCategory" class="filter-select" onchange="dashboardSetTopProductsCategory(this.value)">
+            <option value="" selected>All</option>
+            <option value="food">Food</option>
+            <option value="beverage">Beverage</option>
+          </select>
+        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">

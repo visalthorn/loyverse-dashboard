@@ -308,11 +308,20 @@ router.get('/payment-trend', requireAuth, async (req, res) => {
 });
 
 router.get('/item-comparison', requireAuth, async (req, res) => {
-  const { period = 'month', start, end, order = 'desc', limit = 20 } = req.query;
+  const { period = 'month', start, end, order = 'desc', limit = 20, category } = req.query;
   const sortDir    = order === 'asc' ? 'ASC' : 'DESC';
   const rowLimit   = Math.min(parseInt(limit) || 20, 50);
   const filter     = buildPeriodFilter(period, start, end);
   const prevFilter = getPrevPeriodSQL(period, start, end);
+
+  // Only join item_categories when a category filter is actually requested,
+  // so this endpoint keeps working even before that table exists/is populated.
+  const categoryJoin = category ? 'JOIN item_categories ic ON ic.sku = ri.sku' : '';
+  const currCategoryClause = category ? ` AND ic.category = $${filter.params.length + 1}` : '';
+  const prevCategoryClause = category ? ` AND ic.category = $${prevFilter.params.length + 1}` : '';
+  const currParams = category ? [...filter.params, category] : filter.params;
+  const prevParams = category ? [...prevFilter.params, category] : prevFilter.params;
+
   try {
     const [curr, prev] = await Promise.all([
       pool.query(`
@@ -321,20 +330,24 @@ router.get('/item-comparison', requireAuth, async (req, res) => {
                SUM(ri.quantity)    AS qty
         FROM receipt_items ri
         JOIN receipts r ON r.receipt_number = ri.receipt_number
+        ${categoryJoin}
         WHERE ${filter.clause}
           AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
+          ${currCategoryClause}
         GROUP BY ri.item_name, ri.sku
         ORDER BY revenue ${sortDir}
         LIMIT ${rowLimit}
-      `, filter.params),
+      `, currParams),
       pool.query(`
         SELECT ri.sku, SUM(ri.gross_total) AS revenue
         FROM receipt_items ri
         JOIN receipts r ON r.receipt_number = ri.receipt_number
+        ${categoryJoin}
         WHERE ${prevFilter.clause}
           AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
+          ${prevCategoryClause}
         GROUP BY ri.sku
-      `, prevFilter.params),
+      `, prevParams),
     ]);
 
     const prevMap = {};
