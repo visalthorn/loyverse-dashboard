@@ -47,12 +47,12 @@ export function donutOpts() {
   };
 }
 
-export function pieOpts() {
+export function pieOpts(showLegend = true) {
   return {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } },
+      legend: { display: showLegend, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } },
       tooltip: {
         callbacks: {
           label: c => ` ${c.label}: ៛${fmt(c.raw)} (${((c.raw / c.chart.getDatasetMeta(0).total) * 100).toFixed(1)}%)`,

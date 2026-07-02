@@ -236,14 +236,16 @@ async function loadTopProducts() {
   state.charts.topProductsChart = new Chart(document.getElementById('topProductsChart'), {
     type: 'pie',
     data: { labels, datasets: [{ data: revenue, backgroundColor: COLORS, borderWidth: 0 }] },
-    options: pieOpts(),
+    options: pieOpts(false),
   });
 
   const legend = getEl('topProductsLegend');
   if (legend) legend.innerHTML = data.map((r, i) => `
-    <div class="legend-item">
-      <span><span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.item_name}</span>
-      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-slate-500">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
+    <div class="flex items-center justify-between py-2 border-b border-slate-800 last:border-0">
+      <span class="flex items-center gap-2 text-sm">
+        <span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.item_name}
+      </span>
+      <span class="font-medium text-sm">៛${fmt(r.revenue)} <span class="text-slate-500 text-xs">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
     </div>
   `).join('');
 }
