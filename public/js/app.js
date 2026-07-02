@@ -66,9 +66,10 @@ function detectPage() {
 window.logout = logout;
 
 // Dashboard
-window.setPeriod        = Dashboard.setPeriod;
-window.applyCustomRange = Dashboard.applyCustomRange;
-window.syncGrossIncome  = Dashboard.syncGrossIncome;
+window.setPeriod              = Dashboard.setPeriod;
+window.applyCustomRange       = Dashboard.applyCustomRange;
+window.syncGrossIncome        = Dashboard.syncGrossIncome;
+window.dashboardToggleSlowMovers = Dashboard.toggleSlowMovers;
 
 // Expenses
 window.submitExpense        = Expenses.submitExpense;
@@ -132,7 +133,6 @@ window.viewInSchedule = async function(staffId) {
 // Report
 window.reportSetPeriod            = Report.setPeriod;
 window.reportApplyRange           = Report.applyCustomRange;
-window.reportToggleSlowMovers     = Report.reportToggleSlowMovers;
 window.reportSetTopProductsLimit  = Report.setTopProductsLimit;
 
 // Users

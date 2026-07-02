@@ -118,6 +118,10 @@
       <span class="text-lg">💸</span>
       <span class="nav-label">Expenses</span>
     </a>
+    <a href="/report.html" class="nav-item">
+      <span class="text-lg">📋</span>
+      <span class="nav-label">Reports</span>
+    </a>
     <a href="/receipts.html" class="nav-item">
       <span class="text-lg">🧾</span>
       <span class="nav-label">Receipts</span>
@@ -125,10 +129,6 @@
     <a href="/staff.html" class="nav-item">
       <span class="text-lg">👥</span>
       <span class="nav-label">Staff</span>
-    </a>
-    <a href="/report.html" class="nav-item">
-      <span class="text-lg">📋</span>
-      <span class="nav-label">Reports</span>
     </a>
     <a href="/users.html" id="navUsers" class="nav-item" style="display:none">
       <span class="text-lg">⚙️</span>
@@ -242,23 +242,49 @@
     <section class="card">
       <div class="flex items-center justify-between mb-4">
         <h2 class="section-title">🛒 Top Products</h2>
-        <span class="text-xs text-slate-400">Sorted by Revenue</span>
+        <span class="text-xs text-slate-400">Top 20 by revenue · green = growing · red = declining</span>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="text-slate-400 border-b border-slate-700 text-left">
-              <th class="pb-2 pr-4">#</th>
-              <th class="pb-2 pr-4">Item</th>
-              <th class="pb-2 pr-4 text-right">Qty</th>
-              <th class="pb-2 pr-4 text-right">Revenue</th>
-              <th class="pb-2 text-right">% Share</th>
+              <th class="pb-2 pr-3">#</th>
+              <th class="pb-2 pr-3">Item</th>
+              <th class="pb-2 pr-3 text-right">Qty</th>
+              <th class="pb-2 pr-3 text-right">Revenue</th>
+              <th class="pb-2 pr-3 text-right">Last Period</th>
+              <th class="pb-2 text-right">Growth</th>
             </tr>
           </thead>
-          <tbody id="topItemsBody">
-            <tr><td colspan="5" class="py-4 text-center text-slate-500">Loading...</td></tr>
+          <tbody id="productTableBody">
+            <tr><td colspan="6" class="py-4 text-center text-slate-500">Loading...</td></tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Slow movers toggle -->
+      <div class="mt-4 pt-4 border-t border-slate-700">
+        <button onclick="dashboardToggleSlowMovers()" id="slowMoversBtn"
+          class="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1">
+          <span id="slowMoversArrow">▶</span> Show Bottom 10 Slow Movers
+        </button>
+        <div id="slowMoversSection" class="hidden mt-3 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-700 text-left">
+                <th class="pb-2 pr-3">#</th>
+                <th class="pb-2 pr-3">Item</th>
+                <th class="pb-2 pr-3 text-right">Qty</th>
+                <th class="pb-2 pr-3 text-right">Revenue</th>
+                <th class="pb-2 pr-3 text-right">Last Period</th>
+                <th class="pb-2 text-right">Growth</th>
+              </tr>
+            </thead>
+            <tbody id="slowMoversBody">
+              <tr><td colspan="6" class="py-4 text-center text-slate-500">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 

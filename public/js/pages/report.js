@@ -230,6 +230,7 @@ async function loadTopProducts() {
 
   const labels  = data.map(r => r.item_name);
   const revenue = data.map(r => parseFloat(r.revenue));
+  const total   = revenue.reduce((a, b) => a + b, 0);
 
   destroyChart('topProductsChart');
   state.charts.topProductsChart = new Chart(document.getElementById('topProductsChart'), {
@@ -237,73 +238,19 @@ async function loadTopProducts() {
     data: { labels, datasets: [{ data: revenue, backgroundColor: COLORS, borderWidth: 0 }] },
     options: pieOpts(),
   });
+
+  const legend = getEl('topProductsLegend');
+  if (legend) legend.innerHTML = data.map((r, i) => `
+    <div class="legend-item">
+      <span><span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.item_name}</span>
+      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-slate-500">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
+    </div>
+  `).join('');
 }
 
 export function setTopProductsLimit(val) {
   topProductsLimit = parseInt(val) || 5;
   loadTopProducts();
-}
-
-// ─── Section 4: Product Intelligence ─────────────────────────────────────────
-
-function renderProductRows(rows, tbodyId, startRank = 1) {
-  const tbody = getEl(tbodyId);
-  if (!tbody) return;
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-500">No data for this period</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map((r, i) => {
-    const growthCell = r.growth == null
-      ? '<span class="growth-nil">—</span>'
-      : r.growth > 0
-        ? `<span class="growth-up">▲ ${r.growth > 100 ? '>100' : r.growth}%</span>`
-        : r.growth < 0
-          ? `<span class="growth-down">▼ ${Math.abs(r.growth) > 100 ? '>100' : Math.abs(r.growth)}%</span>`
-          : '<span class="growth-nil">0%</span>';
-    return `
-      <tr class="border-b border-slate-800 hover:bg-slate-800 transition-colors">
-        <td class="py-2 pr-3 text-slate-400 font-mono">${startRank + i}</td>
-        <td class="py-2 pr-3">
-          <div class="font-medium">${r.item_name}</div>
-          <div class="text-xs text-slate-500">${r.sku || ''}</div>
-        </td>
-        <td class="py-2 pr-3 text-right text-slate-300">${fmt(r.qty)}</td>
-        <td class="py-2 pr-3 text-right text-amber-400 font-medium">៛${fmt(r.revenue)}</td>
-        <td class="py-2 pr-3 text-right text-slate-400">${r.prev_revenue > 0 ? '៛' + fmt(r.prev_revenue) : '—'}</td>
-        <td class="py-2 text-right">${growthCell}</td>
-      </tr>
-    `;
-  }).join('');
-}
-
-async function loadProductIntelligence() {
-  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=20`);
-  if (!data) return;
-  renderProductRows(data, 'productTableBody');
-}
-
-async function loadSlowMovers() {
-  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=asc&limit=10`);
-  if (!data) return;
-  renderProductRows(data, 'slowMoversBody', 1);
-}
-
-export function reportToggleSlowMovers() {
-  const section = getEl('slowMoversSection');
-  const arrow   = getEl('slowMoversArrow');
-  const btn     = getEl('slowMoversBtn');
-  if (!section) return;
-
-  const isHidden = section.classList.contains('hidden');
-  section.classList.toggle('hidden', !isHidden);
-  if (arrow) arrow.textContent = isHidden ? '▼' : '▶';
-  if (btn) {
-    const label = btn.querySelector('span:last-child') || btn;
-    btn.innerHTML = `<span id="slowMoversArrow">${isHidden ? '▼' : '▶'}</span> ${isHidden ? 'Hide' : 'Show'} Bottom 10 Slow Movers`;
-  }
-
-  if (isHidden) loadSlowMovers();
 }
 
 // ─── Section 5: Expense Trend ─────────────────────────────────────────────────
@@ -446,7 +393,6 @@ export function loadAll() {
   loadDiningTrend();
   loadPaymentTrend();
   loadTopProducts();
-  loadProductIntelligence();
   loadExpenseTrend();
   loadDevicePerformance();
 }

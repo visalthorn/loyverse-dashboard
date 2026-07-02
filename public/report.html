@@ -221,56 +221,7 @@
         </select>
       </div>
       <div class="chart-container"><canvas id="topProductsChart"></canvas></div>
-    </section>
-
-    <!-- Section 4: Product Intelligence -->
-    <section class="card">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="section-title">🛒 Product Performance vs Last Period</h2>
-        <span class="text-xs text-slate-400">Top 20 by revenue · green = growing · red = declining</span>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-slate-400 border-b border-slate-700 text-left">
-              <th class="pb-2 pr-3">#</th>
-              <th class="pb-2 pr-3">Item</th>
-              <th class="pb-2 pr-3 text-right">Qty</th>
-              <th class="pb-2 pr-3 text-right">Revenue</th>
-              <th class="pb-2 pr-3 text-right">Last Period</th>
-              <th class="pb-2 text-right">Growth</th>
-            </tr>
-          </thead>
-          <tbody id="productTableBody">
-            <tr><td colspan="6" class="py-4 text-center text-slate-500">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Slow movers toggle -->
-      <div class="mt-4 pt-4 border-t border-slate-700">
-        <button onclick="reportToggleSlowMovers()" id="slowMoversBtn"
-          class="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1">
-          <span id="slowMoversArrow">▶</span> Show Bottom 10 Slow Movers
-        </button>
-        <div id="slowMoversSection" class="hidden mt-3 overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-slate-400 border-b border-slate-700 text-left">
-                <th class="pb-2 pr-3">#</th>
-                <th class="pb-2 pr-3">Item</th>
-                <th class="pb-2 pr-3 text-right">Qty</th>
-                <th class="pb-2 pr-3 text-right">Revenue</th>
-                <th class="pb-2 pr-3 text-right">Last Period</th>
-                <th class="pb-2 text-right">Growth</th>
-              </tr>
-            </thead>
-            <tbody id="slowMoversBody">
-              <tr><td colspan="6" class="py-4 text-center text-slate-500">Loading...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <div id="topProductsLegend" class="mt-3 space-y-1"></div>
     </section>
 
     <!-- Section 5: Expense Trend -->

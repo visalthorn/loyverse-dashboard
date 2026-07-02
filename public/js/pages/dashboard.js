@@ -284,25 +284,54 @@ async function loadPeakHours() {
   container.innerHTML = html;
 }
 
-// ─── Top Items ───────────────────────────────────────────────────────────────
+// ─── Top Products (with growth vs last period + slow movers) ────────────────
 
-async function loadTopItems() {
-  const data = await fetchJSON(`/api/top-items?period=${state.currentPeriod}&limit=10${rangeQuery()}`);
-  if (!data) return;
-
-  const topItemsBody = getEl('topItemsBody');
-  if (topItemsBody) topItemsBody.innerHTML = data.map((r, i) => `
+function renderProductRows(rows, tbodyId, startRank = 1) {
+  const tbody = getEl(tbodyId);
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-500">No data for this period</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, i) => `
     <tr class="border-b border-slate-800 hover:bg-slate-800 transition-colors">
-      <td class="py-2 pr-4 text-slate-400 font-mono">${i + 1}</td>
-      <td class="py-2 pr-4">
+      <td class="py-2 pr-3 text-slate-400 font-mono">${startRank + i}</td>
+      <td class="py-2 pr-3">
         <div class="font-medium">${r.item_name}</div>
         <div class="text-xs text-slate-500">${r.sku || ''}</div>
       </td>
-      <td class="py-2 pr-4 text-right">${fmt(r.qty_sold)}</td>
-      <td class="py-2 pr-4 text-right text-amber-400 font-medium">៛${fmt(r.revenue)}</td>
-      <td class="py-2 text-right"><span class="inline-block bg-slate-700 rounded px-2 py-0.5 text-xs">${r.pct}%</span></td>
+      <td class="py-2 pr-3 text-right text-slate-300">${fmt(r.qty)}</td>
+      <td class="py-2 pr-3 text-right text-amber-400 font-medium">៛${fmt(r.revenue)}</td>
+      <td class="py-2 pr-3 text-right text-slate-400">${r.prev_revenue > 0 ? '៛' + fmt(r.prev_revenue) : '—'}</td>
+      <td class="py-2 text-right">${growthBadge(r.growth) || '<span class="text-slate-500">—</span>'}</td>
     </tr>
   `).join('');
+}
+
+async function loadTopItems() {
+  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=20`);
+  if (!data) return;
+  renderProductRows(data, 'productTableBody');
+}
+
+async function loadSlowMovers() {
+  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=asc&limit=10`);
+  if (!data) return;
+  renderProductRows(data, 'slowMoversBody', 1);
+}
+
+export function toggleSlowMovers() {
+  const section = getEl('slowMoversSection');
+  const btn     = getEl('slowMoversBtn');
+  if (!section) return;
+
+  const isHidden = section.classList.contains('hidden');
+  section.classList.toggle('hidden', !isHidden);
+  if (btn) {
+    btn.innerHTML = `<span id="slowMoversArrow">${isHidden ? '▼' : '▶'}</span> ${isHidden ? 'Hide' : 'Show'} Bottom 10 Slow Movers`;
+  }
+
+  if (isHidden) loadSlowMovers();
 }
 
 // ─── Employee Performance ────────────────────────────────────────────────────
