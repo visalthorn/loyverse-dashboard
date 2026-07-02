@@ -73,6 +73,16 @@
   .growth-up   { color: #34d399; font-weight: 600; }
   .growth-down { color: #f87171; font-weight: 600; }
   .growth-nil  { color: #64748b; }
+
+  .filter-select {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.75rem;
+    padding: 6px 10px;
+  }
+  .filter-select:focus { outline: none; border-color: #f59e0b; }
 </style>
 </head>
 <body class="app-shell bg-slate-900 text-white min-h-screen">
@@ -109,6 +119,10 @@
       <span class="text-lg">💸</span>
       <span class="nav-label">Expenses</span>
     </a>
+    <a href="/report.html" class="nav-item active">
+      <span class="text-lg">📋</span>
+      <span class="nav-label">Reports</span>
+    </a>
     <a href="/receipts.html" class="nav-item">
       <span class="text-lg">🧾</span>
       <span class="nav-label">Receipts</span>
@@ -116,10 +130,6 @@
     <a href="/staff.html" class="nav-item">
       <span class="text-lg">👥</span>
       <span class="nav-label">Staff</span>
-    </a>
-    <a href="/report.html" class="nav-item active">
-      <span class="text-lg">📋</span>
-      <span class="nav-label">Reports</span>
     </a>
     <a href="/users.html" id="navUsers" class="nav-item" style="display:none">
       <span class="text-lg">⚙️</span>
@@ -197,6 +207,20 @@
         <h2 class="section-title mb-4">💳 Payment Method Trend</h2>
         <div class="chart-container"><canvas id="paymentTrendChart"></canvas></div>
       </div>
+    </section>
+
+    <!-- Section 3b: Top Product Performance -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title">🥧 Top Product Performance</h2>
+        <select id="topProductsLimit" class="filter-select" onchange="reportSetTopProductsLimit(this.value)">
+          <option value="5" selected>Top 5</option>
+          <option value="10">Top 10</option>
+          <option value="15">Top 15</option>
+          <option value="20">Top 20</option>
+        </select>
+      </div>
+      <div class="chart-container"><canvas id="topProductsChart"></canvas></div>
     </section>
 
     <!-- Section 4: Product Intelligence -->

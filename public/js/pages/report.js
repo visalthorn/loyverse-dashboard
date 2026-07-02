@@ -1,7 +1,7 @@
 import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate } from '../utils.js';
-import { destroyChart, chartOpts, barOpts } from '../charts.js';
+import { destroyChart, chartOpts, barOpts, pieOpts } from '../charts.js';
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
@@ -93,7 +93,7 @@ async function loadReportKPIs() {
     },
     {
       accent: 'emerald', icon: '📊', label: 'Net Margin',
-      val: margin + '%', valClass: netVal >= 0 ? 'text-emerald-400' : 'text-red-400',
+      val: margin + '%', valClass: netVal >= 0 ? 'text-blue-400' : 'text-red-400',
       sub: `<span class="text-slate-500">Net ៛${fmtRaw(Math.abs(netVal))}</span>`,
     },
   ].map(c => `
@@ -218,6 +218,30 @@ async function loadPaymentTrend() {
       },
     },
   });
+}
+
+// ─── Section 3c: Top Product Performance ─────────────────────────────────────
+
+let topProductsLimit = 5;
+
+async function loadTopProducts() {
+  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=${topProductsLimit}`);
+  if (!data?.length) return;
+
+  const labels  = data.map(r => r.item_name);
+  const revenue = data.map(r => parseFloat(r.revenue));
+
+  destroyChart('topProductsChart');
+  state.charts.topProductsChart = new Chart(document.getElementById('topProductsChart'), {
+    type: 'pie',
+    data: { labels, datasets: [{ data: revenue, backgroundColor: COLORS, borderWidth: 0 }] },
+    options: pieOpts(),
+  });
+}
+
+export function setTopProductsLimit(val) {
+  topProductsLimit = parseInt(val) || 5;
+  loadTopProducts();
 }
 
 // ─── Section 4: Product Intelligence ─────────────────────────────────────────
@@ -421,6 +445,7 @@ export function loadAll() {
   loadRevenueTrend();
   loadDiningTrend();
   loadPaymentTrend();
+  loadTopProducts();
   loadProductIntelligence();
   loadExpenseTrend();
   loadDevicePerformance();

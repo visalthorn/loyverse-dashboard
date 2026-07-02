@@ -130,9 +130,10 @@ window.viewInSchedule = async function(staffId) {
 };
 
 // Report
-window.reportSetPeriod         = Report.setPeriod;
-window.reportApplyRange        = Report.applyCustomRange;
-window.reportToggleSlowMovers  = Report.reportToggleSlowMovers;
+window.reportSetPeriod            = Report.setPeriod;
+window.reportApplyRange           = Report.applyCustomRange;
+window.reportToggleSlowMovers     = Report.reportToggleSlowMovers;
+window.reportSetTopProductsLimit  = Report.setTopProductsLimit;
 
 // Users
 window.submitUser         = Users.submitUser;
