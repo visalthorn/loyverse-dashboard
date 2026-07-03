@@ -32,33 +32,6 @@ function growthBadge(g) {
 }
 
 
-// Pivot flat rows [{period, groupKey, value}] into Chart.js stacked dataset format
-function buildStackedDatasets(rows, groupField, valueField, granularity) {
-  const periodSet = new Set();
-  const keySet    = new Set();
-  rows.forEach(r => { periodSet.add(String(r.period)); keySet.add(r[groupField]); });
-
-  const periods = [...periodSet].sort();
-  const keys    = [...keySet];
-
-  const lookup = {};
-  rows.forEach(r => {
-    if (!lookup[r[groupField]]) lookup[r[groupField]] = {};
-    lookup[r[groupField]][String(r.period)] = parseFloat(r[valueField]);
-  });
-
-  const datasets = keys.map((k, i) => ({
-    label: k,
-    data:  periods.map(p => lookup[k][p] || 0),
-    backgroundColor: COLORS[i % COLORS.length],
-    borderWidth: 0,
-    borderRadius: 2,
-  }));
-
-  const labels = periods.map(p => fmtDate(p, granularity));
-  return { labels, datasets };
-}
-
 // ─── Section 1: KPI Summary ───────────────────────────────────────────────────
 
 async function loadReportKPIs() {
@@ -170,54 +143,64 @@ async function loadRevenueTrend() {
   });
 }
 
-// ─── Section 3a: Dining Channel Trend ────────────────────────────────────────
+// ─── Section 3a: Dining Channel ──────────────────────────────────────────────
 
-async function loadDiningTrend() {
-  const gran = trendGranularity();
-  const data = await fetchJSON(`/api/dining-trend?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data?.length) return;
+async function loadDiningOptions() {
+  const data = await fetchJSON(`/api/dining-options?period=${state.currentPeriod}${rangeQuery()}`);
+  const legend = getEl('diningLegend');
+  if (!data?.length) {
+    destroyChart('diningChart');
+    if (legend) legend.innerHTML = '<p class="text-slate-500 text-sm">No data for this period</p>';
+    return;
+  }
 
-  const { labels, datasets } = buildStackedDatasets(data, 'dining_option', 'revenue', gran);
+  const labels  = data.map(r => r.dining_option);
+  const revenue = data.map(r => parseFloat(r.revenue));
+  const total   = revenue.reduce((a, b) => a + b, 0);
 
-  destroyChart('diningTrendChart');
-  state.charts.diningTrendChart = new Chart(document.getElementById('diningTrendChart'), {
-    type: 'bar',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } } },
-      scales: {
-        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } } },
-        y: { grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => '៛' + fmt(v) } },
-      },
-    },
+  destroyChart('diningChart');
+  state.charts.diningChart = new Chart(document.getElementById('diningChart'), {
+    type: 'pie',
+    data: { labels, datasets: [{ data: revenue, backgroundColor: COLORS, borderWidth: 0 }] },
+    options: pieOpts(false),
   });
+
+  if (legend) legend.innerHTML = data.map((r, i) => `
+    <div class="legend-item">
+      <span><span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.dining_option}</span>
+      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-slate-500">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
+    </div>
+  `).join('');
 }
 
-// ─── Section 3b: Payment Method Trend ────────────────────────────────────────
+// ─── Section 3b: Payment Method ──────────────────────────────────────────────
 
-async function loadPaymentTrend() {
-  const gran = trendGranularity();
-  const data = await fetchJSON(`/api/payment-trend?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data?.length) return;
+async function loadPaymentMethods() {
+  const data = await fetchJSON(`/api/payment-methods?period=${state.currentPeriod}${rangeQuery()}`);
+  const legend = getEl('paymentLegend');
+  if (!data?.length) {
+    destroyChart('paymentChart');
+    if (legend) legend.innerHTML = '<p class="text-slate-500 text-sm">No data for this period</p>';
+    return;
+  }
 
-  const { labels, datasets } = buildStackedDatasets(data, 'payment_name', 'total', gran);
+  const labels = data.map(r => r.payment_name || r.payment_type);
+  const totals = data.map(r => parseFloat(r.total));
+  const total  = totals.reduce((a, b) => a + b, 0);
 
-  destroyChart('paymentTrendChart');
-  state.charts.paymentTrendChart = new Chart(document.getElementById('paymentTrendChart'), {
-    type: 'bar',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } } },
-      scales: {
-        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } } },
-        y: { grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => '៛' + fmt(v) } },
-      },
-    },
+  destroyChart('paymentChart');
+  state.charts.paymentChart = new Chart(document.getElementById('paymentChart'), {
+    type: 'pie',
+    data: { labels, datasets: [{ data: totals, backgroundColor: COLORS.slice(2), borderWidth: 0 }] },
+    options: pieOpts(false),
   });
+
+  if (legend) legend.innerHTML = data.map((r, i) => `
+    <div class="legend-item">
+      <span><span class="legend-dot" style="background:${COLORS[(i + 2) % COLORS.length]}"></span>${r.payment_name || r.payment_type}</span>
+      <span class="font-medium">៛${fmt(r.total)} <span class="text-slate-500">(${total > 0 ? ((r.total / total) * 100).toFixed(1) : 0}%)</span></span>
+    </div>
+  `).join('');
 }
 
 // ─── Section 3c: Top Product Performance ─────────────────────────────────────
@@ -404,8 +387,8 @@ async function loadDevicePerformance() {
 export function loadAll() {
   loadReportKPIs();
   loadRevenueTrend();
-  loadDiningTrend();
-  loadPaymentTrend();
+  loadDiningOptions();
+  loadPaymentMethods();
   loadTopProducts();
   loadExpenseTrend();
   loadDevicePerformance();
