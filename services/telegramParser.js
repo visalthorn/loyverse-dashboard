@@ -15,12 +15,15 @@ For each message, decide one of:
 - "usd_detected": the message describes an expense but the amount is stated in US dollars (mentions "$", "USD", "dollar", or similar). Do not extract an amount in this case.
 - "unclear": the message might be an expense but the amount or what it was for is too ambiguous to extract confidently.
 
+Also check whether the message explicitly states when the expense happened (a specific day, "yesterday", "last Monday", a date like "July 1" or "01/07"). If so, resolve it to an absolute date in YYYY-MM-DD format and set "date" to that value — use the reference date given with the message to resolve relative terms and to fill in an unstated year. If the message does not say when the expense happened, set "date" to null.
+
 Respond only with the structured JSON — no other text.`;
 
 const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
     type: { type: 'string', enum: ['expense', 'not_expense', 'usd_detected', 'unclear'] },
+    date: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     items: {
       type: 'array',
       items: {
@@ -34,33 +37,36 @@ const OUTPUT_SCHEMA = {
       },
     },
   },
-  required: ['type', 'items'],
+  required: ['type', 'date', 'items'],
   additionalProperties: false,
 };
 
-async function parseExpenseMessage(text, anthropicClient = getDefaultClient()) {
+async function parseExpenseMessage(text, referenceDate, anthropicClient = getDefaultClient()) {
   const response = await anthropicClient.messages.create({
     model: 'claude-haiku-4-5',
     max_tokens: 512,
     system: SYSTEM_PROMPT,
     output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
-    messages: [{ role: 'user', content: text }],
+    messages: [{
+      role: 'user',
+      content: `Reference date (today, or the date this message was originally sent if it was forwarded): ${referenceDate}\n\nMessage: ${text}`,
+    }],
   });
 
-  if (response.stop_reason === 'refusal') return { type: 'unclear' };
+  if (response.stop_reason === 'refusal') return { type: 'unclear', date: null };
 
   const textBlock = response.content.find(b => b.type === 'text');
-  if (!textBlock) return { type: 'unclear' };
+  if (!textBlock) return { type: 'unclear', date: null };
 
   let parsed;
   try {
     parsed = JSON.parse(textBlock.text);
   } catch {
-    return { type: 'unclear' };
+    return { type: 'unclear', date: null };
   }
 
   if (parsed.type === 'expense' && (!Array.isArray(parsed.items) || parsed.items.length === 0)) {
-    return { type: 'unclear' };
+    return { type: 'unclear', date: null };
   }
 
   return parsed;

@@ -16,23 +16,31 @@ function extractMessage(update) {
   if (!message || typeof message.text !== 'string' || !message.chat) return null;
   const from = message.from || {};
   const senderName = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Unknown';
+  const forwardTimestamp = (message.forward_origin && message.forward_origin.date) ?? message.forward_date ?? null;
+  const forwardDate = forwardTimestamp ? dayjs.unix(forwardTimestamp).tz(tz).format('YYYY-MM-DD') : null;
   return {
     text: message.text,
     chatId: message.chat.id,
     messageId: message.message_id,
     senderName,
+    forwardDate,
   };
 }
 
-async function handleTelegramMessage({ text, messageId, senderName, chatId }, deps) {
+async function handleTelegramMessage({ text, messageId, senderName, chatId, forwardDate }, deps) {
   const { pool, parseExpenseMessage, insertExpense, sendTelegramMessage } = deps;
 
   const dup = await pool.query('SELECT 1 FROM expenses WHERE telegram_message_id = $1 LIMIT 1', [messageId]);
   if (dup.rowCount > 0) return { status: 'duplicate' };
 
+  const today = dayjs().tz(tz).format('YYYY-MM-DD');
+  // A forwarded message may have reached the group long after the expense happened —
+  // its original send date is a better guess than "today" when nothing else is stated.
+  const referenceDate = forwardDate || today;
+
   let parsed;
   try {
-    parsed = await parseExpenseMessage(text);
+    parsed = await parseExpenseMessage(text, referenceDate);
   } catch (err) {
     console.error('[telegram] parseExpenseMessage failed:', err.message);
     await sendTelegramMessage(chatId, 'Having trouble right now — please try again in a bit.');
@@ -51,11 +59,11 @@ async function handleTelegramMessage({ text, messageId, senderName, chatId }, de
     return { status: 'unclear' };
   }
 
-  const today = dayjs().tz(tz).format('YYYY-MM-DD');
+  const expenseDate = parsed.date || referenceDate;
   const inserted = [];
   for (const item of parsed.items) {
     const expense = await insertExpense({
-      expense_date: today,
+      expense_date: expenseDate,
       amount: item.amount,
       remark: item.remark,
       expense_by: senderName,
@@ -66,7 +74,7 @@ async function handleTelegramMessage({ text, messageId, senderName, chatId }, de
   }
 
   const replyText = inserted
-    .map(e => `✅ Logged: ៛${Number(e.amount).toLocaleString()} – ${e.remark || '(no remark)'}`)
+    .map(e => `✅ Logged: ៛${Number(e.amount).toLocaleString()} – ${e.remark || '(no remark)'} (${expenseDate})`)
     .join('\n');
   await sendTelegramMessage(chatId, replyText);
   return { status: 'logged', inserted };
