@@ -11,7 +11,7 @@ Scope: **expense capture via Telegram only.** No bot-side editing/deleting, no o
 Integrated into the existing Express app — no new process or deployment. The dashboard is already public over HTTPS, so Telegram's webhook can call it directly.
 
 - `routes/telegram.js` — `POST /api/telegram/webhook`. Validates the `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET` and that the update's chat ID matches `TELEGRAM_GROUP_CHAT_ID`. Anything else is silently ignored (no reply, logged server-side).
-- `services/telegramParser.js` — sends the message text to the Claude API and gets back structured JSON: either "not an expense" (casual chat), one or more `{ amount, remark }` items (KHR assumed), "usd_detected" (message appears to be in USD), or "unclear" (needs clarification).
+- `services/telegramParser.js` — sends the message text to the Claude API (model: `claude-haiku-4-5` — a classification/extraction task like this doesn't need a larger model, and Haiku's pricing keeps this bot's running cost negligible at low message volume) and gets back structured JSON: either "not an expense" (casual chat), one or more `{ amount, remark }` items (KHR assumed), "usd_detected" (message appears to be in USD), or "unclear" (needs clarification).
 - `services/expenses.js` — the expense-insert logic currently inline in `routes/expenses.js`'s `POST /` handler is extracted into a shared `insertExpense()` function, used by both the dashboard form and the Telegram path, so there's one source of truth for the insert.
 - `services/telegramBot.js` — thin wrapper around the Telegram Bot API (`axios`, matching the existing `services/loyverse.js` pattern) for sending reply messages.
 
