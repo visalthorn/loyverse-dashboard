@@ -34,8 +34,18 @@ ANTHROPIC_API_KEY=
    - **one or more expense items** (amount assumed to be KHR) → each inserted via `insertExpense()` with `expense_by` = sender's Telegram display name, `source = 'telegram'`.
    - **USD detected** → bot does not insert anything; replies asking her to resend the amount in Riel instead (e.g. "Please send the amount in Riel (៛), not USD.").
    - **unclear** → bot replies asking her to rephrase (e.g. "Could you say the amount and what it was for, like '50000 diesel'?").
-5. On successful insert, bot replies with a confirmation, one line per item if multiple: `✅ Logged: ៛50,000 – diesel for truck`.
+5. On successful insert, bot replies with a confirmation including the resolved expense date, one line per item if multiple: `✅ Logged: ៛50,000 – diesel for truck (2026-07-04)`.
 6. A message with several expenses ("50000 diesel, 20000 lunch") is parsed into multiple items in one Claude call and logged in one batch, with one combined confirmation reply.
+
+## Expense date resolution
+
+The GM sometimes reports an expense somewhere else first (e.g. voice note to her sister) and the message only reaches the Telegram group later, forwarded by whoever received it first. In that case the date the message *arrives* in the group is not the date the expense happened. Resolution order, most authoritative first:
+
+1. **Explicit date in the message text** — if the message states when the expense happened ("yesterday", "last Monday", "July 1"), `telegramParser` resolves it to an absolute `YYYY-MM-DD` date. To resolve relative phrasing and bare day/month mentions, the parser is given a reference date (see step 2) as context for "what day is this relative to / what year is implied."
+2. **Forwarded message → the forward's original date.** If Telegram marks the message as forwarded, its original send date (from Telegram's forward metadata, not the time it landed in the group) is used as the reference date, and as the expense date if step 1 finds nothing.
+3. **A fresh, non-forwarded message with no date mentioned → today.** The message's own arrival date (Cambodia time) is used, matching the original design.
+
+`telegramParser.parseExpenseMessage()` returns an additional `date` field (`YYYY-MM-DD` or `null`) alongside `type`/`items`. The route computes the reference date (forward date if forwarded, else today) before calling the parser, and the final `expense_date` used for the insert is `parsed.date ?? referenceDate`.
 
 ## Currency handling
 
@@ -61,8 +71,9 @@ Additive, non-breaking `ALTER TABLE expenses`:
 
 ## Testing
 
-- Unit tests for `telegramParser` against a fixed set of sample messages: a clean single expense, a multi-item message, casual chat, an ambiguous message, and USD-denominated wording (should trigger the "resend in Riel" reply, not an insert).
-- Manual webhook test plan using a private Telegram test group before pointing the bot at the real family group: verify insert correctness, verify casual chat is ignored, verify a duplicate delivery no-ops instead of double-inserting, verify USD wording is rejected with the correct prompt.
+- Unit tests for `telegramParser` against a fixed set of sample messages: a clean single expense, a multi-item message, casual chat, an ambiguous message, USD-denominated wording (should trigger the "resend in Riel" reply, not an insert), and a message with an explicit date mention.
+- Unit tests for the date-resolution priority: explicit parsed date wins over everything; a forwarded message with no explicit date falls back to the forward's original date; a fresh non-forwarded message with no explicit date falls back to today.
+- Manual webhook test plan using a private Telegram test group before pointing the bot at the real family group: verify insert correctness, verify casual chat is ignored, verify a duplicate delivery no-ops instead of double-inserting, verify USD wording is rejected with the correct prompt, verify a forwarded message logs under the original date rather than today.
 
 ## Out of scope (for this iteration)
 
