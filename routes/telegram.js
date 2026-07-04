@@ -7,9 +7,9 @@ dayjs.extend(timezone);
 
 const pool = require('../db');
 const { tz, telegramWebhookSecret, telegramGroupChatId } = require('../config');
-const { parseExpenseMessage } = require('../services/telegramParser');
+const { parseExpenseMessage, parseExpenseImage } = require('../services/telegramParser');
 const { insertExpense } = require('../services/expenses');
-const { sendTelegramMessage } = require('../services/telegramBot');
+const { sendTelegramMessage, downloadTelegramFile } = require('../services/telegramBot');
 
 const USD_TO_KHR_RATE = 4000;
 
@@ -42,8 +42,8 @@ function extractMessage(update) {
   };
 }
 
-async function handleTelegramMessage({ text, messageId, senderName, chatId, forwardDate }, deps) {
-  const { pool, parseExpenseMessage, insertExpense, sendTelegramMessage } = deps;
+async function handleTelegramMessage({ text, messageId, senderName, chatId, forwardDate, photoFileId }, deps) {
+  const { pool, parseExpenseMessage, parseExpenseImage, downloadTelegramFile, insertExpense, sendTelegramMessage } = deps;
 
   const dup = await pool.query('SELECT 1 FROM expenses WHERE telegram_message_id = $1 LIMIT 1', [messageId]);
   if (dup.rowCount > 0) return { status: 'duplicate' };
@@ -55,9 +55,14 @@ async function handleTelegramMessage({ text, messageId, senderName, chatId, forw
 
   let parsed;
   try {
-    parsed = await parseExpenseMessage(text, referenceDate);
+    if (photoFileId) {
+      const imageBuffer = await downloadTelegramFile(photoFileId);
+      parsed = await parseExpenseImage(text, imageBuffer.toString('base64'), referenceDate);
+    } else {
+      parsed = await parseExpenseMessage(text, referenceDate);
+    }
   } catch (err) {
-    console.error('[telegram] parseExpenseMessage failed:', err.message);
+    console.error('[telegram] parsing failed:', err.message);
     await sendTelegramMessage(chatId, 'Having trouble right now — please try again in a bit.');
     return { status: 'error' };
   }
@@ -115,7 +120,7 @@ router.post('/webhook', async (req, res) => {
   }
 
   try {
-    await handleTelegramMessage(message, { pool, parseExpenseMessage, insertExpense, sendTelegramMessage });
+    await handleTelegramMessage(message, { pool, parseExpenseMessage, parseExpenseImage, downloadTelegramFile, insertExpense, sendTelegramMessage });
   } catch (err) {
     console.error('[telegram] Error handling message:', err.message);
   }

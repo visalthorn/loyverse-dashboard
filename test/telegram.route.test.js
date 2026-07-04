@@ -291,3 +291,94 @@ test('handleTelegramMessage falls back to today for a fresh message with no expl
   );
   assert.equal(inserted[0].expense_date, today());
 });
+
+test('handleTelegramMessage downloads and parses a photo message via parseExpenseImage', async () => {
+  const inserted = [];
+  const sent = [];
+  const result = await handleTelegramMessage(
+    { text: 'fuel receipt', messageId: 30, senderName: 'Srey', chatId: -1, forwardDate: null, photoFileId: 'file_abc' },
+    {
+      pool: fakePool(false),
+      parseExpenseMessage: async () => { throw new Error('should not be called for a photo message'); },
+      downloadTelegramFile: async (fileId) => {
+        assert.equal(fileId, 'file_abc');
+        return Buffer.from('fake-bytes');
+      },
+      parseExpenseImage: async (caption, imageBase64) => {
+        assert.equal(caption, 'fuel receipt');
+        assert.equal(imageBase64, Buffer.from('fake-bytes').toString('base64'));
+        return { type: 'expense', date: null, items: [{ amount: 45000, remark: 'fuel', currency: 'KHR' }] };
+      },
+      insertExpense: async (e) => { inserted.push(e); return e; },
+      sendTelegramMessage: async (chatId, text) => { sent.push(text); },
+    }
+  );
+  assert.equal(result.status, 'logged');
+  assert.equal(inserted[0].amount, 45000);
+  assert.equal(inserted[0].source, 'telegram');
+  assert.equal(inserted[0].telegram_message_id, 30);
+});
+
+test('handleTelegramMessage ignores a non-receipt photo classified as not_expense', async () => {
+  const sent = [];
+  const result = await handleTelegramMessage(
+    { text: null, messageId: 31, senderName: 'Srey', chatId: -1, forwardDate: null, photoFileId: 'file_def' },
+    {
+      pool: fakePool(false),
+      downloadTelegramFile: async () => Buffer.from('fake-bytes'),
+      parseExpenseImage: async () => ({ type: 'not_expense', date: null, items: [] }),
+      insertExpense: async () => { throw new Error('should not insert'); },
+      sendTelegramMessage: async (chatId, text) => { sent.push(text); },
+    }
+  );
+  assert.equal(result.status, 'ignored');
+  assert.equal(sent.length, 0);
+});
+
+test('handleTelegramMessage asks for clarification when a photo is unclear', async () => {
+  const sent = [];
+  const result = await handleTelegramMessage(
+    { text: null, messageId: 32, senderName: 'Srey', chatId: -1, forwardDate: null, photoFileId: 'file_ghi' },
+    {
+      pool: fakePool(false),
+      downloadTelegramFile: async () => Buffer.from('fake-bytes'),
+      parseExpenseImage: async () => ({ type: 'unclear', date: null, items: [] }),
+      insertExpense: async () => { throw new Error('should not insert'); },
+      sendTelegramMessage: async (chatId, text) => { sent.push(text); },
+    }
+  );
+  assert.equal(result.status, 'unclear');
+  assert.match(sent[0], /ចំណាយ/);
+});
+
+test('handleTelegramMessage replies with a retry message when the image download fails', async () => {
+  const sent = [];
+  const result = await handleTelegramMessage(
+    { text: null, messageId: 33, senderName: 'Srey', chatId: -1, forwardDate: null, photoFileId: 'file_jkl' },
+    {
+      pool: fakePool(false),
+      downloadTelegramFile: async () => { throw new Error('Telegram file expired'); },
+      parseExpenseImage: async () => { throw new Error('should not be called'); },
+      insertExpense: async () => { throw new Error('should not insert'); },
+      sendTelegramMessage: async (chatId, text) => { sent.push(text); },
+    }
+  );
+  assert.equal(result.status, 'error');
+  assert.match(sent[0], /trouble/i);
+});
+
+test('handleTelegramMessage replies with a retry message when parseExpenseImage fails', async () => {
+  const sent = [];
+  const result = await handleTelegramMessage(
+    { text: null, messageId: 34, senderName: 'Srey', chatId: -1, forwardDate: null, photoFileId: 'file_mno' },
+    {
+      pool: fakePool(false),
+      downloadTelegramFile: async () => Buffer.from('fake-bytes'),
+      parseExpenseImage: async () => { throw new Error('Claude API timeout'); },
+      insertExpense: async () => { throw new Error('should not insert'); },
+      sendTelegramMessage: async (chatId, text) => { sent.push(text); },
+    }
+  );
+  assert.equal(result.status, 'error');
+  assert.match(sent[0], /trouble/i);
+});
