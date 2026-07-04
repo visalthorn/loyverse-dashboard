@@ -7,14 +7,14 @@ function getDefaultClient() {
   return defaultClient;
 }
 
-const SYSTEM_PROMPT = `You read messages from a Telegram group used by a small business in Cambodia to report expenses.
+const SYSTEM_PROMPT = `You read messages from a Telegram group used by a small business in Cambodia to report expenses. A message may be plain text describing an expense, or a photo of a receipt/invoice (optionally with a caption).
 
 For each message, decide one of:
-- "expense": the message describes one or more real expenses. List each distinct expense as an item with a plain numeric "amount" (no currency symbols, no thousands separators), a short "remark" describing what it was for, and a "currency" of "KHR" or "USD" based on how the amount was stated (mentions of "$", "USD", "dollar", or similar mean USD; otherwise assume KHR).
-- "not_expense": the message is casual conversation, a greeting, or a question — not an expense report.
-- "unclear": the message might be an expense but the amount or what it was for is too ambiguous to extract confidently.
+- "expense": the message (or photo) describes one or more real expenses. List each distinct expense as an item with a plain numeric "amount" (no currency symbols, no thousands separators), a short "remark" describing what it was for, and a "currency" of "KHR" or "USD" based on how the amount was stated (mentions of "$", "USD", "dollar", or similar mean USD; otherwise assume KHR). For a receipt or invoice photo with several line items, list each as a separate item.
+- "not_expense": the message is casual conversation, a greeting, a question, or a photo unrelated to an expense — not an expense report.
+- "unclear": the message or photo might be an expense but the amount or what it was for is too ambiguous to extract confidently (e.g. a blurry or unreadable photo).
 
-Also check whether the message explicitly states when the expense happened (a specific day, "yesterday", "last Monday", a date like "July 1" or "01/07"). If so, resolve it to an absolute date in YYYY-MM-DD format and set "date" to that value — use the reference date given with the message to resolve relative terms and to fill in an unstated year. If the message does not say when the expense happened, set "date" to null.
+Also check whether the message explicitly states when the expense happened (a specific day, "yesterday", "last Monday", a date like "July 1" or "01/07", or a date printed on a receipt). If so, resolve it to an absolute date in YYYY-MM-DD format and set "date" to that value — use the reference date given with the message to resolve relative terms and to fill in an unstated year. If nothing states when the expense happened, set "date" to null.
 
 Respond only with the structured JSON — no other text.`;
 
@@ -41,18 +41,7 @@ const OUTPUT_SCHEMA = {
   additionalProperties: false,
 };
 
-async function parseExpenseMessage(text, referenceDate, anthropicClient = getDefaultClient()) {
-  const response = await anthropicClient.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 512,
-    system: SYSTEM_PROMPT,
-    output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
-    messages: [{
-      role: 'user',
-      content: `Reference date (today, or the date this message was originally sent if it was forwarded): ${referenceDate}\n\nMessage: ${text}`,
-    }],
-  });
-
+function interpretResponse(response) {
   if (response.stop_reason === 'refusal') return { type: 'unclear', date: null };
 
   const textBlock = response.content.find(b => b.type === 'text');
@@ -72,4 +61,38 @@ async function parseExpenseMessage(text, referenceDate, anthropicClient = getDef
   return parsed;
 }
 
-module.exports = { parseExpenseMessage };
+async function parseExpenseMessage(text, referenceDate, anthropicClient = getDefaultClient()) {
+  const response = await anthropicClient.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 512,
+    system: SYSTEM_PROMPT,
+    output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
+    messages: [{
+      role: 'user',
+      content: `Reference date (today, or the date this message was originally sent if it was forwarded): ${referenceDate}\n\nMessage: ${text}`,
+    }],
+  });
+
+  return interpretResponse(response);
+}
+
+async function parseExpenseImage(caption, imageBase64, referenceDate, anthropicClient = getDefaultClient()) {
+  const captionLine = caption ? `\n\nCaption: ${caption}` : '';
+  const response = await anthropicClient.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 512,
+    system: SYSTEM_PROMPT,
+    output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+        { type: 'text', text: `Reference date (today, or the date this message was originally sent if it was forwarded): ${referenceDate}${captionLine}` },
+      ],
+    }],
+  });
+
+  return interpretResponse(response);
+}
+
+module.exports = { parseExpenseMessage, parseExpenseImage };
