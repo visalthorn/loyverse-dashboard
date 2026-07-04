@@ -11,6 +11,8 @@ const { parseExpenseMessage } = require('../services/telegramParser');
 const { insertExpense } = require('../services/expenses');
 const { sendTelegramMessage } = require('../services/telegramBot');
 
+const USD_TO_KHR_RATE = 4000;
+
 function checkWebhookAuth(headers, secret) {
   if (!secret) return { ok: false, reason: 'not_configured' };
   if (headers['x-telegram-bot-api-secret-token'] !== secret) return { ok: false, reason: 'bad_secret' };
@@ -55,35 +57,37 @@ async function handleTelegramMessage({ text, messageId, senderName, chatId, forw
 
   if (parsed.type === 'not_expense') return { status: 'ignored' };
 
-  if (parsed.type === 'usd_detected') {
-    await sendTelegramMessage(chatId, 'That looks like USD — please send the amount in Riel (៛) instead.');
-    return { status: 'usd_detected' };
-  }
-
   if (parsed.type === 'unclear') {
-    await sendTelegramMessage(chatId, "Sorry, I couldn't understand that. Try something like '50000 diesel for truck'.");
+    await sendTelegramMessage(
+      chatId,
+      "សុំទោស ខ្ញុំមិនច្បាស់ថាតើអ្នកចង់ឲ្យខ្ញុំកត់ត្រាចំណាយនេះទេ? បើចង់ សូមសាកល្បងសរសេរបែបនេះ៖ 'ចំណាយ 2/7/26 14000៛'"
+    );
     return { status: 'unclear' };
   }
 
   const expenseDate = parsed.date || referenceDate;
-  const inserted = [];
+  const insertedWithSource = [];
   for (const item of parsed.items) {
+    const amount = item.currency === 'USD' ? item.amount * USD_TO_KHR_RATE : item.amount;
     const expense = await insertExpense({
       expense_date: expenseDate,
-      amount: item.amount,
+      amount,
       remark: item.remark,
       expense_by: senderName,
       source: 'telegram',
       telegram_message_id: messageId,
     });
-    inserted.push(expense);
+    insertedWithSource.push({ expense, item });
   }
 
-  const replyText = inserted
-    .map(e => `✅ Logged: ៛${Number(e.amount).toLocaleString()} – ${e.remark || '(no remark)'} (${expenseDate})`)
+  const replyText = insertedWithSource
+    .map(({ expense, item }) => {
+      const convertedNote = item.currency === 'USD' ? ` (converted from $${item.amount})` : '';
+      return `✅ Logged: ៛${Number(expense.amount).toLocaleString()}${convertedNote} – ${expense.remark || '(no remark)'} (${expenseDate})`;
+    })
     .join('\n');
   await sendTelegramMessage(chatId, replyText);
-  return { status: 'logged', inserted };
+  return { status: 'logged', inserted: insertedWithSource.map(x => x.expense) };
 }
 
 router.post('/webhook', async (req, res) => {

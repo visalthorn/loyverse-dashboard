@@ -115,19 +115,44 @@ test('handleTelegramMessage ignores casual chat', async () => {
   assert.equal(sent.length, 0);
 });
 
-test('handleTelegramMessage asks for Riel when USD is detected', async () => {
+test('handleTelegramMessage converts a USD item to KHR at the fixed rate before inserting', async () => {
   const sent = [];
+  const inserted = [];
   const result = await handleTelegramMessage(
     { text: '$20 for parts', messageId: 2, senderName: 'Srey', chatId: -1, forwardDate: null },
     {
       pool: fakePool(false),
-      parseExpenseMessage: async () => ({ type: 'usd_detected', date: null, items: [] }),
-      insertExpense: async () => { throw new Error('should not insert'); },
+      parseExpenseMessage: async () => ({ type: 'expense', date: null, items: [{ amount: 20, remark: 'parts', currency: 'USD' }] }),
+      insertExpense: async (e) => { inserted.push(e); return e; },
       sendTelegramMessage: async (chatId, text) => { sent.push(text); },
     }
   );
-  assert.equal(result.status, 'usd_detected');
-  assert.match(sent[0], /Riel/);
+  assert.equal(result.status, 'logged');
+  assert.equal(inserted[0].amount, 80000);
+  assert.match(sent[0], /\$20/);
+  assert.match(sent[0], /80,000/);
+});
+
+test('handleTelegramMessage leaves KHR items unconverted alongside a converted USD item', async () => {
+  const inserted = [];
+  await handleTelegramMessage(
+    { text: '50000 diesel, $10 for parts', messageId: 11, senderName: 'Srey', chatId: -1, forwardDate: null },
+    {
+      pool: fakePool(false),
+      parseExpenseMessage: async () => ({
+        type: 'expense',
+        date: null,
+        items: [
+          { amount: 50000, remark: 'diesel', currency: 'KHR' },
+          { amount: 10, remark: 'parts', currency: 'USD' },
+        ],
+      }),
+      insertExpense: async (e) => { inserted.push(e); return e; },
+      sendTelegramMessage: async () => {},
+    }
+  );
+  assert.equal(inserted[0].amount, 50000);
+  assert.equal(inserted[1].amount, 40000);
 });
 
 test('handleTelegramMessage asks for clarification when unclear', async () => {
@@ -143,6 +168,7 @@ test('handleTelegramMessage asks for clarification when unclear', async () => {
   );
   assert.equal(result.status, 'unclear');
   assert.equal(sent.length, 1);
+  assert.match(sent[0], /ចំណាយ/);
 });
 
 test('handleTelegramMessage inserts each item and sends one combined confirmation', async () => {
@@ -196,7 +222,7 @@ test('handleTelegramMessage uses an explicit parsed date over any fallback', asy
     { text: '30000 parts, bought last Tuesday', messageId: 6, senderName: 'Srey', chatId: -1, forwardDate: '2026-06-25' },
     {
       pool: fakePool(false),
-      parseExpenseMessage: async () => ({ type: 'expense', date: '2026-06-23', items: [{ amount: 30000, remark: 'parts' }] }),
+      parseExpenseMessage: async () => ({ type: 'expense', date: '2026-06-23', items: [{ amount: 30000, remark: 'parts', currency: 'KHR' }] }),
       insertExpense: async (e) => { inserted.push(e); return e; },
       sendTelegramMessage: async (chatId, text) => { sent.push(text); },
     }
@@ -211,7 +237,7 @@ test('handleTelegramMessage falls back to the forward date when the parser finds
     { text: '30000 for parts', messageId: 9, senderName: 'Srey', chatId: -1, forwardDate: '2026-06-30' },
     {
       pool: fakePool(false),
-      parseExpenseMessage: async () => ({ type: 'expense', date: null, items: [{ amount: 30000, remark: 'parts' }] }),
+      parseExpenseMessage: async () => ({ type: 'expense', date: null, items: [{ amount: 30000, remark: 'parts', currency: 'KHR' }] }),
       insertExpense: async (e) => { inserted.push(e); return e; },
       sendTelegramMessage: async () => {},
     }
@@ -225,7 +251,7 @@ test('handleTelegramMessage falls back to today for a fresh message with no expl
     { text: '30000 for parts', messageId: 10, senderName: 'Srey', chatId: -1, forwardDate: null },
     {
       pool: fakePool(false),
-      parseExpenseMessage: async () => ({ type: 'expense', date: null, items: [{ amount: 30000, remark: 'parts' }] }),
+      parseExpenseMessage: async () => ({ type: 'expense', date: null, items: [{ amount: 30000, remark: 'parts', currency: 'KHR' }] }),
       insertExpense: async (e) => { inserted.push(e); return e; },
       sendTelegramMessage: async () => {},
     }

@@ -10,9 +10,8 @@ function getDefaultClient() {
 const SYSTEM_PROMPT = `You read messages from a Telegram group used by a small business in Cambodia to report expenses.
 
 For each message, decide one of:
-- "expense": the message describes one or more real expenses paid in Cambodian Riel (KHR). List each distinct expense as an item with a plain numeric "amount" (no currency symbols, no thousands separators) and a short "remark" describing what it was for.
+- "expense": the message describes one or more real expenses. List each distinct expense as an item with a plain numeric "amount" (no currency symbols, no thousands separators), a short "remark" describing what it was for, and a "currency" of "KHR" or "USD" based on how the amount was stated (mentions of "$", "USD", "dollar", or similar mean USD; otherwise assume KHR).
 - "not_expense": the message is casual conversation, a greeting, or a question — not an expense report.
-- "usd_detected": the message describes an expense but the amount is stated in US dollars (mentions "$", "USD", "dollar", or similar). Do not extract an amount in this case.
 - "unclear": the message might be an expense but the amount or what it was for is too ambiguous to extract confidently.
 
 Also check whether the message explicitly states when the expense happened (a specific day, "yesterday", "last Monday", a date like "July 1" or "01/07"). If so, resolve it to an absolute date in YYYY-MM-DD format and set "date" to that value — use the reference date given with the message to resolve relative terms and to fill in an unstated year. If the message does not say when the expense happened, set "date" to null.
@@ -22,7 +21,7 @@ Respond only with the structured JSON — no other text.`;
 const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
-    type: { type: 'string', enum: ['expense', 'not_expense', 'usd_detected', 'unclear'] },
+    type: { type: 'string', enum: ['expense', 'not_expense', 'unclear'] },
     date: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     items: {
       type: 'array',
@@ -31,8 +30,9 @@ const OUTPUT_SCHEMA = {
         properties: {
           amount: { type: 'number' },
           remark: { type: 'string' },
+          currency: { type: 'string', enum: ['KHR', 'USD'] },
         },
-        required: ['amount', 'remark'],
+        required: ['amount', 'remark', 'currency'],
         additionalProperties: false,
       },
     },

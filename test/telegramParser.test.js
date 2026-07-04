@@ -13,14 +13,14 @@ function fakeClient(responseText, stopReason = 'end_turn') {
   };
 }
 
-test('parses a single expense', async () => {
+test('parses a single KHR expense', async () => {
   const client = fakeClient(JSON.stringify({
     type: 'expense',
     date: null,
-    items: [{ amount: 50000, remark: 'diesel for truck' }],
+    items: [{ amount: 50000, remark: 'diesel for truck', currency: 'KHR' }],
   }));
   const result = await parseExpenseMessage('50000 diesel for truck', '2026-07-04', client);
-  assert.deepEqual(result, { type: 'expense', date: null, items: [{ amount: 50000, remark: 'diesel for truck' }] });
+  assert.deepEqual(result, { type: 'expense', date: null, items: [{ amount: 50000, remark: 'diesel for truck', currency: 'KHR' }] });
 });
 
 test('parses multiple expenses from one message', async () => {
@@ -28,8 +28,8 @@ test('parses multiple expenses from one message', async () => {
     type: 'expense',
     date: null,
     items: [
-      { amount: 50000, remark: 'diesel' },
-      { amount: 20000, remark: 'lunch' },
+      { amount: 50000, remark: 'diesel', currency: 'KHR' },
+      { amount: 20000, remark: 'lunch', currency: 'KHR' },
     ],
   }));
   const result = await parseExpenseMessage('50000 diesel, 20000 lunch', '2026-07-04', client);
@@ -43,10 +43,16 @@ test('classifies casual chat as not_expense', async () => {
   assert.equal(result.type, 'not_expense');
 });
 
-test('classifies USD-denominated messages as usd_detected', async () => {
-  const client = fakeClient(JSON.stringify({ type: 'usd_detected', date: null, items: [] }));
+test('tags a USD-denominated item with currency USD instead of rejecting it', async () => {
+  const client = fakeClient(JSON.stringify({
+    type: 'expense',
+    date: null,
+    items: [{ amount: 20, remark: 'parts', currency: 'USD' }],
+  }));
   const result = await parseExpenseMessage('$20 for parts', '2026-07-04', client);
-  assert.equal(result.type, 'usd_detected');
+  assert.equal(result.type, 'expense');
+  assert.equal(result.items[0].currency, 'USD');
+  assert.equal(result.items[0].amount, 20);
 });
 
 test('treats a refusal stop_reason as unclear', async () => {
@@ -72,7 +78,7 @@ test('extracts an explicit date mentioned in the message', async () => {
   const client = fakeClient(JSON.stringify({
     type: 'expense',
     date: '2026-06-30',
-    items: [{ amount: 30000, remark: 'parts, bought last Tuesday' }],
+    items: [{ amount: 30000, remark: 'parts, bought last Tuesday', currency: 'KHR' }],
   }));
   const result = await parseExpenseMessage('30000 for parts, bought last Tuesday', '2026-07-04', client);
   assert.equal(result.date, '2026-06-30');
