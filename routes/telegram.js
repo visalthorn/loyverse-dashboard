@@ -115,7 +115,7 @@ router.post('/webhook', async (req, res) => {
 
   const message = extractMessage(req.body);
   if (!message || String(message.chatId) !== String(telegramGroupChatId)) {
-    console.warn('[telegram] Ignored update from unrecognized chat or non-text message', message ? message.chatId : null);
+    console.warn('[telegram] Ignored update from unrecognized chat or unsupported message type', message ? message.chatId : null);
     return res.sendStatus(200);
   }
 

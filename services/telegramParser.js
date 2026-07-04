@@ -64,7 +64,7 @@ function interpretResponse(response) {
 async function parseExpenseMessage(text, referenceDate, anthropicClient = getDefaultClient()) {
   const response = await anthropicClient.messages.create({
     model: 'claude-haiku-4-5',
-    max_tokens: 512,
+    max_tokens: 1024,
     system: SYSTEM_PROMPT,
     output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
     messages: [{
@@ -80,7 +80,7 @@ async function parseExpenseImage(caption, imageBase64, referenceDate, anthropicC
   const captionLine = caption ? `\n\nCaption: ${caption}` : '';
   const response = await anthropicClient.messages.create({
     model: 'claude-haiku-4-5',
-    max_tokens: 512,
+    max_tokens: 1024,
     system: SYSTEM_PROMPT,
     output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
     messages: [{

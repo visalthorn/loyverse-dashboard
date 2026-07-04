@@ -304,9 +304,10 @@ test('handleTelegramMessage downloads and parses a photo message via parseExpens
         assert.equal(fileId, 'file_abc');
         return Buffer.from('fake-bytes');
       },
-      parseExpenseImage: async (caption, imageBase64) => {
+      parseExpenseImage: async (caption, imageBase64, referenceDate) => {
         assert.equal(caption, 'fuel receipt');
         assert.equal(imageBase64, Buffer.from('fake-bytes').toString('base64'));
+        assert.equal(referenceDate, today());
         return { type: 'expense', date: null, items: [{ amount: 45000, remark: 'fuel', currency: 'KHR' }] };
       },
       insertExpense: async (e) => { inserted.push(e); return e; },
