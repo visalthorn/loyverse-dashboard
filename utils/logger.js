@@ -30,8 +30,10 @@ function write(...args) {
 
 function install() {
   const origLog   = console.log.bind(console);
+  const origWarn  = console.warn.bind(console);
   const origError = console.error.bind(console);
   console.log   = (...args) => { origLog(...args);   write(...args); };
+  console.warn  = (...args) => { origWarn(...args);  write('WARN', ...args); };
   console.error = (...args) => { origError(...args); write('ERROR', ...args); };
 }
 
