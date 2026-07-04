@@ -47,12 +47,45 @@ test('extractMessage pulls text, chat id, message id, and sender name', () => {
     messageId: 42,
     senderName: 'Srey Nich',
     forwardDate: null,
+    photoFileId: null,
   });
 });
 
-test('extractMessage returns null for non-text updates', () => {
-  assert.equal(extractMessage({ message: { chat: { id: 1 }, photo: [{}] } }), null);
+test('extractMessage returns null for updates with no text and no photo', () => {
+  assert.equal(extractMessage({ message: { chat: { id: 1 } } }), null);
   assert.equal(extractMessage({}), null);
+});
+
+test('extractMessage extracts the largest photo file_id and uses the caption as text', () => {
+  const update = {
+    message: {
+      message_id: 20,
+      chat: { id: -100123456 },
+      from: { first_name: 'Srey' },
+      photo: [
+        { file_id: 'small_file_id', width: 90, height: 90 },
+        { file_id: 'large_file_id', width: 800, height: 800 },
+      ],
+      caption: 'fuel receipt',
+    },
+  };
+  const result = extractMessage(update);
+  assert.equal(result.photoFileId, 'large_file_id');
+  assert.equal(result.text, 'fuel receipt');
+});
+
+test('extractMessage extracts a photo with no caption as null text', () => {
+  const update = {
+    message: {
+      message_id: 21,
+      chat: { id: -100123456 },
+      from: { first_name: 'Srey' },
+      photo: [{ file_id: 'only_file_id', width: 400, height: 400 }],
+    },
+  };
+  const result = extractMessage(update);
+  assert.equal(result.photoFileId, 'only_file_id');
+  assert.equal(result.text, null);
 });
 
 test('extractMessage reads the forward date from forward_origin', () => {

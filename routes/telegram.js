@@ -21,17 +21,24 @@ function checkWebhookAuth(headers, secret) {
 
 function extractMessage(update) {
   const message = update && update.message;
-  if (!message || typeof message.text !== 'string' || !message.chat) return null;
+  if (!message || !message.chat) return null;
+
+  const hasText = typeof message.text === 'string';
+  const hasPhoto = Array.isArray(message.photo) && message.photo.length > 0;
+  if (!hasText && !hasPhoto) return null;
+
   const from = message.from || {};
   const senderName = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Unknown';
   const forwardTimestamp = (message.forward_origin && message.forward_origin.date) ?? message.forward_date ?? null;
   const forwardDate = forwardTimestamp ? dayjs.unix(forwardTimestamp).tz(tz).format('YYYY-MM-DD') : null;
+
   return {
-    text: message.text,
+    text: hasText ? message.text : (message.caption ?? null),
     chatId: message.chat.id,
     messageId: message.message_id,
     senderName,
     forwardDate,
+    photoFileId: hasPhoto ? message.photo[message.photo.length - 1].file_id : null,
   };
 }
 
