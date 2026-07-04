@@ -79,8 +79,11 @@ async function parseExpenseMessage(text, referenceDate, anthropicClient = getDef
 async function parseExpenseImage(caption, imageBase64, referenceDate, anthropicClient = getDefaultClient()) {
   const captionLine = caption ? `\n\nCaption: ${caption}` : '';
   const response = await anthropicClient.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 1024,
+    // Sonnet 5 (not Haiku): receipts are often handwritten/messy, and Haiku's
+    // vision isn't high-resolution — it was misreading handwritten amounts.
+    model: 'claude-sonnet-5',
+    max_tokens: 2048,
+    thinking: { type: 'adaptive' },
     system: SYSTEM_PROMPT,
     output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
     messages: [{
