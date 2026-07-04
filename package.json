@@ -9,9 +9,11 @@
     "start:uat": "cross-env ENV=UAT node server.js",
     "start:prod": "cross-env ENV=PROD node server.js",
     "dev:uat": "cross-env ENV=UAT nodemon server.js",
-    "dev:prod": "cross-env ENV=PROD nodemon server.js"
+    "dev:prod": "cross-env ENV=PROD nodemon server.js",
+    "test": "cross-env ENV=UAT node --test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "axios": "^1.18.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",

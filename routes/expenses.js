@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { requireAuth, requireWrite } = require('../middleware/auth');
+const { insertExpense } = require('../services/expenses');
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -45,11 +46,8 @@ router.post('/', requireAuth, requireWrite('expenses'), async (req, res) => {
   if (!expense_date || !amount || !expense_by)
     return res.status(400).json({ message: 'expense_date, amount and expense_by are required.' });
   try {
-    const result = await pool.query(`
-      INSERT INTO expenses (expense_date, amount, remark, expense_by)
-      VALUES ($1,$2,$3,$4) RETURNING id, expense_date, amount, remark, expense_by, created_at
-    `, [expense_date, amount, remark || null, expense_by]);
-    res.status(201).json({ expense: result.rows[0] });
+    const expense = await insertExpense({ expense_date, amount, remark, expense_by });
+    res.status(201).json({ expense });
   } catch (err) {
     console.error('Expenses POST error:', err);
     res.status(500).json({ error: err.message });
