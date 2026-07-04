@@ -11,6 +11,12 @@ const { parseExpenseMessage } = require('../services/telegramParser');
 const { insertExpense } = require('../services/expenses');
 const { sendTelegramMessage } = require('../services/telegramBot');
 
+function checkWebhookAuth(headers, secret) {
+  if (!secret) return { ok: false, reason: 'not_configured' };
+  if (headers['x-telegram-bot-api-secret-token'] !== secret) return { ok: false, reason: 'bad_secret' };
+  return { ok: true };
+}
+
 function extractMessage(update) {
   const message = update && update.message;
   if (!message || typeof message.text !== 'string' || !message.chat) return null;
@@ -81,8 +87,13 @@ async function handleTelegramMessage({ text, messageId, senderName, chatId, forw
 }
 
 router.post('/webhook', async (req, res) => {
-  if (req.headers['x-telegram-bot-api-secret-token'] !== telegramWebhookSecret) {
-    console.warn('[telegram] Rejected webhook: bad secret token');
+  const auth = checkWebhookAuth(req.headers, telegramWebhookSecret);
+  if (!auth.ok) {
+    if (auth.reason === 'not_configured') {
+      console.error('[telegram] TELEGRAM_WEBHOOK_SECRET is not configured — rejecting all webhook requests until this is set.');
+    } else {
+      console.warn('[telegram] Rejected webhook: bad secret token');
+    }
     return res.sendStatus(200);
   }
 
@@ -103,3 +114,4 @@ router.post('/webhook', async (req, res) => {
 module.exports = router;
 module.exports.extractMessage = extractMessage;
 module.exports.handleTelegramMessage = handleTelegramMessage;
+module.exports.checkWebhookAuth = checkWebhookAuth;

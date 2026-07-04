@@ -2,8 +2,12 @@ require('./utils/logger').install();
 
 const cron = require('node-cron');
 const app  = require('./app');
-const { port, env, tz } = require('./config');
+const config = require('./config');
+const { port, env, tz } = config;
 const { syncYesterdayReceipts } = require('./services/sync');
+const { warnIfTelegramConfigMissing } = require('./utils/startupChecks');
+
+warnIfTelegramConfigMissing(config);
 
 app.listen(port, () => {
   console.log(`\n╔════════════════════════════════════════╗`);

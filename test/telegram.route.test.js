@@ -6,7 +6,22 @@ const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 const { tz } = require('../config');
-const { extractMessage, handleTelegramMessage } = require('../routes/telegram');
+const { extractMessage, handleTelegramMessage, checkWebhookAuth } = require('../routes/telegram');
+
+test('checkWebhookAuth reports not_configured when no secret is set', () => {
+  const result = checkWebhookAuth({}, undefined);
+  assert.deepEqual(result, { ok: false, reason: 'not_configured' });
+});
+
+test('checkWebhookAuth reports bad_secret when the header does not match', () => {
+  const result = checkWebhookAuth({ 'x-telegram-bot-api-secret-token': 'wrong' }, 'correct-secret');
+  assert.deepEqual(result, { ok: false, reason: 'bad_secret' });
+});
+
+test('checkWebhookAuth passes when the header matches the configured secret', () => {
+  const result = checkWebhookAuth({ 'x-telegram-bot-api-secret-token': 'correct-secret' }, 'correct-secret');
+  assert.deepEqual(result, { ok: true });
+});
 
 function fakePool(dupExists = false) {
   return { query: async () => ({ rowCount: dupExists ? 1 : 0 }) };
