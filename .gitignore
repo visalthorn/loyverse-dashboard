@@ -3,3 +3,4 @@ node_modules/
 logs/
 CLAUDE.md
 .claude/
+.superpowers/
