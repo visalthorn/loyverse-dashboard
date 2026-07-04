@@ -11,7 +11,7 @@ Scope: **expense capture via Telegram only.** No bot-side editing/deleting, no o
 Integrated into the existing Express app — no new process or deployment. The dashboard is already public over HTTPS, so Telegram's webhook can call it directly.
 
 - `routes/telegram.js` — `POST /api/telegram/webhook`. Validates the `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET` and that the update's chat ID matches `TELEGRAM_GROUP_CHAT_ID`. Anything else is silently ignored (no reply, logged server-side).
-- `services/telegramParser.js` — sends the message text to the Claude API (model: `claude-haiku-4-5` — a classification/extraction task like this doesn't need a larger model, and Haiku's pricing keeps this bot's running cost negligible at low message volume) and gets back structured JSON: either "not an expense" (casual chat), one or more `{ amount, remark }` items (KHR assumed), "usd_detected" (message appears to be in USD), or "unclear" (needs clarification).
+- `services/telegramParser.js` — sends the message text to the Claude API (model: `claude-haiku-4-5` — a classification/extraction task like this doesn't need a larger model, and Haiku's pricing keeps this bot's running cost negligible at low message volume) and gets back structured JSON: either "not an expense" (casual chat), one or more `{ amount, remark, currency }` items (`currency` is `'KHR'` or `'USD'`, per item), or "unclear" (needs clarification).
 - `services/expenses.js` — the expense-insert logic currently inline in `routes/expenses.js`'s `POST /` handler is extracted into a shared `insertExpense()` function, used by both the dashboard form and the Telegram path, so there's one source of truth for the insert.
 - `services/telegramBot.js` — thin wrapper around the Telegram Bot API (`axios`, matching the existing `services/loyverse.js` pattern) for sending reply messages.
 
@@ -31,9 +31,8 @@ ANTHROPIC_API_KEY=
 3. Route validates the secret token and chat whitelist; extracts message text, sender display name, and Telegram message ID.
 4. `telegramParser` calls the Claude API and returns one of:
    - **not an expense** → ignored, no reply (keeps the bot quiet during normal family chat).
-   - **one or more expense items** (amount assumed to be KHR) → each inserted via `insertExpense()` with `expense_by` = sender's Telegram display name, `source = 'telegram'`.
-   - **USD detected** → bot does not insert anything; replies asking her to resend the amount in Riel instead (e.g. "Please send the amount in Riel (៛), not USD.").
-   - **unclear** → bot replies asking her to rephrase (e.g. "Could you say the amount and what it was for, like '50000 diesel'?").
+   - **one or more expense items**, each tagged `currency: 'KHR' | 'USD'` → USD items are converted to KHR at a fixed 4,000 rate, then each inserted via `insertExpense()` with `expense_by` = sender's Telegram display name, `source = 'telegram'`.
+   - **unclear** → bot asks whether she wants this recorded as an expense, with a concrete example in Khmer of a message the bot can parse confidently (e.g. `ចំណាយ 2/7/26 14000៛`).
 5. On successful insert, bot replies with a confirmation including the resolved expense date, one line per item if multiple: `✅ Logged: ៛50,000 – diesel for truck (2026-07-04)`.
 6. A message with several expenses ("50000 diesel, 20000 lunch") is parsed into multiple items in one Claude call and logged in one batch, with one combined confirmation reply.
 
@@ -49,9 +48,13 @@ The GM sometimes reports an expense somewhere else first (e.g. voice note to her
 
 ## Currency handling
 
-- The system stores a single currency: KHR. No currency column, no conversion, no exchange rate config.
-- The parser detects when a message appears to be denominated in USD (`$`, "USD", "dollar", "ដុល្លារ", etc.) and, in that case, does **not** insert anything — it replies asking the sender to resend the amount in Riel. She does the conversion herself before resubmitting.
-- This keeps `expenses.amount` exactly as it is today (KHR, no ambiguity) and requires no changes to existing totals/analytics queries.
+**Revised (2026-07-04):** the original "ask them to resend in KHR" design created too much friction in practice — reversed to auto-convert.
+
+- The system still stores a single currency column-wise: `expenses.amount` is always KHR, no `currency` column added.
+- `telegramParser` tags each item's `currency` as `'KHR'` or `'USD'` based on how it was stated in the message (`$`, "USD", "dollar", "ដុល្លារ", etc. → USD; otherwise KHR).
+- The route converts any `USD` item to KHR at a fixed rate of **1 USD = 4,000 KHR** before inserting — the converted amount is simply what gets stored as `amount`. The rate is not configurable via env var (matches the simplicity of the original design intent) but is a single named constant in code, easy to change if the real exchange rate drifts.
+- The confirmation reply shows both the original and converted amount for a USD item (e.g. `✅ Logged: ៛80,000 (converted from $20) – parts (2026-07-04)`), so a wrong auto-conversion is easy to spot and fix via the dashboard — same safety net as any other Telegram-sourced entry.
+- No rate history is tracked; changing the constant only affects future messages.
 
 ## Schema changes
 
@@ -71,9 +74,10 @@ Additive, non-breaking `ALTER TABLE expenses`:
 
 ## Testing
 
-- Unit tests for `telegramParser` against a fixed set of sample messages: a clean single expense, a multi-item message, casual chat, an ambiguous message, USD-denominated wording (should trigger the "resend in Riel" reply, not an insert), and a message with an explicit date mention.
+- Unit tests for `telegramParser` against a fixed set of sample messages: a clean single expense, a multi-item message, casual chat, an ambiguous message, USD-denominated wording (tagged `currency: 'USD'` for the route to convert), and a message with an explicit date mention.
 - Unit tests for the date-resolution priority: explicit parsed date wins over everything; a forwarded message with no explicit date falls back to the forward's original date; a fresh non-forwarded message with no explicit date falls back to today.
-- Manual webhook test plan using a private Telegram test group before pointing the bot at the real family group: verify insert correctness, verify casual chat is ignored, verify a duplicate delivery no-ops instead of double-inserting, verify USD wording is rejected with the correct prompt, verify a forwarded message logs under the original date rather than today.
+- Unit tests for USD conversion: a USD item is converted at the fixed rate before insert, and the confirmation reply shows both the original and converted amount.
+- Manual webhook test plan using a private Telegram test group before pointing the bot at the real family group: verify insert correctness, verify casual chat is ignored, verify a duplicate delivery no-ops instead of double-inserting, verify a USD-denominated message is converted and logged correctly, verify a forwarded message logs under the original date rather than today.
 
 ## Out of scope (for this iteration)
 
