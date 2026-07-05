@@ -269,7 +269,18 @@ export function exportReceiptPDF() {
   const r = allReceipts.find(x => x.id === selectedId);
   if (!r) return;
   const items     = Array.isArray(r.items) ? r.items : [];
-  const typeLabel = r.receipt_type === 'REFUND' ? 'Refund' : 'Sale';
+  const typeLabel = r.receipt_type === 'REFUND' ? t('receipts.typeRefund') : t('receipts.typeSale');
+  const receiptLabel = t('receipts.printReceipt');
+  const canceledLabel = t('receipts.canceledBadge');
+  const dateLabel = t('receipts.csvDate');
+  const posDeviceLabel = t('receipts.csvPosDevice');
+  const orderLabel = t('receipts.csvOrder');
+  const itemLabel = t('receipts.printItem');
+  const qtyLabel = t('receipts.printQty');
+  const unitPriceLabel = t('receipts.printUnitPrice');
+  const totalLabel = t('receipts.thTotal');
+  const thankYouLabel = t('receipts.printThankYou');
+
   const itemsHtml = items.map(it => `
     <tr>
       <td>${it.item_name}</td>
@@ -280,7 +291,7 @@ export function exportReceiptPDF() {
 
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8"/><title>Receipt ${r.receipt_number}</title>
+    <meta charset="UTF-8"/><title>${receiptLabel} ${r.receipt_number}</title>
     <style>
       body{font-family:Arial,sans-serif;max-width:420px;margin:24px auto;font-size:13px;color:#111}
       h1{text-align:center;font-size:18px;margin:0 0 2px}
@@ -294,18 +305,18 @@ export function exportReceiptPDF() {
       .total-row td{border-top:1px solid #333;font-weight:bold;padding-top:6px}
       @media print{@page{margin:10mm}}
     </style></head><body>
-    <h1>Receipt</h1>
-    <div class="sub">${r.receipt_number} &bull; ${typeLabel}${r.is_canceled === 'Yes' ? ' &bull; Canceled' : ''}</div>
+    <h1>${receiptLabel}</h1>
+    <div class="sub">${r.receipt_number} &bull; ${typeLabel}${r.is_canceled === 'Yes' ? ' &bull; ' + canceledLabel : ''}</div>
     <hr/>
-    <div class="meta"><span>Date</span><span>${formatDate(r.receipt_date)}</span></div>
-    <div class="meta"><span>POS Device</span><span>${r.pos_device ?? '—'}</span></div>
-    <div class="meta"><span>Order</span><span>${r.order ?? '—'}</span></div>
+    <div class="meta"><span>${dateLabel}</span><span>${formatDate(r.receipt_date)}</span></div>
+    <div class="meta"><span>${posDeviceLabel}</span><span>${r.pos_device ?? '—'}</span></div>
+    <div class="meta"><span>${orderLabel}</span><span>${r.order ?? '—'}</span></div>
     ${items.length ? `<hr/><table>
-      <thead><tr><th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead>
-      <tbody>${itemsHtml}<tr class="total-row"><td colspan="3">Total</td><td style="text-align:right">KHR ${Number(r.total_money).toLocaleString()}</td></tr></tbody>
-    </table>` : `<hr/><div class="meta"><strong>Total</strong><strong>KHR ${Number(r.total_money).toLocaleString()}</strong></div>`}
+      <thead><tr><th>${itemLabel}</th><th style="text-align:center">${qtyLabel}</th><th style="text-align:right">${unitPriceLabel}</th><th style="text-align:right">${totalLabel}</th></tr></thead>
+      <tbody>${itemsHtml}<tr class="total-row"><td colspan="3">${totalLabel}</td><td style="text-align:right">KHR ${Number(r.total_money).toLocaleString()}</td></tr></tbody>
+    </table>` : `<hr/><div class="meta"><strong>${totalLabel}</strong><strong>KHR ${Number(r.total_money).toLocaleString()}</strong></div>`}
     <hr/>
-    <div style="text-align:center;font-size:11px;color:#888;margin-top:8px">Thank you!</div>
+    <div style="text-align:center;font-size:11px;color:#888;margin-top:8px">${thankYouLabel}</div>
     <script>window.print();window.onafterprint=()=>window.close();<\/script>
   </body></html>`);
   win.document.close();

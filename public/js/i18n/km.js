@@ -185,4 +185,9 @@ export const km = {
   'receipts.csvType': 'ប្រភេទ',
   'receipts.csvCanceled': 'បានលុបចោល',
   'receipts.csvTotal': 'សរុប (KHR)',
+  'receipts.printReceipt': 'បង្កាន់ដៃ',
+  'receipts.printItem': 'ទំនិញ',
+  'receipts.printQty': 'ចំនួន',
+  'receipts.printUnitPrice': 'តម្លៃឯកតា',
+  'receipts.printThankYou': 'សូមអរគុណ!',
 };

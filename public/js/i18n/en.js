@@ -185,4 +185,9 @@ export const en = {
   'receipts.csvType': 'Type',
   'receipts.csvCanceled': 'Is Canceled',
   'receipts.csvTotal': 'Total (KHR)',
+  'receipts.printReceipt': 'Receipt',
+  'receipts.printItem': 'Item',
+  'receipts.printQty': 'Qty',
+  'receipts.printUnitPrice': 'Unit Price',
+  'receipts.printThankYou': 'Thank you!',
 };
