@@ -77,8 +77,6 @@ function detectPage() {
 window.logout = logout;
 
 // Dashboard
-window.setPeriod                     = Dashboard.setPeriod;
-window.applyCustomRange              = Dashboard.applyCustomRange;
 window.syncGrossIncome               = Dashboard.syncGrossIncome;
 window.dashboardToggleSlowMovers     = Dashboard.toggleSlowMovers;
 window.dashboardSetTopProductsCategory = Dashboard.setTopProductsCategory;
@@ -143,8 +141,6 @@ window.viewInSchedule = async function(staffId) {
 };
 
 // Report
-window.reportSetPeriod              = Report.setPeriod;
-window.reportApplyRange             = Report.applyCustomRange;
 window.reportSetTopProductsLimit    = Report.setTopProductsLimit;
 window.reportSetTopProductsCategory = Report.setTopProductsCategory;
 

@@ -3,6 +3,7 @@ import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, pieOpts } from '../charts.js';
 import { t } from '../i18n.js';
+import { renderDateFilter } from '../dateFilter.js';
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
@@ -403,34 +404,21 @@ export function loadAll() {
 
 // ─── Period Controls ──────────────────────────────────────────────────────────
 
-export function setPeriod(p) {
-  state.currentPeriod = p;
-  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
-  if (p !== 'range') {
-    state.currentStartDate = '';
-    state.currentEndDate   = '';
-    const s = getEl('startDate'); if (s) s.value = '';
-    const e = getEl('endDate');   if (e) e.value = '';
-    loadAll();
-  } else if (state.currentStartDate && state.currentEndDate) {
-    loadAll();
-  }
-}
-
-export function applyCustomRange() {
-  const start = getEl('startDate')?.value || '';
-  const end   = getEl('endDate')?.value   || '';
-  if (!start || !end) { alert(t('dashboard.errorMissingDates')); return; }
-  if (start > end)    { alert(t('dashboard.errorDateOrder')); return; }
-  state.currentPeriod    = 'range';
-  state.currentStartDate = start;
-  state.currentEndDate   = end;
-  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === 'range'));
+export function applyDateFilter({ period, start, end }) {
+  state.currentPeriod    = period;
+  state.currentStartDate = period === 'range' ? start : '';
+  state.currentEndDate   = period === 'range' ? end   : '';
   loadAll();
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 export function init() {
-  loadAll();
+  renderDateFilter(getEl('dateFilterMount'), {
+    presets: [
+      { key: 'last10', labelKey: 'common.last10Days' },
+    ],
+    defaultPreset: 'last10',
+    onChange: applyDateFilter,
+  });
 }
