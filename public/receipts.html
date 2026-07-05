@@ -211,16 +211,8 @@
                 <input id="searchInput" type="text" placeholder="Receipt no., employee…" data-i18n-placeholder="receipts.searchPlaceholder" class="filter-input w-full pl-8" oninput="onSearchChange()"/>
               </div>
             </div>
-            <!-- Start date -->
-            <div>
-              <label class="block text-xs text-slate-400 mb-1" data-i18n="receipts.from">From</label>
-              <input id="filterStart" type="date" class="filter-input" onchange="onApiFilterChange()"/>
-            </div>
-            <!-- End date -->
-            <div>
-              <label class="block text-xs text-slate-400 mb-1" data-i18n="receipts.to">To</label>
-              <input id="filterEnd" type="date" class="filter-input" onchange="onApiFilterChange()"/>
-            </div>
+            <!-- Date filter -->
+            <div id="dateFilterMount"></div>
             <!-- Type -->
             <div>
               <label class="block text-xs text-slate-400 mb-1" data-i18n="receipts.type">Type</label>

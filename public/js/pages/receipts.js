@@ -1,6 +1,7 @@
 import { fetchJSON } from '../api.js';
-import { getEl, fmtRaw, getTodayDate, downloadCSV, TZ } from '../utils.js';
+import { getEl, fmtRaw, downloadCSV, TZ } from '../utils.js';
 import { t } from '../i18n.js';
+import { renderDateFilter } from '../dateFilter.js';
 
 const PAGE_SIZE = 25;
 
@@ -9,6 +10,8 @@ let displayed   = [];
 let currentPage = 1;
 let selectedId  = null;
 let isLoading   = false;
+let filterStart = '';
+let filterEnd   = '';
 
 // ─── Formatters (receipts-specific) ─────────────────────────────────────────
 
@@ -35,9 +38,9 @@ export async function loadReceipts() {
   isLoading = true;
   setTableLoading(true);
 
-  const start = getEl('filterStart')?.value || '';
-  const end   = getEl('filterEnd')?.value   || '';
-  const type  = getEl('filterType')?.value  || '';
+  const start = filterStart;
+  const end   = filterEnd;
+  const type  = getEl('filterType')?.value || '';
 
   const params = new URLSearchParams({ per_page: 500 });
   if (start) params.set('start', start);
@@ -101,13 +104,25 @@ function applySearch() {
   renderPagination();
 }
 
+export function applyDateFilter({ start, end }) {
+  filterStart = start;
+  filterEnd   = end;
+  loadReceipts();
+}
+
+function mountDateFilter() {
+  renderDateFilter(getEl('dateFilterMount'), {
+    presets: [{ key: 'today', labelKey: 'common.today' }],
+    defaultPreset: 'today',
+    onChange: applyDateFilter,
+  });
+}
+
 export function resetFilters() {
   const set = (id, val) => { const el = getEl(id); if (el) el.value = val; };
   set('searchInput', '');
-  set('filterStart', '');
-  set('filterEnd',   '');
   set('filterType',  '');
-  loadReceipts();
+  mountDateFilter();
 }
 
 function setTableLoading(on) {
@@ -354,10 +369,5 @@ const DEMO_RECEIPTS = [
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 export function init() {
-  const today = getTodayDate();
-  const start = getEl('filterStart');
-  const end   = getEl('filterEnd');
-  if (start) start.value = today;
-  if (end)   end.value   = today;
-  loadReceipts();
+  mountDateFilter();
 }
