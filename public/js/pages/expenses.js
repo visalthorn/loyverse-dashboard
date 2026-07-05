@@ -2,7 +2,7 @@ import { state } from '../state.js';
 import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate, getTodayDate, downloadCSV } from '../utils.js';
 import { logout } from '../auth.js';
-import { t } from '../i18n.js';
+import { t, getLang } from '../i18n.js';
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
@@ -11,7 +11,8 @@ function updateExpenseSummary(count, totalAmount) {
   if (!summary) return;
   const countHtml = `<span class="text-sm text-amber-600 font-bold">${count}</span>`;
   const total = `<span class="text-sm text-amber-600 font-bold">៛${fmtRaw(totalAmount, 2)}</span>`;
-  summary.innerHTML = t('expenses.summary', { count: countHtml, plural: count === 1 ? '' : 's', total });
+  const plural = getLang() === 'en' && count !== 1 ? 's' : '';
+  summary.innerHTML = t('expenses.summary', { count: countHtml, plural, total });
 }
 
 // ─── Load ────────────────────────────────────────────────────────────────────
