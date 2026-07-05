@@ -19,13 +19,13 @@ export function renderSidebar(sidebarEl, activePage) {
     </a>`).join('');
 
   sidebarEl.innerHTML = `
-    <div class="sidebar-header px-5 py-4 border-b border-slate-700 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div id="sidebarAvatar" class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 flex items-center justify-center font-bold text-black">U</div>
-        <div class="brand-meta">
-          <div class="flex items-center gap-2">
-            <div id="sidebarUserName" class="text-base font-bold text-amber-400">User</div>
-            <span id="envBadge" class="px-2 py-0.5 rounded text-xs font-bold"></span>
+    <div class="sidebar-header px-5 py-4 border-b border-slate-700 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <div id="sidebarAvatar" class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 flex items-center justify-center font-bold text-black flex-shrink-0">U</div>
+        <div class="brand-meta min-w-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <div id="sidebarUserName" class="text-base font-bold text-amber-400 truncate">User</div>
+            <span id="envBadge" class="px-2 py-0.5 rounded text-xs font-bold flex-shrink-0"></span>
           </div>
           <div class="text-xs text-slate-400 flex items-center gap-2">
             <span id="sidebarUserRole">Role</span>
@@ -38,8 +38,10 @@ export function renderSidebar(sidebarEl, activePage) {
           </div>
         </div>
       </div>
-      <div id="langSwitcher"></div>
-      <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
+      <div class="sidebar-header-controls flex items-center gap-3 flex-shrink-0 ml-auto">
+        <div id="langSwitcher"></div>
+        <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
+      </div>
     </div>
 
     <nav class="flex-1 px-3 py-4 space-y-1">${navHtml}</nav>

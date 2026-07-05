@@ -330,6 +330,7 @@ body.app-shell { display: flex; min-height: 100vh; }
 .sidebar-collapsed .sidebar-header .brand-meta,
 .sidebar-collapsed #langSwitcher,
 .sidebar-collapsed .sidebar-footer { display: none; }
+.sidebar-collapsed .sidebar-header-controls { margin-left: 0; }
 .sidebar-collapsed .nav-item {
   justify-content: center;
   padding-left: 0.5rem;
