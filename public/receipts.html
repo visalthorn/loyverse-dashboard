@@ -9,69 +9,6 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="/css/style.css"/>
 <style>
-  /* ---- App shell / sidebar layout ---- */
-  body.app-shell { display: flex; min-height: 100vh; }
-
-  .sidebar {
-    width: 17rem;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    transition: width .2s ease;
-  }
-
-  .sidebar-collapsed .sidebar { width: 4.5rem; }
-  .sidebar-collapsed .sidebar-header .brand-meta,
-  .sidebar-collapsed .sidebar-footer { display: none; }
-  .sidebar-collapsed .nav-item { justify-content: center; }
-  .sidebar-collapsed .nav-label { display: none; }
-
-  .main-wrapper {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.625rem 1rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #cbd5e1;
-    border-left: 3px solid transparent;
-    transition: background-color .15s, color .15s, border-color .15s;
-  }
-  .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
-  .nav-item.active {
-    background: rgba(245,158,11,.12);
-    color: #fbbf24;
-    border-left-color: #fbbf24;
-  }
-
-  .sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.5);
-    z-index: 50;
-  }
-  .sidebar-overlay.show { display: block; }
-
-  @media (max-width: 767px) {
-    .sidebar {
-      position: fixed;
-      top: 0; left: 0; bottom: 0;
-      transform: translateX(-100%);
-      z-index: 60;
-      transition: transform .25s ease;
-    }
-    .sidebar.sidebar-open { transform: translateX(0); }
-  }
-
   /* ---- Receipt layout ---- */
   .receipts-layout {
     display: grid;
@@ -210,58 +147,7 @@
 <body class="app-shell bg-slate-900 text-white min-h-screen">
 
 <!-- Sidebar -->
-<aside id="sidebar" class="sidebar bg-slate-800 border-r border-slate-700">
-  <div class="sidebar-header px-5 py-4 border-b border-slate-700 flex items-center justify-between gap-3">
-    <div class="flex items-center gap-3">
-      <div id="sidebarAvatar" class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 flex items-center justify-center font-bold text-black">U</div>
-      <div class="brand-meta">
-        <div class="flex items-center gap-2">
-          <div id="sidebarUserName" class="text-base font-bold text-amber-400">User</div>
-        </div>
-        <div class="text-xs text-slate-400 flex items-center gap-2">
-          <span id="sidebarUserRole">Role</span>
-          <button onclick="logout()" title="Sign out"
-            style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
-            onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
-            onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'"><span data-i18n="common.signOut">Sign out</span></button>
-        </div>
-      </div>
-    </div>
-    <div id="langSwitcher"></div>
-    <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
-  </div>
-
-  <nav class="flex-1 px-3 py-4 space-y-1">
-    <a href="/" class="nav-item">
-      <span class="text-lg">📊</span>
-      <span class="nav-label" data-i18n="nav.dashboard">Dashboard</span>
-    </a>
-    <a href="/expenses.html" class="nav-item">
-      <span class="text-lg">💸</span>
-      <span class="nav-label" data-i18n="nav.expenses">Expenses</span>
-    </a>
-    <a href="/report.html" class="nav-item">
-      <span class="text-lg">📋</span>
-      <span class="nav-label" data-i18n="nav.reports">Reports</span>
-    </a>
-    <a href="/receipts.html" class="nav-item active">
-      <span class="text-lg">🧾</span>
-      <span class="nav-label" data-i18n="nav.receipts">Receipts</span>
-    </a>
-    <a href="/staff.html" class="nav-item">
-      <span class="text-lg">👥</span>
-      <span class="nav-label" data-i18n="nav.staff">Staff</span>
-    </a>
-    <a href="/users.html" id="navUsers" class="nav-item" style="display:none">
-      <span class="text-lg">⚙️</span>
-      <span class="nav-label" data-i18n="nav.users">Users</span>
-    </a>
-  </nav>
-
-  <div class="px-5 py-4 border-t border-slate-700 sidebar-footer">
-    <div id="userInfo" class="text-xs text-slate-400"></div>
-  </div>
-</aside>
+<aside id="sidebar" class="sidebar bg-slate-800 border-r border-slate-700"></aside>
 
 <!-- Mobile overlay -->
 <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>

@@ -2,6 +2,7 @@ import { checkAuth, logout } from './auth.js';
 import { state } from './state.js';
 import { getEl } from './utils.js';
 import { applyTranslations, renderLangSwitcher, t } from './i18n.js';
+import { renderSidebar } from './sidebar.js';
 
 // Page modules — loaded on demand
 import * as Dashboard from './pages/dashboard.js';
@@ -41,6 +42,15 @@ function renderUserHeader(user) {
   if (sidebarName)   sidebarName.textContent   = user.fullName || user.username || 'User';
   if (sidebarRole)   sidebarRole.textContent   = (user.role || '').toUpperCase();
   if (sidebarAvatar) sidebarAvatar.textContent = (user.fullName || user.username || 'U').charAt(0).toUpperCase();
+}
+
+function renderEnvBadge() {
+  const badge = getEl('envBadge');
+  if (!badge) return;
+  const host = location.hostname;
+  const env  = (host === 'localhost' || host === '127.0.0.1') ? 'UAT' : 'PROD';
+  badge.textContent = env;
+  badge.dataset.env = env;
 }
 
 function applyPermissions() {
@@ -155,6 +165,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   state.userPermissions = authData.permissions || {};
   state.currentUserRole = authData.user?.role  || '';
 
+  const page = detectPage();
+  renderSidebar(getEl('sidebar'), page);
+  renderEnvBadge();
   renderUserHeader(authData.user);
   applyPermissions();
   applyTranslations();
@@ -168,7 +181,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  const page = detectPage();
   if (page === 'dashboard') Dashboard.init();
   if (page === 'expenses')  Expenses.init();
   if (page === 'receipts')  Receipts.init();

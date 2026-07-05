@@ -514,13 +514,6 @@ export async function loadLastSync() {
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 export async function init() {
-  const badge = getEl('envBadge');
-  if (badge) {
-    const host = location.hostname;
-    const env  = (host === 'localhost' || host === '127.0.0.1') ? 'UAT' : 'PROD';
-    badge.textContent = env;
-    badge.dataset.env = env;
-  }
   const slowMoversBtn = getEl('slowMoversBtn');
   if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">▶</span> ${t('dashboard.showSlowMovers')}`;
   loadAll();
