@@ -11,6 +11,12 @@ function resolveDates(key) {
   return { start: end, end };
 }
 
+export function periodLabel(period, start, end) {
+  if (period === 'range') return `${start} → ${end}`;
+  if (period === 'last10') return t('common.last10Days');
+  return t('common.today');
+}
+
 export function renderDateFilter(mountEl, { presets, defaultPreset, onChange }) {
   if (!mountEl) return;
 
