@@ -2,6 +2,7 @@ import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, pieOpts } from '../charts.js';
+import { t } from '../i18n.js';
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
@@ -50,24 +51,24 @@ async function loadReportKPIs() {
 
   el.innerHTML = [
     {
-      accent: 'amber', icon: '💰', label: 'Total Revenue',
+      accent: 'amber', icon: '💰', label: t('report.kpi.totalRevenue'),
       val: '៛' + fmtRaw(grossVal), valClass: 'text-amber-400',
-      sub: `<span class="text-slate-500">vs prev </span><span class="text-slate-300">${growthBadge(data.gross_income.growth)}</span>`,
+      sub: `<span class="text-slate-500">${t('report.kpi.vsPrev')} </span><span class="text-slate-300">${growthBadge(data.gross_income.growth)}</span>`,
     },
     {
-      accent: 'red', icon: '💸', label: 'Expenses',
+      accent: 'red', icon: '💸', label: t('dashboard.kpi.expenses'),
       val: '-៛' + fmtRaw(expVal), valClass: 'text-red-400',
-      sub: `<span class="text-slate-500">${expPct}% of revenue · </span><span class="text-slate-300">${growthBadge(data.expenses.growth)}</span>`,
+      sub: `<span class="text-slate-500">${t('report.kpi.pctOfRevenue', { pct: expPct })} · </span><span class="text-slate-300">${growthBadge(data.expenses.growth)}</span>`,
     },
     {
-      accent: 'violet', icon: '🧾', label: 'Avg Order Value',
+      accent: 'violet', icon: '🧾', label: t('report.kpi.avgOrderValue'),
       val: '៛' + fmtRaw(aov), valClass: 'text-violet-400',
-      sub: `<span class="text-slate-500">vs prev </span><span class="text-slate-300">${growthBadge(data.aov.growth)}</span>`,
+      sub: `<span class="text-slate-500">${t('report.kpi.vsPrev')} </span><span class="text-slate-300">${growthBadge(data.aov.growth)}</span>`,
     },
     {
-      accent: 'emerald', icon: '📊', label: 'Net Margin',
+      accent: 'emerald', icon: '📊', label: t('report.kpi.netMargin'),
       val: margin + '%', valClass: netVal >= 0 ? 'text-blue-400' : 'text-red-400',
-      sub: `<span class="text-blue-500">Net ៛${fmtRaw(Math.abs(netVal))}</span>`,
+      sub: `<span class="text-blue-500">${t('report.kpi.netAmount', { amount: '៛' + fmtRaw(Math.abs(netVal)) })}</span>`,
     },
   ].map(c => `
     <div class="kpi-primary kpi-primary--${c.accent}"${c.id ? ` id="${c.id}"` : ''}>
@@ -87,7 +88,10 @@ async function loadRevenueTrend() {
   const gran  = trendGranularity();
   const label = getEl('revTrendLabel');
   const { currentPeriod: p, currentStartDate: s, currentEndDate: e } = state;
-  if (label) label.textContent = p === 'range' ? `${s} → ${e}` : p === 'week' ? 'Last 7 days' : p === 'month' ? 'Last month' : 'Last year';
+  if (label) label.textContent = p === 'range' ? t('report.trendRangeCustom', { start: s, end: e })
+    : p === 'week'  ? t('dashboard.grossIncomeRangeWeek')
+    : p === 'month' ? t('dashboard.grossIncomeRangeMonth')
+    : t('dashboard.grossIncomeRangeYear');
 
   const data = await fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`);
   if (!data?.length) return;
@@ -106,7 +110,7 @@ async function loadRevenueTrend() {
       labels,
       datasets: [
         {
-          label: 'Revenue',
+          label: t('report.chartRevenue'),
           data: revenue,
           backgroundColor: 'rgba(245,158,11,0.7)',
           borderColor: '#f59e0b',
@@ -115,7 +119,7 @@ async function loadRevenueTrend() {
           yAxisID: 'y',
         },
         {
-          label: 'Growth %',
+          label: t('report.chartGrowthPct'),
           data: growth,
           type: 'line',
           borderColor: '#34d399',
@@ -150,7 +154,7 @@ async function loadDiningOptions() {
   const legend = getEl('diningLegend');
   if (!data?.length) {
     destroyChart('diningChart');
-    if (legend) legend.innerHTML = '<p class="text-slate-500 text-sm">No data for this period</p>';
+    if (legend) legend.innerHTML = `<p class="text-slate-500 text-sm">${t('dashboard.noDataRow')}</p>`;
     return;
   }
 
@@ -180,7 +184,7 @@ async function loadPaymentMethods() {
   const legend = getEl('paymentLegend');
   if (!data?.length) {
     destroyChart('paymentChart');
-    if (legend) legend.innerHTML = '<p class="text-slate-500 text-sm">No data for this period</p>';
+    if (legend) legend.innerHTML = `<p class="text-slate-500 text-sm">${t('dashboard.noDataRow')}</p>`;
     return;
   }
 
@@ -215,7 +219,10 @@ async function loadTopProducts() {
 
   if (!data?.length) {
     destroyChart('topProductsChart');
-    if (legend) legend.innerHTML = `<p class="text-slate-500 text-sm">No ${topProductsCategory || ''} items for this period</p>`;
+    const categoryLabel = topProductsCategory === 'food' ? t('dashboard.categoryFood')
+      : topProductsCategory === 'beverage' ? t('dashboard.categoryBeverage')
+      : '';
+    if (legend) legend.innerHTML = `<p class="text-slate-500 text-sm">${categoryLabel ? t('report.noCategoryItemsForPeriod', { category: categoryLabel }) : t('dashboard.noDataRow')}</p>`;
     return;
   }
 
@@ -280,7 +287,7 @@ async function loadExpenseTrend() {
   const totalRev = revenue.reduce((a, b) => a + b, 0);
   const overallPct = totalRev > 0 ? (totalExp / totalRev * 100).toFixed(1) : '0';
   const chip = getEl('expenseSummaryChip');
-  if (chip) chip.textContent = `Total ៛${fmt(totalExp)} · ${overallPct}% of revenue`;
+  if (chip) chip.textContent = t('report.expenseSummaryChip', { total: '៛' + fmt(totalExp), pct: overallPct });
 
   destroyChart('expenseTrendChart');
   state.charts.expenseTrendChart = new Chart(document.getElementById('expenseTrendChart'), {
@@ -289,7 +296,7 @@ async function loadExpenseTrend() {
       labels,
       datasets: [
         {
-          label: 'Revenue (៛)',
+          label: t('report.chartRevenueKhr'),
           data: revenue,
           backgroundColor: 'rgba(245,158,11,0.5)',
           borderColor: '#f59e0b',
@@ -298,7 +305,7 @@ async function loadExpenseTrend() {
           yAxisID: 'y',
         },
         {
-          label: 'Expenses (៛)',
+          label: t('report.chartExpensesKhr'),
           data: expenses,
           backgroundColor: 'rgba(239,68,68,0.7)',
           borderColor: '#ef4444',
@@ -307,7 +314,7 @@ async function loadExpenseTrend() {
           yAxisID: 'y',
         },
         {
-          label: 'Expense %',
+          label: t('report.chartExpensePct'),
           data: expPct,
           type: 'line',
           borderColor: '#fb923c',
@@ -330,7 +337,7 @@ async function loadExpenseTrend() {
             afterBody: items => {
               const i = items[0]?.dataIndex;
               if (i == null) return;
-              return `Expense ratio: ${expPct[i]}%`;
+              return t('report.tooltipExpenseRatio', { pct: expPct[i] });
             },
           },
         },
@@ -350,7 +357,7 @@ async function loadDevicePerformance() {
   const data = await fetchJSON(`/api/device-performance?period=${state.currentPeriod}${rangeQuery()}`);
   if (!data?.length) return;
 
-  const labels  = data.map(r => r.device_name || 'Unknown');
+  const labels  = data.map(r => r.device_name || t('dashboard.unknown'));
   const revenue = data.map(r => parseFloat(r.revenue));
   const orders  = data.map(r => parseInt(r.orders));
 
@@ -363,8 +370,8 @@ async function loadDevicePerformance() {
     data: {
       labels,
       datasets: [
-        { label: 'Revenue (៛)', data: revenue, backgroundColor: revColors,               borderRadius: 4, yAxisID: 'y' },
-        { label: 'Orders',      data: orders,  backgroundColor: 'rgba(59,130,246,0.6)', borderRadius: 4, yAxisID: 'y2' },
+        { label: t('report.chartRevenueKhr'), data: revenue, backgroundColor: revColors,               borderRadius: 4, yAxisID: 'y' },
+        { label: t('dashboard.kpi.orders'),   data: orders,  backgroundColor: 'rgba(59,130,246,0.6)', borderRadius: 4, yAxisID: 'y2' },
       ],
     },
     options: {
@@ -413,8 +420,8 @@ export function setPeriod(p) {
 export function applyCustomRange() {
   const start = getEl('startDate')?.value || '';
   const end   = getEl('endDate')?.value   || '';
-  if (!start || !end) { alert('Please choose both a start and end date.'); return; }
-  if (start > end)    { alert('Start date must be before or equal to end date.'); return; }
+  if (!start || !end) { alert(t('dashboard.errorMissingDates')); return; }
+  if (start > end)    { alert(t('dashboard.errorDateOrder')); return; }
   state.currentPeriod    = 'range';
   state.currentStartDate = start;
   state.currentEndDate   = end;
