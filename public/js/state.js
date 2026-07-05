@@ -1,7 +1,7 @@
 export const state = {
   userPermissions:      {},
   currentUserRole:      '',
-  currentPeriod:        'today',
+  currentPeriod:        'last10',
   currentStartDate:     '',
   currentEndDate:       '',
   expenseFilterStartDate: '',

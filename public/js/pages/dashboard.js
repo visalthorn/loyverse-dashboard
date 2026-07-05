@@ -498,7 +498,7 @@ export async function init() {
       { key: 'today',  labelKey: 'common.today' },
       { key: 'last10', labelKey: 'common.last10Days' },
     ],
-    defaultPreset: 'today',
+    defaultPreset: 'last10',
     onChange: applyDateFilter,
   });
   loadLastSync();
