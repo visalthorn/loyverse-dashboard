@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { fetchJSON, apiPut } from '../api.js';
 import { getEl } from '../utils.js';
+import { t, getLang } from '../i18n.js';
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
@@ -23,9 +24,17 @@ const SHIFTS = {
   Off: { bg: 'rgba(254,240,138,0.75)', color: '#92400e', label: 'Day Off'              },
 };
 
-const MONTH_NAMES = ['January','February','March','April','May','June',
+// English month names used only for filename slugs (exported CSV/PDF filenames stay ASCII).
+const FILENAME_MONTHS = ['January','February','March','April','May','June',
                      'July','August','September','October','November','December'];
-const DAY_SHORT   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+function monthNames() {
+  return Array.from({ length: 12 }, (_, i) => t(`schedule.month.${i}`));
+}
+
+function dayShort() {
+  return [0, 1, 2, 3, 4, 5, 6].map(i => t(`schedule.day.${i}`));
+}
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -53,7 +62,9 @@ function toDateStr(y, m, d) {
 function shortDate(dateStr) {
   if (!dateStr) return '—';
   const [, sm, sd] = dateStr.split('-').map(Number);
-  return `${MONTH_NAMES[sm - 1].slice(0, 3)} ${sd}`;
+  const full = monthNames()[sm - 1];
+  const label = getLang() === 'en' ? full.slice(0, 3) : full;
+  return `${label} ${sd}`;
 }
 
 // DB entry wins (including explicit Off); otherwise auto-fill with default shift for all days on/after join date
@@ -145,14 +156,15 @@ export function printSchedule() {
 
 export function exportScheduleCSV() {
   const days    = daysInMonth(currentYear, currentMonth);
-  const monthLabel = `${MONTH_NAMES[currentMonth - 1]}_${currentYear}`;
+  const monthLabel = `${FILENAME_MONTHS[currentMonth - 1]}_${currentYear}`;
 
+  const dayLabels = dayShort();
   const dayHeaders = [];
   for (let d = 1; d <= days; d++) {
-    dayHeaders.push(`${d} ${DAY_SHORT[dowOf(currentYear, currentMonth, d)]}`);
+    dayHeaders.push(`${d} ${dayLabels[dowOf(currentYear, currentMonth, d)]}`);
   }
 
-  const headers = ['Staff Name', 'Staff ID', 'Position', ...dayHeaders];
+  const headers = [t('schedule.csvStaffName'), t('schedule.csvStaffId'), t('schedule.csvPosition'), ...dayHeaders];
 
   const dataRows = staffList.map(s => {
     const defaultShift = s.default_shift || 'A';
@@ -182,7 +194,7 @@ export function exportScheduleCSV() {
 async function load() {
   setNavTitle();
   const container = getEl('scheduleGridContainer');
-  if (container) container.innerHTML = `<div class="py-10 text-center text-slate-500 text-sm">Loading…</div>`;
+  if (container) container.innerHTML = `<div class="py-10 text-center text-slate-500 text-sm">${t('schedule.loading')}</div>`;
 
   const prevY = currentMonth === 1 ? currentYear - 1 : currentYear;
   const prevM = currentMonth === 1 ? 12 : currentMonth - 1;
@@ -222,7 +234,7 @@ async function load() {
 
 function setNavTitle() {
   const el = getEl('scheduleMonthTitle');
-  if (el) el.textContent = `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`;
+  if (el) el.textContent = `${monthNames()[currentMonth - 1]} ${currentYear}`;
 }
 
 function render() {
@@ -242,10 +254,11 @@ function render() {
 
   // Two-row header: day numbers (row 1) + day abbreviations (row 2)
   // #, ID, Name cells span both rows via rowspan="2"
+  const dayLabels = dayShort();
   let head1 = `
-    <th rowspan="2" class="rst-th-meta rst-th-num">#</th>
-    <th rowspan="2" class="rst-th-meta rst-th-id">ID</th>
-    <th rowspan="2" class="rst-th-meta rst-th-name-h">Name</th>`;
+    <th rowspan="2" class="rst-th-meta rst-th-num">${t('schedule.thIndex')}</th>
+    <th rowspan="2" class="rst-th-meta rst-th-id">${t('schedule.thId')}</th>
+    <th rowspan="2" class="rst-th-meta rst-th-name-h">${t('schedule.thName')}</th>`;
   let head2 = '';
 
   for (let d = 1; d <= days; d++) {
@@ -255,19 +268,19 @@ function render() {
     const weCls  = we ? ' rst-th-we' : '';
     const todCls = isToday ? ' rst-th-today' : '';
     head1 += `<th class="rst-th-day${weCls}${todCls}">${d}</th>`;
-    head2 += `<th class="rst-th-dow${weCls}${todCls}">${isToday ? '●' : DAY_SHORT[dw]}</th>`;
+    head2 += `<th class="rst-th-dow${weCls}${todCls}">${isToday ? '●' : dayLabels[dw]}</th>`;
   }
 
   // Summary column spans both header rows
-  head1 += `<th rowspan="2" class="rst-th-meta rst-th-sum">Since Last Pay</th>`;
+  head1 += `<th rowspan="2" class="rst-th-meta rst-th-sum">${t('schedule.sinceLastPay')}</th>`;
 
   const rows = staffList.length
     ? staffList.map((s, i) => buildRosterRow(s, days, canEdit, i)).join('')
-    : `<tr><td colspan="${days + 4}" style="background:#fff;padding:2rem;text-align:center;color:#6b7280;font-size:0.875rem">No active staff with join date and position set.</td></tr>`;
+    : `<tr><td colspan="${days + 4}" style="background:#fff;padding:2rem;text-align:center;color:#6b7280;font-size:0.875rem">${t('schedule.noActiveStaff')}</td></tr>`;
 
   container.innerHTML = `
     <div class="rst-outer">
-      <div class="rst-title">${MONTH_NAMES[currentMonth - 1]} ${currentYear} — Staff Roster</div>
+      <div class="rst-title">${t('schedule.rosterTitle', { month: monthNames()[currentMonth - 1], year: currentYear })}</div>
       <div class="rst-scroll">
         <table class="rst-table">
           <thead>
@@ -278,9 +291,9 @@ function render() {
         </table>
       </div>
       <div class="rst-legend">
-        <span class="rst-leg rst-leg-m">M · 11am – 10pm</span>
-        <span class="rst-leg rst-leg-a">A · 2pm – 1am</span>
-        <span class="rst-leg rst-leg-off">Off · Day Off</span>
+        <span class="rst-leg rst-leg-m">${t('schedule.legendMorning')}</span>
+        <span class="rst-leg rst-leg-a">${t('schedule.legendAfternoon')}</span>
+        <span class="rst-leg rst-leg-off">${t('schedule.legendOff')}</span>
       </div>
     </div>`;
 }
@@ -293,7 +306,7 @@ function buildRosterRow(s, days, canEdit, index) {
   const workedDays   = computeWorkedSince(s.id, defaultShift, lastPayDate, joinStr);
 
   const fillBtn = canEdit
-    ? `<button class="rst-fill-btn" onclick="openRosterFill(event,${s.id})">⊞ Fill</button>`
+    ? `<button class="rst-fill-btn" onclick="openRosterFill(event,${s.id})">${t('schedule.fillButton')}</button>`
     : '';
 
   const alt = index % 2 === 1;
@@ -322,8 +335,8 @@ function buildRosterRow(s, days, canEdit, index) {
 
   cells += `<td class="rst-sum-cell${alt ? ' rst-sum-alt' : ''}">
     <div><span class="rst-sum-days">${workedDays}</span><span class="rst-sum-unit">d</span></div>
-    <div class="rst-sum-label">since ${shortDate(lastPayDate)}</div>
-    <div class="rst-sum-next">Next: ${shortDate(nextPayDate)}</div>
+    <div class="rst-sum-label">${t('schedule.sinceDate', { date: shortDate(lastPayDate) })}</div>
+    <div class="rst-sum-next">${t('schedule.nextPayDate', { date: shortDate(nextPayDate) })}</div>
   </td>`;
 
   return `<tr class="rst-row${alt ? ' rst-row-alt' : ''}" data-staff-id="${s.id}">${cells}</tr>`;
@@ -339,10 +352,10 @@ export function openShiftPicker(event, staffId, dateStr, defaultShift) {
   closeRosterFill();
 
   const opts = [
-    { shift: 'M',   label: 'Morning (11am–10pm)' },
-    { shift: 'A',   label: 'Afternoon (2pm–1am)' },
-    { shift: 'Off', label: 'Day Off'              },
-    { shift: null,  label: 'Clear'                },
+    { shift: 'M',   label: t('schedule.optMorning') },
+    { shift: 'A',   label: t('schedule.optAfternoon') },
+    { shift: 'Off', label: t('schedule.optDayOff')     },
+    { shift: null,  label: t('schedule.optClear')      },
   ].filter(o => o.shift !== defaultShift);
 
   const picker = document.createElement('div');
@@ -369,7 +382,7 @@ export function closeShiftPicker() {
 export async function applyShift(staffId, dateStr, shift) {
   closeShiftPicker();
   const res = await apiPut('/api/schedule', { staff_id: staffId, schedule_date: dateStr, shift });
-  if (!res.ok) { alert('Failed to update shift.'); return; }
+  if (!res.ok) { alert(t('schedule.shiftUpdateFailed')); return; }
 
   const day = parseInt(dateStr.split('-')[2], 10);
   if (!scheduleMap[staffId])    scheduleMap[staffId]    = {};
@@ -396,20 +409,20 @@ export function openRosterFill(event, staffId) {
   closeRosterFill();
 
   const staff = staffList.find(s => s.id === staffId);
-  const name  = staff ? staff.full_name : 'Staff';
+  const name  = staff ? staff.full_name : t('schedule.staffFallback');
 
   const patterns = [
-    { key: 'all-M',   badge: 'M',   badgeStyle: `background:${SHIFTS.M.bg};color:${SHIFTS.M.color}`,     label: 'All days Morning (11am–10pm)'        },
-    { key: 'all-A',   badge: 'A',   badgeStyle: `background:${SHIFTS.A.bg};color:${SHIFTS.A.color}`,     label: 'All days Afternoon (2pm–1am)'        },
-    { key: 'all-Off', badge: 'Off', badgeStyle: `background:${SHIFTS.Off.bg};color:${SHIFTS.Off.color}`, label: 'All days Off'                        },
-    { key: 'wd-M',    badge: 'M',   badgeStyle: `background:${SHIFTS.M.bg};color:${SHIFTS.M.color}`,     label: 'Weekdays Morning · Weekend Off'      },
-    { key: 'wd-A',    badge: 'A',   badgeStyle: `background:${SHIFTS.A.bg};color:${SHIFTS.A.color}`,     label: 'Weekdays Afternoon · Weekend Off'    },
+    { key: 'all-M',   badge: 'M',   badgeStyle: `background:${SHIFTS.M.bg};color:${SHIFTS.M.color}`,     label: t('schedule.fillAllMorning')        },
+    { key: 'all-A',   badge: 'A',   badgeStyle: `background:${SHIFTS.A.bg};color:${SHIFTS.A.color}`,     label: t('schedule.fillAllAfternoon')      },
+    { key: 'all-Off', badge: 'Off', badgeStyle: `background:${SHIFTS.Off.bg};color:${SHIFTS.Off.color}`, label: t('schedule.fillAllOff')            },
+    { key: 'wd-M',    badge: 'M',   badgeStyle: `background:${SHIFTS.M.bg};color:${SHIFTS.M.color}`,     label: t('schedule.fillWeekdayMorning')    },
+    { key: 'wd-A',    badge: 'A',   badgeStyle: `background:${SHIFTS.A.bg};color:${SHIFTS.A.color}`,     label: t('schedule.fillWeekdayAfternoon')  },
   ];
 
   const picker = document.createElement('div');
   picker.className = 'sch-roster-picker';
   picker.innerHTML = `
-    <div class="sch-roster-title">Fill Roster · ${name}</div>
+    <div class="sch-roster-title">${t('schedule.fillRosterTitle', { name })}</div>
     ${patterns.map(p => `
       <button class="sch-roster-opt" onclick="applyRosterFill(${staffId},'${p.key}')">
         <span class="sch-picker-badge" style="${p.badgeStyle}">${p.badge}</span>
@@ -418,7 +431,7 @@ export function openRosterFill(event, staffId) {
     <hr class="sch-roster-divider"/>
     <button class="sch-roster-opt" style="color:#f87171" onclick="applyRosterFill(${staffId},'clear')">
       <span class="sch-picker-clear" style="background:rgba(239,68,68,0.15);color:#f87171">✕</span>
-      <span>Clear all entries this month</span>
+      <span>${t('schedule.clearAllEntries')}</span>
     </button>`;
 
   document.body.appendChild(picker);
@@ -437,7 +450,7 @@ export async function applyRosterFill(staffId, pattern) {
 
   const entries = _buildRosterEntries(staffId, pattern);
   const res = await apiPut('/api/schedule/bulk', { entries });
-  if (!res.ok) { alert('Failed to apply roster.'); return; }
+  if (!res.ok) { alert(t('schedule.rosterUpdateFailed')); return; }
 
   if (!scheduleMap[staffId])    scheduleMap[staffId]    = {};
   if (!scheduleByDate[staffId]) scheduleByDate[staffId] = {};

@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
 import { getEl, fmtRaw, downloadCSV } from '../utils.js';
 import { logout } from '../auth.js';
+import { t } from '../i18n.js';
 
 let staffList     = [];
 let editingStaffId = null;
@@ -48,20 +49,20 @@ export function renderStaffTable() {
   const rows = showInactive ? staffList : staffList.filter(s => s.is_active);
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-500">No staff found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-500">${t('staff.noStaffFound')}</td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map((s, i) => {
     const joinDate     = s.join_date ? new Date(s.join_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-    const statusBadge  = s.is_active ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Inactive</span>';
+    const statusBadge  = s.is_active ? `<span class="badge badge-active">${t('staff.badgeActive')}</span>` : `<span class="badge badge-inactive">${t('staff.badgeInactive')}</span>`;
     const salaryCcy    = s.salary_ccy || 'USD';
     const salaryDisplay = salaryCcy === 'KHR' ? '៛' + fmtRaw(s.salary) : '$' + fmtRaw(s.salary, 2);
     const loanCcy      = s.loan_ccy || 'KHR';
     const loanBadge    = parseFloat(s.loan_amount) > 0
       ? `<span class="badge badge-loan">${loanCcy === 'KHR' ? '៛' : '$'}${fmtRaw(s.loan_amount, loanCcy === 'KHR' ? 0 : 2)}</span>`
       : '<span class="text-slate-600 text-xs">—</span>';
-    const toggleLabel = s.is_active ? 'Deactivate' : 'Activate';
+    const toggleLabel = s.is_active ? t('staff.toggleDeactivate') : t('staff.toggleActivate');
     const toggleColor = s.is_active ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-emerald-400';
 
     const shiftBadge = s.default_shift
@@ -80,11 +81,11 @@ export function renderStaffTable() {
       <td class="py-2.5 pr-3 text-center">${statusBadge}</td>
       <td class="py-2.5 pr-3 text-center">${shiftBadge}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
-        ${s.join_date && s.position ? `<button onclick="viewInSchedule(${s.id})" class="text-xs text-slate-400 hover:text-blue-400 mr-2" title="View in schedule">📅</button>` : ''}
+        ${s.join_date && s.position ? `<button onclick="viewInSchedule(${s.id})" class="text-xs text-slate-400 hover:text-blue-400 mr-2" title="${t('staff.viewInScheduleTitle')}">📅</button>` : ''}
         ${state.userPermissions.staff?.can_write ? `
-          <button onclick="startEditStaff(${s.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-2">Edit</button>
+          <button onclick="startEditStaff(${s.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-2">${t('common.edit')}</button>
           <button onclick="toggleStaffStatus(${s.id}, ${!s.is_active})" class="text-xs ${toggleColor} mr-2">${toggleLabel}</button>
-          <button onclick="confirmDeleteStaff(${s.id})" class="text-xs text-red-500 hover:text-red-400">Delete</button>
+          <button onclick="confirmDeleteStaff(${s.id})" class="text-xs text-red-500 hover:text-red-400">${t('common.delete')}</button>
         ` : ''}
       </td>
     </tr>`;
@@ -112,7 +113,8 @@ export async function submitStaff(e) {
     default_shift: getEl('staffDefaultShift').value || null,
   };
 
-  if (state.currentUserRole !== 'admin' && !confirm(`Are you sure you want to ${editingStaffId ? `update "${payload.full_name}"` : `add "${payload.full_name}"`}?`)) return;
+  const action = editingStaffId ? t('staff.actionUpdate') : t('staff.actionAdd');
+  if (state.currentUserRole !== 'admin' && !confirm(t('staff.confirmAddUpdate', { action, name: payload.full_name }))) return;
 
   const existing = editingStaffId ? staffList.find(x => x.id === editingStaffId) : null;
   const body = editingStaffId
@@ -125,11 +127,11 @@ export async function submitStaff(e) {
     : await apiPost('/api/staff', body);
 
   if (!res.ok) {
-    if (msg) msg.textContent = res.data?.message || 'Failed to save.';
+    if (msg) msg.textContent = res.data?.message || t('staff.saveFailed');
     return;
   }
 
-  if (msg) msg.textContent = editingStaffId ? 'Updated.' : 'Added.';
+  if (msg) msg.textContent = editingStaffId ? t('staff.updated') : t('staff.added');
   cancelEditStaff();
   loadStaff();
   window.reloadScheduleIfLoaded?.();
@@ -155,8 +157,8 @@ export function startEditStaff(id) {
   const titleEl   = getEl('staffFormTitle');
   const labelEl   = getEl('staffSubmitLabel');
   const cancelBtn = getEl('staffFormCancelBtn');
-  if (titleEl)   titleEl.textContent  = 'Edit Staff';
-  if (labelEl)   labelEl.textContent  = 'Save Changes';
+  if (titleEl)   titleEl.textContent  = t('staff.editTitle');
+  if (labelEl)   labelEl.textContent  = t('common.save');
   if (cancelBtn) cancelBtn.classList.remove('hidden');
   window.scrollTo({ top: (getEl('staffForm')?.offsetTop ?? 0) - 80, behavior: 'smooth' });
 }
@@ -168,8 +170,8 @@ export function cancelEditStaff() {
   const labelEl   = getEl('staffSubmitLabel');
   const cancelBtn = getEl('staffFormCancelBtn');
   const msg       = getEl('staffMsg');
-  if (titleEl)   titleEl.textContent  = 'Add Staff';
-  if (labelEl)   labelEl.textContent  = 'Add Staff';
+  if (titleEl)   titleEl.textContent  = t('staff.addTitle');
+  if (labelEl)   labelEl.textContent  = t('staff.addTitle');
   if (cancelBtn) cancelBtn.classList.add('hidden');
   if (msg)       msg.textContent      = '';
 }
@@ -183,35 +185,38 @@ export async function toggleStaffStatus(id, isActive) {
     last_salary_date: s.last_salary_date ? s.last_salary_date.slice(0, 10) : null,
     is_active: isActive,
   });
-  if (!res.ok) { alert('Failed to update status.'); return; }
+  if (!res.ok) { alert(t('staff.statusUpdateFailed')); return; }
   loadStaff();
   window.reloadScheduleIfLoaded?.();
 }
 
 export function confirmDeleteStaff(id) {
   const s = staffList.find(x => x.id === id);
-  if (!confirm(`Delete ${s?.full_name ?? 'this staff member'}? This cannot be undone.`)) return;
+  const name = s?.full_name ?? t('common.thisStaffMember');
+  if (!confirm(`${t('staff.confirmDelete', { name })} ${t('common.confirmCannotUndo')}`)) return;
   deleteStaff(id);
 }
 
 async function deleteStaff(id) {
   const res = await apiDelete(`/api/staff/${id}`);
-  if (!res.ok) { alert(res.data?.message || 'Failed to delete.'); return; }
+  if (!res.ok) { alert(res.data?.message || t('staff.deleteFailed')); return; }
   loadStaff();
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export function exportStaffCSV() {
-  if (!staffList.length) return alert('No staff loaded.');
+  if (!staffList.length) return alert(t('staff.noStaffLoaded'));
   const showInactive = getEl('showInactive')?.checked;
   const rows = showInactive ? staffList : staffList.filter(s => s.is_active);
   downloadCSV(`staff-${new Date().toISOString().slice(0, 10)}.csv`, [
-    ['Staff ID','Full Name','Position','Join Date','Salary','Salary CCY','Phone','Loan','Loan CCY','Status','Default Shift','Notes'],
+    [t('staff.csvStaffId'), t('staff.csvFullName'), t('staff.csvPosition'), t('staff.csvJoinDate'),
+     t('staff.csvSalary'), t('staff.csvSalaryCcy'), t('staff.csvPhone'), t('staff.csvLoan'),
+     t('staff.csvLoanCcy'), t('staff.csvStatus'), t('staff.csvDefaultShift'), t('staff.csvNotes')],
     ...rows.map(s => [
       s.staff_id, s.full_name, s.position ?? '', s.join_date ? s.join_date.slice(0,10) : '',
       s.salary, s.salary_ccy || 'USD', s.phone ?? '', s.loan_amount, s.loan_ccy || 'KHR',
-      s.is_active ? 'Active' : 'Inactive', s.default_shift ?? '', s.notes ?? '',
+      s.is_active ? t('staff.badgeActive') : t('staff.badgeInactive'), s.default_shift ?? '', s.notes ?? '',
     ]),
   ]);
 }

@@ -338,8 +338,8 @@
   <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
     <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
     <div>
-      <h2 class="text-lg font-semibold">Staff</h2>
-      <p class="text-xs text-slate-400">Manage staff profiles and monthly schedule</p>
+      <h2 class="text-lg font-semibold" data-i18n="staff.title">Staff</h2>
+      <p class="text-xs text-slate-400" data-i18n="staff.subtitle">Manage staff profiles and monthly schedule</p>
     </div>
   </header>
 
@@ -348,10 +348,10 @@
     <!-- Tab bar -->
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="staff" onclick="switchTab('staff')">
-        👥 Staff Management
+        <span data-i18n="staff.tabLabel">👥 Staff Management</span>
       </button>
       <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')">
-        📅 Schedule
+        <span data-i18n="schedule.tabLabel">📅 Schedule</span>
       </button>
     </div>
 
@@ -363,21 +363,21 @@
         <div class="stat-card">
           <div class="stat-icon bg-slate-700">👥</div>
           <div>
-            <div class="text-xs text-slate-400 mb-0.5">Active Staff</div>
+            <div class="text-xs text-slate-400 mb-0.5" data-i18n="staff.statActiveStaff">Active Staff</div>
             <div class="text-2xl font-bold text-white" id="statActiveStaff">—</div>
           </div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background:rgba(34,197,94,.12)">💵</div>
           <div>
-            <div class="text-xs text-slate-400 mb-0.5">Monthly Salary</div>
+            <div class="text-xs text-slate-400 mb-0.5" data-i18n="staff.statMonthlySalary">Monthly Salary</div>
             <div class="text-2xl font-bold text-emerald-400" id="statTotalSalary">—</div>
           </div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background:rgba(245,158,11,.12)">💳</div>
           <div>
-            <div class="text-xs text-slate-400 mb-0.5">Total Loans</div>
+            <div class="text-xs text-slate-400 mb-0.5" data-i18n="staff.statTotalLoans">Total Loans</div>
             <div class="text-2xl font-bold text-amber-400" id="statTotalLoan">—</div>
           </div>
         </div>
@@ -386,37 +386,37 @@
       <!-- Add / Edit form -->
       <div class="card" data-write-page="staff">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="section-title">👤 <span id="staffFormTitle">Add Staff</span></h2>
-          <button id="staffFormCancelBtn" onclick="cancelEditStaff()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors">Cancel Edit</button>
+          <h2 class="section-title">👤 <span id="staffFormTitle" data-i18n="staff.addTitle">Add Staff</span></h2>
+          <button id="staffFormCancelBtn" onclick="cancelEditStaff()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
         </div>
         <form id="staffForm" onsubmit="submitStaff(event)" class="grid md:grid-cols-3 gap-3">
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Staff ID <span class="text-red-400">*</span></label>
-            <input id="staffId" type="text" required placeholder="e.g. 00-9" class="staff-input"/>
+            <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="staff.fieldStaffId">Staff ID</span> <span class="text-red-400">*</span></label>
+            <input id="staffId" type="text" required placeholder="e.g. 00-9" data-i18n-placeholder="staff.staffIdPlaceholder" class="staff-input"/>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Full Name <span class="text-red-400">*</span></label>
-            <input id="staffFullName" type="text" required placeholder="Full name" class="staff-input"/>
+            <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="staff.fieldFullName">Full Name</span> <span class="text-red-400">*</span></label>
+            <input id="staffFullName" type="text" required placeholder="Full name" data-i18n-placeholder="staff.fullNamePlaceholder" class="staff-input"/>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Position</label>
-            <input id="staffPosition" type="text" list="positionList" placeholder="e.g. Waiter" class="staff-input"/>
+            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldPosition">Position</label>
+            <input id="staffPosition" type="text" list="positionList" placeholder="e.g. Waiter" data-i18n-placeholder="staff.positionPlaceholder" class="staff-input"/>
             <datalist id="positionList">
-              <option value="Owner/Biz"/>
-              <option value="Manager"/>
-              <option value="Waiter"/>
-              <option value="Waitress"/>
-              <option value="Assistance Chief"/>
-              <option value="Cleaner"/>
-              <option value="Cashier"/>
+              <option data-i18n="staff.posOwner">Owner/Biz</option>
+              <option data-i18n="staff.posManager">Manager</option>
+              <option data-i18n="staff.posWaiter">Waiter</option>
+              <option data-i18n="staff.posWaitress">Waitress</option>
+              <option data-i18n="staff.posAssistantChief">Assistance Chief</option>
+              <option data-i18n="staff.posCleaner">Cleaner</option>
+              <option data-i18n="staff.posCashier">Cashier</option>
             </datalist>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Join Date</label>
+            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldJoinDate">Join Date</label>
             <input id="staffJoinDate" type="date" class="staff-input"/>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Salary</label>
+            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldSalary">Salary</label>
             <div class="flex gap-1.5">
               <input id="staffSalary" type="number" step="0.01" min="0" placeholder="0.00" class="staff-input flex-1"/>
               <select id="staffSalaryCcy" class="staff-input" style="width:5.5rem">
@@ -426,11 +426,11 @@
             </div>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Phone</label>
+            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldPhone">Phone</label>
             <input id="staffPhone" type="text" placeholder="0xx-xxxxxxx" class="staff-input"/>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Loan</label>
+            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldLoan">Loan</label>
             <div class="flex gap-1.5">
               <input id="staffLoan" type="number" min="0" placeholder="0" class="staff-input flex-1"/>
               <select id="staffLoanCcy" class="staff-input" style="width:5.5rem">
@@ -440,20 +440,20 @@
             </div>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Default Shift</label>
+            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldDefaultShift">Default Shift</label>
             <select id="staffDefaultShift" class="staff-input">
-              <option value="">— None —</option>
-              <option value="M">M · Morning (11am–10pm)</option>
-              <option value="A" selected>A · Afternoon (2pm–1am)</option>
+              <option value="" data-i18n="staff.shiftNone">— None —</option>
+              <option value="M" data-i18n="staff.shiftMorningOpt">M · Morning (11am–10pm)</option>
+              <option value="A" selected data-i18n="staff.shiftAfternoonOpt">A · Afternoon (2pm–1am)</option>
             </select>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block">Notes</label>
-            <input id="staffNotes" type="text" placeholder="Optional notes" class="staff-input"/>
+            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldNotes">Notes</label>
+            <input id="staffNotes" type="text" placeholder="Optional notes" data-i18n-placeholder="staff.notesPlaceholder" class="staff-input"/>
           </div>
           <div class="md:col-span-3 flex items-center gap-3 pt-1">
             <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-5 py-2 rounded">
-              <span id="staffSubmitLabel">Add Staff</span>
+              <span id="staffSubmitLabel" data-i18n="staff.addTitle">Add Staff</span>
             </button>
             <span id="staffMsg" class="text-sm text-slate-400"></span>
           </div>
@@ -463,34 +463,34 @@
       <!-- Staff list -->
       <div class="card">
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h2 class="section-title">📋 Staff List</h2>
+          <h2 class="section-title" data-i18n="staff.listTitle">📋 Staff List</h2>
           <div class="flex items-center gap-3">
             <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
               <input type="checkbox" id="showInactive" onchange="renderStaffTable()" class="accent-amber-400"/>
-              Show inactive
+              <span data-i18n="staff.showInactive">Show inactive</span>
             </label>
-            <button onclick="exportStaffCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1">⬇ CSV</button>
+            <button onclick="exportStaffCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1"><span data-i18n="common.csv">⬇ CSV</span></button>
           </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-slate-400 border-b border-slate-700 text-left text-xs">
-                <th class="pb-2 pr-3 font-medium">#</th>
-                <th class="pb-2 pr-3 font-medium">ID</th>
-                <th class="pb-2 pr-3 font-medium">Name</th>
-                <th class="pb-2 pr-3 font-medium">Position</th>
-                <th class="pb-2 pr-3 font-medium">Join Date</th>
-                <th class="pb-2 pr-3 font-medium text-right">Salary</th>
-                <th class="pb-2 pr-3 font-medium">Phone</th>
-                <th class="pb-2 pr-3 font-medium text-right">Loan</th>
-                <th class="pb-2 pr-3 font-medium text-center">Status</th>
-                <th class="pb-2 pr-3 font-medium text-center">Shift</th>
-                <th class="pb-2 font-medium text-center">Actions</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="staff.thIndex">#</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="staff.thId">ID</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="staff.thName">Name</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="staff.thPosition">Position</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="staff.thJoinDate">Join Date</th>
+                <th class="pb-2 pr-3 font-medium text-right" data-i18n="staff.thSalary">Salary</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="staff.thPhone">Phone</th>
+                <th class="pb-2 pr-3 font-medium text-right" data-i18n="staff.thLoan">Loan</th>
+                <th class="pb-2 pr-3 font-medium text-center" data-i18n="staff.thStatus">Status</th>
+                <th class="pb-2 pr-3 font-medium text-center" data-i18n="staff.thShift">Shift</th>
+                <th class="pb-2 font-medium text-center" data-i18n="staff.thActions">Actions</th>
               </tr>
             </thead>
             <tbody id="staffTableBody">
-              <tr><td colspan="10" class="py-10 text-center text-slate-500">Loading…</td></tr>
+              <tr><td colspan="10" class="py-10 text-center text-slate-500" data-i18n="staff.loadingRow">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -507,22 +507,22 @@
           <button onclick="prevMonth()" class="sch-nav-btn">◀</button>
           <span id="scheduleMonthTitle" class="text-base font-bold text-white min-w-[140px] text-center">—</span>
           <button onclick="nextMonth()" class="sch-nav-btn">▶</button>
-          <span id="scheduleFutureNote" class="hidden sch-future-badge">Planning ahead</span>
+          <span id="scheduleFutureNote" class="hidden sch-future-badge" data-i18n="schedule.planningAhead">Planning ahead</span>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick="exportScheduleCSV()" class="sch-nav-btn" title="Export as CSV">⬇ CSV</button>
-          <button onclick="printSchedule()" class="sch-nav-btn" title="Print / Save as PDF">🖨 Print</button>
+          <button onclick="exportScheduleCSV()" class="sch-nav-btn" title="Export as CSV" data-i18n-title="schedule.exportCsvTitle"><span data-i18n="common.csv">⬇ CSV</span></button>
+          <button onclick="printSchedule()" class="sch-nav-btn" title="Print / Save as PDF" data-i18n-title="schedule.printTitle"><span data-i18n="schedule.printButton">🖨 Print</span></button>
         </div>
       </div>
 
       <!-- Grid card -->
       <div class="card" style="padding: 0; overflow: hidden;">
         <div id="scheduleGridContainer">
-          <div class="py-10 text-center text-slate-500 text-sm">Click the Schedule tab to load.</div>
+          <div class="py-10 text-center text-slate-500 text-sm" data-i18n="schedule.clickToLoad">Click the Schedule tab to load.</div>
         </div>
       </div>
 
-      <p id="scheduleReadOnlyNote" class="hidden text-xs text-slate-500 mt-2">
+      <p id="scheduleReadOnlyNote" class="hidden text-xs text-slate-500 mt-2" data-i18n="schedule.readOnlyNote">
         Read-only — you don't have write permission for staff.
       </p>
 
