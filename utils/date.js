@@ -24,17 +24,18 @@ function buildPeriodFilter(period, startDate, endDate, alias = 'r', firstParam =
     return { clause: `DATE(${col}) <= $${firstParam}`, params: [endDate] };
   }
   switch (period) {
-    case 'today': return { clause: `DATE(${col}) = CURRENT_DATE`, params: [] };
-    case 'week':  return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE`, params: [] };
-    case 'month': return { clause: `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`, params: [] };
-    case 'year':  return { clause: `DATE_TRUNC('year', ${col}) = DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year')`, params: [] };
-    default:      return { clause: `DATE(${col}) = CURRENT_DATE`, params: [] };
+    case 'today':  return { clause: `DATE(${col}) = CURRENT_DATE`, params: [] };
+    case 'week':   return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE`, params: [] };
+    case 'last10': return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '10 days' AND CURRENT_DATE`, params: [] };
+    case 'month':  return { clause: `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`, params: [] };
+    case 'year':   return { clause: `DATE_TRUNC('year', ${col}) = DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year')`, params: [] };
+    default:       return { clause: `DATE(${col}) = CURRENT_DATE`, params: [] };
   }
 }
 
 function getTrendPeriod(period, startDate, endDate) {
   if (period === 'year') return 'month';
-  if (period === 'week' || period === 'month') return 'day';
+  if (period === 'week' || period === 'last10' || period === 'month') return 'day';
   if (period === 'range' && startDate && endDate) {
     const days = Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1);
     if (days <= 31)  return 'day';
@@ -49,6 +50,8 @@ function getPrevPeriodSQL(period, startDate, endDate, alias = 'r', colName = 're
   switch (period) {
     case 'week':
       return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '13 days' AND CURRENT_DATE - INTERVAL '7 days'`, params: [] };
+    case 'last10':
+      return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '20 days' AND CURRENT_DATE - INTERVAL '10 days'`, params: [] };
     case 'month':
       return { clause: `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '2 months')`, params: [] };
     case 'year':
@@ -87,6 +90,8 @@ function getPeriodDateRange(period, startDate, endDate) {
     }
     case 'week':
       return { start: now.subtract(7, 'day').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'last10':
+      return { start: now.subtract(10, 'day').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
     case 'month': {
       const m = now.subtract(1, 'month');
       return { start: m.startOf('month').format('YYYY-MM-DD'), end: m.endOf('month').format('YYYY-MM-DD') };
@@ -107,13 +112,18 @@ function getPrevPeriodDateRange(period, startDate, endDate) {
   const now = dayjs().tz(TZ);
   switch (period) {
     case 'today': {
-      const d = now.subtract(2, 'day').format('YYYY-MM-DD');
+      const d = now.subtract(1, 'day').format('YYYY-MM-DD');
       return { start: d, end: d };
     }
     case 'week':
       return {
         start: now.subtract(13, 'day').format('YYYY-MM-DD'),
         end:   now.subtract(7,  'day').format('YYYY-MM-DD'),
+      };
+    case 'last10':
+      return {
+        start: now.subtract(20, 'day').format('YYYY-MM-DD'),
+        end:   now.subtract(10, 'day').format('YYYY-MM-DD'),
       };
     case 'month': {
       const m = now.subtract(2, 'month');
@@ -132,11 +142,11 @@ function getPrevPeriodDateRange(period, startDate, endDate) {
         const prevStart = prevEnd.subtract(days - 1, 'day');
         return { start: prevStart.format('YYYY-MM-DD'), end: prevEnd.format('YYYY-MM-DD') };
       }
-      const d = now.subtract(2, 'day').format('YYYY-MM-DD');
+      const d = now.subtract(1, 'day').format('YYYY-MM-DD');
       return { start: d, end: d };
     }
     default: {
-      const d = now.subtract(2, 'day').format('YYYY-MM-DD');
+      const d = now.subtract(1, 'day').format('YYYY-MM-DD');
       return { start: d, end: d };
     }
   }
