@@ -394,3 +394,45 @@ body.app-shell { display: flex; min-height: 100vh; }
   font-size: 0.75rem;
   font-weight: 600;
 }
+
+/* ── user menu dropdown (avatar-triggered) ───────────────── */
+.user-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  z-index: 70;
+}
+.user-menu-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #334155;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.user-menu-lang { margin-bottom: 10px; }
+.user-menu-signout {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid #1f2d45;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #f87171;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .15s;
+}
+.user-menu-signout:hover { background: rgba(248,113,113,.1); }
