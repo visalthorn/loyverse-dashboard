@@ -155,25 +155,25 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
-        <h2 class="text-lg font-semibold">Dashboard</h2>
+        <h2 class="text-lg font-semibold" data-i18n="dashboard.title">Dashboard</h2>
       </div>
 
       <!-- Period Filters -->
       <div class="flex flex-col md:flex-row items-start md:items-center gap-5">
         <div class="custom-range flex flex-wrap items-center gap-2">
-          <button id="syncBtn" onclick="syncGrossIncome()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded">Sync Gross Income</button>
+          <button id="syncBtn" onclick="syncGrossIncome()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded" data-i18n="dashboard.syncButton">Sync Gross Income</button>
           <span id="lastSyncChip" class="text-xs text-slate-400 hidden"></span>
         </div>
         <div class="period-selector flex gap-1 bg-slate-700 rounded-lg p-1">
-          <button onclick="setPeriod('week')"   class="period-btn active" data-period="week">Last 7 days</button>
-          <button onclick="setPeriod('month')"  class="period-btn" data-period="month">Last Month</button>
-          <button onclick="setPeriod('year')"   class="period-btn" data-period="year">Year</button>
-          <button onclick="setPeriod('range')"  class="period-btn" data-period="range">Custom</button>
+          <button onclick="setPeriod('week')"   class="period-btn active" data-period="week" data-i18n="dashboard.periodWeek">Last 7 days</button>
+          <button onclick="setPeriod('month')"  class="period-btn" data-period="month" data-i18n="dashboard.periodMonth">Last Month</button>
+          <button onclick="setPeriod('year')"   class="period-btn" data-period="year" data-i18n="dashboard.periodYear">Year</button>
+          <button onclick="setPeriod('range')"  class="period-btn" data-period="range" data-i18n="dashboard.periodCustom">Custom</button>
         </div>
         <div class="custom-range flex flex-wrap items-center gap-2">
-          <label class="text-xs text-slate-300">From <input id="startDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
-          <label class="text-xs text-slate-300">To <input id="endDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
-          <button onclick="applyCustomRange()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded">Apply</button>
+          <label class="text-xs text-slate-300"><span data-i18n="dashboard.from">From</span> <input id="startDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
+          <label class="text-xs text-slate-300"><span data-i18n="dashboard.to">To</span> <input id="endDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
+          <button onclick="applyCustomRange()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded" data-i18n="common.apply">Apply</button>
         </div>
       </div>
     </div>
@@ -184,7 +184,7 @@
     <!-- Period Performance KPIs -->
     <section>
       <div class="flex items-center gap-3 mb-3">
-        <span class="kpi-section-lbl">Period Performance</span>
+        <span class="kpi-section-lbl" data-i18n="dashboard.periodPerformance">Period Performance</span>
         <div class="flex-1 h-px" style="background:#1e3448"></div>
       </div>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpiPrimary">
@@ -198,8 +198,8 @@
     <!-- Daily Benchmarks -->
     <section>
       <div class="flex items-center gap-3 mb-3">
-        <span class="kpi-section-lbl">Daily Benchmarks</span>
-        <span class="text-xs" style="color:#2d4460;white-space:nowrap">per-day averages for the period</span>
+        <span class="kpi-section-lbl" data-i18n="dashboard.dailyBenchmarks">Daily Benchmarks</span>
+        <span class="text-xs" style="color:#2d4460;white-space:nowrap" data-i18n="dashboard.dailyBenchmarksSub">per-day averages for the period</span>
         <div class="flex-1 h-px" style="background:#1e3448"></div>
       </div>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="kpiAverage">
@@ -213,8 +213,8 @@
     <!-- Gross Income Trend -->
     <section class="card">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="section-title">📈 Gross Income and Expenses</h2>
-        <span id="grossIncomeLabel" class="text-xs text-slate-400">Period matched to global filter</span>
+        <h2 class="section-title" data-i18n="dashboard.grossIncomeChartTitle">📈 Gross Income and Expenses</h2>
+        <span id="grossIncomeLabel" class="text-xs text-slate-400" data-i18n="dashboard.grossIncomeChartSub">Period matched to global filter</span>
       </div>
       <div class="chart-container"><canvas id="grossIncomeChart"></canvas></div>
     </section>
@@ -222,12 +222,12 @@
     <!-- Dining + Payment -->
     <section class="grid md:grid-cols-2 gap-4">
       <div class="card">
-        <h2 class="section-title mb-4">🍽️ Dining Options</h2>
+        <h2 class="section-title mb-4" data-i18n="dashboard.diningTitle">🍽️ Dining Options</h2>
         <div class="chart-container-sm"><canvas id="diningChart"></canvas></div>
         <div id="diningLegend" class="mt-3 space-y-1"></div>
       </div>
       <div class="card">
-        <h2 class="section-title mb-4">💳 Payment Methods</h2>
+        <h2 class="section-title mb-4" data-i18n="dashboard.paymentTitle">💳 Payment Methods</h2>
         <div class="chart-container-sm"><canvas id="paymentChart"></canvas></div>
         <div id="paymentLegend" class="mt-3 space-y-1"></div>
       </div>
@@ -235,7 +235,7 @@
 
     <!-- Peak Hours Heatmap -->
     <section class="card">
-      <h2 class="section-title mb-4">🔥 Peak Hours Heatmap <span id="heatmapRangeLabel" class="text-xs text-slate-400 font-normal"></span></h2>
+      <h2 class="section-title mb-4"><span data-i18n="dashboard.heatmapTitle">🔥 Peak Hours Heatmap</span> <span id="heatmapRangeLabel" class="text-xs text-slate-400 font-normal"></span></h2>
       <div class="overflow-x-auto">
         <div id="heatmap" class="heatmap-grid"></div>
       </div>
@@ -244,13 +244,13 @@
     <!-- Top Products -->
     <section class="card">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="section-title">🛒 Top Products</h2>
+        <h2 class="section-title" data-i18n="dashboard.topProductsTitle">🛒 Top Products</h2>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-slate-400">Top 20 by revenue · green = growing · red = declining</span>
+          <span class="text-xs text-slate-400" data-i18n="dashboard.topProductsSub">Top 20 by revenue · green = growing · red = declining</span>
           <select id="topProductsCategory" class="filter-select" onchange="dashboardSetTopProductsCategory(this.value)">
-            <option value="" selected>All</option>
-            <option value="food">Food</option>
-            <option value="beverage">Beverage</option>
+            <option value="" selected data-i18n="dashboard.categoryAll">All</option>
+            <option value="food" data-i18n="dashboard.categoryFood">Food</option>
+            <option value="beverage" data-i18n="dashboard.categoryBeverage">Beverage</option>
           </select>
         </div>
       </div>
@@ -258,16 +258,16 @@
         <table class="w-full text-sm">
           <thead>
             <tr class="text-slate-400 border-b border-slate-700 text-left">
-              <th class="pb-2 pr-3">#</th>
-              <th class="pb-2 pr-3">Item</th>
-              <th class="pb-2 pr-3 text-right">Qty</th>
-              <th class="pb-2 pr-3 text-right">Revenue</th>
-              <th class="pb-2 pr-3 text-right">Last Period</th>
-              <th class="pb-2 text-right">Growth</th>
+              <th class="pb-2 pr-3" data-i18n="dashboard.table.rank">#</th>
+              <th class="pb-2 pr-3" data-i18n="dashboard.table.item">Item</th>
+              <th class="pb-2 pr-3 text-right" data-i18n="dashboard.table.qty">Qty</th>
+              <th class="pb-2 pr-3 text-right" data-i18n="dashboard.table.revenue">Revenue</th>
+              <th class="pb-2 pr-3 text-right" data-i18n="dashboard.table.lastPeriod">Last Period</th>
+              <th class="pb-2 text-right" data-i18n="dashboard.table.growth">Growth</th>
             </tr>
           </thead>
           <tbody id="productTableBody">
-            <tr><td colspan="6" class="py-4 text-center text-slate-500">Loading...</td></tr>
+            <tr><td colspan="6" class="py-4 text-center text-slate-500" data-i18n="dashboard.loadingRow">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -276,22 +276,22 @@
       <div class="mt-4 pt-4 border-t border-slate-700">
         <button onclick="dashboardToggleSlowMovers()" id="slowMoversBtn"
           class="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1">
-          <span id="slowMoversArrow">▶</span> Show Bottom 10 Slow Movers
+          <span id="slowMoversArrow">▶</span>
         </button>
         <div id="slowMoversSection" class="hidden mt-3 overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-slate-400 border-b border-slate-700 text-left">
-                <th class="pb-2 pr-3">#</th>
-                <th class="pb-2 pr-3">Item</th>
-                <th class="pb-2 pr-3 text-right">Qty</th>
-                <th class="pb-2 pr-3 text-right">Revenue</th>
-                <th class="pb-2 pr-3 text-right">Last Period</th>
-                <th class="pb-2 text-right">Growth</th>
+                <th class="pb-2 pr-3" data-i18n="dashboard.table.rank">#</th>
+                <th class="pb-2 pr-3" data-i18n="dashboard.table.item">Item</th>
+                <th class="pb-2 pr-3 text-right" data-i18n="dashboard.table.qty">Qty</th>
+                <th class="pb-2 pr-3 text-right" data-i18n="dashboard.table.revenue">Revenue</th>
+                <th class="pb-2 pr-3 text-right" data-i18n="dashboard.table.lastPeriod">Last Period</th>
+                <th class="pb-2 text-right" data-i18n="dashboard.table.growth">Growth</th>
               </tr>
             </thead>
             <tbody id="slowMoversBody">
-              <tr><td colspan="6" class="py-4 text-center text-slate-500">Loading...</td></tr>
+              <tr><td colspan="6" class="py-4 text-center text-slate-500" data-i18n="dashboard.loadingRow">Loading...</td></tr>
             </tbody>
           </table>
         </div>
@@ -301,11 +301,11 @@
     <!-- Employee + Device -->
     <section class="grid md:grid-cols-2 gap-4">
       <div class="card">
-        <h2 class="section-title mb-4">👤 Employee Performance</h2>
+        <h2 class="section-title mb-4" data-i18n="dashboard.employeeTitle">👤 Employee Performance</h2>
         <div class="chart-container"><canvas id="employeeChart"></canvas></div>
       </div>
       <div class="card">
-        <h2 class="section-title mb-4">🖥️ Device Performance</h2>
+        <h2 class="section-title mb-4" data-i18n="dashboard.deviceTitle">🖥️ Device Performance</h2>
         <div class="chart-container"><canvas id="deviceChart"></canvas></div>
       </div>
     </section>
@@ -313,7 +313,7 @@
     <!-- Cancelled Orders -->
     <section class="card border border-red-800">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="section-title text-red-400">🚨 Cancelled Orders</h2>
+        <h2 class="section-title text-red-400" data-i18n="dashboard.cancelledTitle">🚨 Cancelled Orders</h2>
         <div id="cancelSummary" class="flex gap-4 text-sm"></div>
       </div>
       <div id="cancelList" class="space-y-2"></div>

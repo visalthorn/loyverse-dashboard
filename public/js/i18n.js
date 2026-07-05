@@ -35,6 +35,10 @@ export function applyTranslations(root = document) {
   });
 }
 
+export function days() {
+  return [0, 1, 2, 3, 4, 5, 6].map(i => t(`common.day.${i}`));
+}
+
 export function renderLangSwitcher(container) {
   if (!container) return;
   const lang = getLang();

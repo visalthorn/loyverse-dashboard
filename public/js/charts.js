@@ -1,7 +1,7 @@
-import { state, COLORS, DAYS } from './state.js';
+import { state, COLORS } from './state.js';
 import { fmt } from './utils.js';
 
-export { COLORS, DAYS };
+export { COLORS };
 
 export function heatColor(ratio) {
   if (ratio === 0) return '#1e293b';

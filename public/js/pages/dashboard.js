@@ -1,4 +1,5 @@
-import { state, COLORS, DAYS } from '../state.js';
+import { state, COLORS } from '../state.js';
+import { t, days } from '../i18n.js';
 import { fetchJSON } from '../api.js';
 import { apiPost } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate, fmtDatetime, TZ } from '../utils.js';
@@ -58,31 +59,31 @@ async function loadKPIs() {
   // ── Section 1: Period totals ────────────────────────────────────────────────
   const primary = [
     {
-      accent: 'amber', icon: '💰', label: 'Gross Income',
+      accent: 'amber', icon: '💰', label: t('dashboard.kpi.grossIncome'),
       val: '៛' + fmtRaw(grossVal), valClass: 'text-amber-400',
       growth: data.gross_income.growth,
       sub: `<span class="${netValClass} font-semibold">Net ៛${fmtRaw(Math.abs(netVal))}</span>`
-         + `<span class="text-slate-600"> · ${margin}% margin</span>`,
+         + `<span class="text-slate-600"> · ${t('dashboard.kpi.marginSub', { margin })}</span>`,
     },
     {
-      accent: netAccent, icon: netIcon, label: 'Net Profit',
+      accent: netAccent, icon: netIcon, label: t('dashboard.kpi.netProfit'),
       val: (netPositive ? '' : '-') + '៛' + fmtRaw(Math.abs(netVal)),
       valClass: netValClass,
       growth: null,
-      sub: `<span class="text-slate-500">Gross minus expenses</span>`,
+      sub: `<span class="text-slate-500">${t('dashboard.kpi.netSub')}</span>`,
     },
     {
-      accent: 'blue', icon: '🧾', label: 'Orders',
+      accent: 'blue', icon: '🧾', label: t('dashboard.kpi.orders'),
       val: fmtRaw(data.orders.value), valClass: 'text-sky-400',
       growth: data.orders.growth,
-      sub: `<span class="text-slate-500">AOV </span>`
+      sub: `<span class="text-slate-500">${t('dashboard.kpi.aovSub')} </span>`
          + `<span class="text-slate-300 font-semibold">៛${fmtRaw(data.aov.value)}</span>`,
     },
     {
-      accent: 'red', icon: '💸', label: 'Expenses',
+      accent: 'red', icon: '💸', label: t('dashboard.kpi.expenses'),
       val: '-៛' + fmtRaw(expVal), valClass: 'text-red-400',
       growth: data.expenses.growth,
-      sub: `<span class="text-slate-600">${expPct}% of gross income</span>`,
+      sub: `<span class="text-slate-600">${t('dashboard.kpi.pctOfGross', { pct: expPct })}</span>`,
     },
   ];
 
@@ -102,33 +103,33 @@ async function loadKPIs() {
   // ── Section 2: Daily benchmarks (same order & terms as Section 1) ───────────
   const averages = [
     {
-      accent: 'amber', label: 'Gross Income',
+      accent: 'amber', label: t('dashboard.kpi.grossIncome'),
       val: '៛' + fmtRaw(data.avg_gross_income?.value ?? 0),
       valClass: 'text-amber-400',
       growth: data.avg_gross_income?.growth,
-      sub: 'per day · avg',
+      sub: t('dashboard.perDayAvg'),
     },
     {
-      accent: avgNetAccent, label: 'Net Profit',
+      accent: avgNetAccent, label: t('dashboard.kpi.netProfit'),
       val: (avgNetPositive ? '' : '-') + '៛' + fmtRaw(Math.abs(avgNetVal)),
       valClass: avgNetClass,
       growth: data.net_per_order?.growth,
-      sub: 'per day · avg',
+      sub: t('dashboard.perDayAvg'),
       highlight: true,
     },
     {
-      accent: 'violet', label: 'Orders',
+      accent: 'violet', label: t('dashboard.kpi.orders'),
       val: '៛' + fmtRaw(data.aov?.value ?? 0),
       valClass: 'text-violet-400',
       growth: data.aov?.growth,
-      sub: 'avg value per order',
+      sub: t('dashboard.avgValuePerOrder'),
     },
     {
-      accent: 'red', label: 'Expenses',
+      accent: 'red', label: t('dashboard.kpi.expenses'),
       val: '-៛' + fmtRaw(data.avg_expense?.value ?? 0),
       valClass: 'text-red-400',
       growth: data.avg_expense?.growth,
-      sub: 'per day · avg',
+      sub: t('dashboard.perDayAvg'),
     },
   ];
 
@@ -153,11 +154,11 @@ async function loadGrossIncomeTrend() {
 
   const trendLabel = getEl('grossIncomeLabel');
   if (trendLabel) trendLabel.textContent = p === 'range'
-    ? `Custom range ${s} → ${e}`
-    : p === 'week'  ? 'Last 7 days'
-    : p === 'month' ? 'Last month'
-    : p === 'year'  ? 'Last year'
-    : `Period: ${p}`;
+    ? t('dashboard.grossIncomeRangeCustom', { start: s, end: e })
+    : p === 'week'  ? t('dashboard.grossIncomeRangeWeek')
+    : p === 'month' ? t('dashboard.grossIncomeRangeMonth')
+    : p === 'year'  ? t('dashboard.grossIncomeRangeYear')
+    : t('dashboard.grossIncomeRangePeriod', { period: p });
 
   const [incomeData, expenseTrend] = await Promise.all([
     fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`),
@@ -180,8 +181,8 @@ async function loadGrossIncomeTrend() {
     data: {
       labels,
       datasets: [
-        { label: 'Gross Income', data: revenue, backgroundColor: 'rgba(245,158,11,0.7)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 6 },
-        { label: 'Expenses',     data: expenses, backgroundColor: 'rgba(239,68,68,0.7)',  borderColor: '#ef4444', borderWidth: 1, borderRadius: 6 },
+        { label: t('dashboard.kpi.grossIncome'), data: revenue, backgroundColor: 'rgba(245,158,11,0.7)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 6 },
+        { label: t('dashboard.kpi.expenses'),     data: expenses, backgroundColor: 'rgba(239,68,68,0.7)',  borderColor: '#ef4444', borderWidth: 1, borderRadius: 6 },
       ],
     },
     options: chartOpts('៛'),
@@ -271,7 +272,7 @@ async function loadPeakHours() {
   for (let h = 0; h < 24; h++) html += `<div class="heatmap-hour-label">${h}h</div>`;
   html += '</div>';
 
-  DAYS.forEach((day, d) => {
+  days().forEach((day, d) => {
     html += `<div class="heatmap-row"><div class="heatmap-label">${day}</div>`;
     for (let h = 0; h < 24; h++) {
       const val   = matrix[d][h];
@@ -290,7 +291,7 @@ function renderProductRows(rows, tbodyId, startRank = 1) {
   const tbody = getEl(tbodyId);
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-500">No data for this period</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-500">${t('dashboard.noDataRow')}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, i) => `
@@ -338,7 +339,7 @@ export function toggleSlowMovers() {
   const isHidden = section.classList.contains('hidden');
   section.classList.toggle('hidden', !isHidden);
   if (btn) {
-    btn.innerHTML = `<span id="slowMoversArrow">${isHidden ? '▼' : '▶'}</span> ${isHidden ? 'Hide' : 'Show'} Bottom 10 Slow Movers`;
+    btn.innerHTML = `<span id="slowMoversArrow">${isHidden ? '▼' : '▶'}</span> ${isHidden ? t('dashboard.hideSlowMovers') : t('dashboard.showSlowMovers')}`;
   }
 
   if (isHidden) loadSlowMovers();
@@ -354,8 +355,8 @@ async function loadEmployeePerformance() {
   state.charts.employeeChart = new Chart(document.getElementById('employeeChart'), {
     type: 'bar',
     data: {
-      labels: data.map(r => r.employee_id || 'Unknown'),
-      datasets: [{ label: 'Revenue', data: data.map(r => parseFloat(r.revenue)), backgroundColor: 'rgba(245,158,11,0.7)', borderRadius: 6 }],
+      labels: data.map(r => r.employee_id || t('dashboard.unknown')),
+      datasets: [{ label: t('dashboard.table.revenue'), data: data.map(r => parseFloat(r.revenue)), backgroundColor: 'rgba(245,158,11,0.7)', borderRadius: 6 }],
     },
     options: barOpts('៛'),
   });
@@ -371,8 +372,8 @@ async function loadDevicePerformance() {
   state.charts.deviceChart = new Chart(document.getElementById('deviceChart'), {
     type: 'bar',
     data: {
-      labels: data.map(r => r.device_name || 'Unknown'),
-      datasets: [{ label: 'Revenue', data: data.map(r => parseFloat(r.revenue)), backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 6 }],
+      labels: data.map(r => r.device_name || t('dashboard.unknown')),
+      datasets: [{ label: t('dashboard.table.revenue'), data: data.map(r => parseFloat(r.revenue)), backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 6 }],
     },
     options: barOpts('៛'),
   });
@@ -386,8 +387,8 @@ async function loadCancelledOrders() {
 
   const cancelSummary = getEl('cancelSummary');
   if (cancelSummary) cancelSummary.innerHTML = `
-    <span class="text-red-400 font-bold">${data.summary.count} cancelled</span>
-    <span class="text-slate-400">Lost: <span class="text-red-300 font-bold">$${fmt(data.summary.lost_revenue)}</span></span>
+    <span class="text-red-400 font-bold">${t('dashboard.cancelledCount', { count: data.summary.count })}</span>
+    <span class="text-slate-400">${t('dashboard.cancelledLost', { amount: '<span class="text-red-300 font-bold">$' + fmt(data.summary.lost_revenue) + '</span>' })}</span>
   `;
 
   const cancelList = getEl('cancelList');
@@ -401,7 +402,7 @@ async function loadCancelledOrders() {
           <div class="text-red-400 font-bold">-$${fmt(r.total_money)}</div>
         </div>
       `).join('')
-    : '<p class="text-slate-500 text-sm">No cancellations in this period ✅</p>';
+    : `<p class="text-slate-500 text-sm">${t('dashboard.noCancellations')}</p>`;
 }
 
 // ─── Load All ────────────────────────────────────────────────────────────────
@@ -442,8 +443,8 @@ export function setPeriod(p) {
 export function applyCustomRange() {
   const start = getEl('startDate')?.value || '';
   const end   = getEl('endDate')?.value   || '';
-  if (!start || !end) { alert('Please choose both a start and end date.'); return; }
-  if (start > end)    { alert('Start date must be before or equal to end date.'); return; }
+  if (!start || !end) { alert(t('dashboard.errorMissingDates')); return; }
+  if (start > end)    { alert(t('dashboard.errorDateOrder')); return; }
 
   state.currentPeriod    = 'range';
   state.currentStartDate = start;
@@ -454,24 +455,24 @@ export function applyCustomRange() {
 
 export async function syncGrossIncome() {
   const btn = getEl('syncBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('dashboard.syncing'); }
   try {
     const res = await apiPost('/api/receipts/sync', {});
     const data = res.data || {};
     if (res.ok) {
       const msg = data.status === 'skipped'
-        ? 'Already synced for yesterday'
-        : `Synced ${data.inserted ?? 0} receipt(s)`;
+        ? t('dashboard.syncSkipped')
+        : t('dashboard.syncSuccess', { count: data.inserted ?? 0 });
       showSyncToast(msg, 'success');
       loadGrossIncomeTrend();
       loadLastSync();
     } else {
-      showSyncToast(data.error || 'Sync failed', 'error');
+      showSyncToast(data.error || t('dashboard.syncFailed'), 'error');
     }
   } catch (err) {
-    showSyncToast('Sync failed — check connection', 'error');
+    showSyncToast(t('dashboard.syncFailedConnection'), 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Sync Gross Income'; }
+    if (btn) { btn.disabled = false; btn.textContent = t('dashboard.syncButton'); }
   }
 }
 
@@ -502,8 +503,8 @@ export async function loadLastSync() {
     const date = new Date(row.created_at).toLocaleString('en-US', {
       timeZone: TZ, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-    const by = row.triggered_by === 'auto' ? 'auto' : 'manual';
-    chip.textContent = `${icon} Last sync: ${date} (${by})`;
+    const by = row.triggered_by === 'auto' ? t('dashboard.syncAuto') : t('dashboard.syncManual');
+    chip.textContent = t('dashboard.lastSync', { icon, date, by });
     chip.classList.remove('hidden');
   } catch {
     // non-critical
@@ -520,6 +521,8 @@ export async function init() {
     badge.textContent = env;
     badge.dataset.env = env;
   }
+  const slowMoversBtn = getEl('slowMoversBtn');
+  if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">▶</span> ${t('dashboard.showSlowMovers')}`;
   loadAll();
   loadLastSync();
   setInterval(loadAll, 5 * 60 * 1000);
