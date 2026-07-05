@@ -485,6 +485,7 @@ export async function init() {
   if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">▶</span> ${t('dashboard.showSlowMovers')}`;
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [
+      { key: 'today',  labelKey: 'common.today' },
       { key: 'last10', labelKey: 'common.last10Days' },
     ],
     defaultPreset: 'last10',
