@@ -13,7 +13,7 @@ export function renderSidebar(sidebarEl, activePage) {
   if (!sidebarEl) return;
 
   const navHtml = NAV_ITEMS.map(item => `
-    <a href="${item.href}"${item.id ? ` id="${item.id}"` : ''} class="nav-item${item.page === activePage ? ' active' : ''}"${item.adminOnly ? ' style="display:none"' : ''}>
+    <a href="${item.href}"${item.id ? ` id="${item.id}"` : ''} class="nav-item${item.page === activePage ? ' active' : ''}" title="${t(item.labelKey)}"${item.adminOnly ? ' style="display:none"' : ''}>
       <span class="text-lg">${item.icon}</span>
       <span class="nav-label" data-i18n="${item.labelKey}">${t(item.labelKey)}</span>
     </a>`).join('');
