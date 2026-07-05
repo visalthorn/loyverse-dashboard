@@ -1,6 +1,7 @@
 import { checkAuth, logout } from './auth.js';
 import { state } from './state.js';
 import { getEl } from './utils.js';
+import { applyTranslations, renderLangSwitcher, t } from './i18n.js';
 
 // Page modules — loaded on demand
 import * as Dashboard from './pages/dashboard.js';
@@ -25,11 +26,11 @@ function renderUserHeader(user) {
         <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0b1120;">
           ${(user.fullName || user.username).charAt(0).toUpperCase()}
         </div>
-        <button onclick="logout()" title="Sign out"
+        <button onclick="logout()" title="${t('common.signOut')}"
           style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
           onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
           onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">
-          Sign out
+          ${t('common.signOut')}
         </button>
       </div>`;
   }
@@ -156,6 +157,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   renderUserHeader(authData.user);
   applyPermissions();
+  applyTranslations();
+  renderLangSwitcher(getEl('langSwitcher'));
 
   const navUsers = getEl('navUsers');
   if (navUsers) navUsers.style.display = state.currentUserRole === 'admin' ? '' : 'none';

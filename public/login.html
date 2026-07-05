@@ -274,6 +274,7 @@
         <h1>POS Analytics</h1>
         <p>Dashboard Portal</p>
       </div>
+      <div id="langSwitcher" style="margin-left:auto;"></div>
     </div>
 
     <h2 class="page-title">Welcome back</h2>
@@ -377,6 +378,12 @@ function showError(msg) {
   document.getElementById('errorText').textContent = msg;
   errorMsg.classList.add('show');
 }
+</script>
+
+<script type="module">
+  import { applyTranslations, renderLangSwitcher } from '/js/i18n.js';
+  applyTranslations();
+  renderLangSwitcher(document.getElementById('langSwitcher'));
 </script>
 </body>
 </html>

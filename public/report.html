@@ -94,38 +94,39 @@
             style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
             onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
             onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">
-            Sign out
+            <span data-i18n="common.signOut">Sign out</span>
           </button>
         </div>
       </div>
     </div>
-    <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Collapse sidebar">⇔</button>
+    <div id="langSwitcher"></div>
+    <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
   </div>
 
   <nav class="flex-1 px-3 py-4 space-y-1">
     <a href="/" class="nav-item">
       <span class="text-lg">📊</span>
-      <span class="nav-label">Dashboard</span>
+      <span class="nav-label" data-i18n="nav.dashboard">Dashboard</span>
     </a>
     <a href="/expenses.html" class="nav-item">
       <span class="text-lg">💸</span>
-      <span class="nav-label">Expenses</span>
+      <span class="nav-label" data-i18n="nav.expenses">Expenses</span>
     </a>
     <a href="/report.html" class="nav-item active">
       <span class="text-lg">📋</span>
-      <span class="nav-label">Reports</span>
+      <span class="nav-label" data-i18n="nav.reports">Reports</span>
     </a>
     <a href="/receipts.html" class="nav-item">
       <span class="text-lg">🧾</span>
-      <span class="nav-label">Receipts</span>
+      <span class="nav-label" data-i18n="nav.receipts">Receipts</span>
     </a>
     <a href="/staff.html" class="nav-item">
       <span class="text-lg">👥</span>
-      <span class="nav-label">Staff</span>
+      <span class="nav-label" data-i18n="nav.staff">Staff</span>
     </a>
     <a href="/users.html" id="navUsers" class="nav-item" style="display:none">
       <span class="text-lg">⚙️</span>
-      <span class="nav-label">Users</span>
+      <span class="nav-label" data-i18n="nav.users">Users</span>
     </a>
   </nav>
 
