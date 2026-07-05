@@ -112,8 +112,8 @@
   <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
     <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
     <div>
-      <h2 class="text-lg font-semibold">User Management</h2>
-      <p class="text-xs text-slate-400">Manage users and role permissions</p>
+      <h2 class="text-lg font-semibold" data-i18n="users.title">User Management</h2>
+      <p class="text-xs text-slate-400" data-i18n="users.subtitle">Manage users and role permissions</p>
     </div>
   </header>
 
@@ -122,36 +122,36 @@
     <!-- Add / Edit User Form -->
     <div class="card">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="section-title">👤 <span id="userFormTitle">Add User</span></h2>
-        <button id="userFormCancelBtn" onclick="cancelEditUser()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors">Cancel Edit</button>
+        <h2 class="section-title">👤 <span id="userFormTitle" data-i18n="users.addTitle">Add User</span></h2>
+        <button id="userFormCancelBtn" onclick="cancelEditUser()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
       </div>
       <form id="userForm" onsubmit="submitUser(event)" class="grid md:grid-cols-3 gap-3">
         <div>
-          <label class="text-xs text-slate-300 mb-1 block">Username <span class="text-red-400">*</span></label>
-          <input id="userUsername" type="text" required placeholder="e.g. john" class="field-input"/>
+          <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="users.fieldUsername">Username</span> <span class="text-red-400">*</span></label>
+          <input id="userUsername" type="text" required data-i18n-placeholder="users.usernamePlaceholder" placeholder="e.g. john" class="field-input"/>
         </div>
         <div>
-          <label class="text-xs text-slate-300 mb-1 block">Full Name</label>
-          <input id="userFullName" type="text" placeholder="Full name" class="field-input"/>
+          <label class="text-xs text-slate-300 mb-1 block" data-i18n="users.fieldFullName">Full Name</label>
+          <input id="userFullName" type="text" data-i18n-placeholder="users.fullNamePlaceholder" placeholder="Full name" class="field-input"/>
         </div>
         <div>
-          <label class="text-xs text-slate-300 mb-1 block">Email <span class="text-red-400">*</span></label>
-          <input id="userEmail" type="email" required placeholder="user@example.com" class="field-input"/>
+          <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="users.fieldEmail">Email</span> <span class="text-red-400">*</span></label>
+          <input id="userEmail" type="email" required data-i18n-placeholder="users.emailPlaceholder" placeholder="user@example.com" class="field-input"/>
         </div>
         <div>
-          <label class="text-xs text-slate-300 mb-1 block">Role <span class="text-red-400">*</span></label>
+          <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="users.fieldRole">Role</span> <span class="text-red-400">*</span></label>
           <select id="userRole" required class="field-input">
-            <option value="manager">Manager</option>
-            <option value="admin">Admin</option>
+            <option value="manager" data-i18n="users.roleManager">Manager</option>
+            <option value="admin" data-i18n="users.roleAdmin">Admin</option>
           </select>
         </div>
         <div>
-          <label id="userPasswordLabel" class="text-xs text-slate-300 mb-1 block">Password <span class="text-red-400">*</span></label>
-          <input id="userPassword" type="password" placeholder="Password" class="field-input"/>
+          <label id="userPasswordLabel" class="text-xs text-slate-300 mb-1 block"><span data-i18n="users.fieldPassword">Password</span> <span class="text-red-400">*</span></label>
+          <input id="userPassword" type="password" data-i18n-placeholder="users.passwordPlaceholder" placeholder="Password" class="field-input"/>
         </div>
         <div class="md:col-span-3 flex items-center gap-3 pt-1">
           <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-5 py-2 rounded">
-            <span id="userSubmitLabel">Create User</span>
+            <span id="userSubmitLabel" data-i18n="users.createUser">Create User</span>
           </button>
           <span id="userMsg" class="text-sm text-slate-400"></span>
         </div>
@@ -160,22 +160,22 @@
 
     <!-- Users List -->
     <div class="card">
-      <h2 class="section-title mb-4">📋 Users</h2>
+      <h2 class="section-title mb-4" data-i18n="users.usersListTitle">📋 Users</h2>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="text-slate-400 border-b border-slate-700 text-left text-xs">
-              <th class="pb-2 pr-3 font-medium">#</th>
-              <th class="pb-2 pr-3 font-medium">Username</th>
-              <th class="pb-2 pr-3 font-medium">Full Name</th>
-              <th class="pb-2 pr-3 font-medium">Email</th>
-              <th class="pb-2 pr-3 font-medium">Role</th>
-              <th class="pb-2 pr-3 font-medium text-center">Status</th>
-              <th class="pb-2 font-medium text-center">Actions</th>
+              <th class="pb-2 pr-3 font-medium" data-i18n="users.thIndex">#</th>
+              <th class="pb-2 pr-3 font-medium" data-i18n="users.thUsername">Username</th>
+              <th class="pb-2 pr-3 font-medium" data-i18n="users.thFullName">Full Name</th>
+              <th class="pb-2 pr-3 font-medium" data-i18n="users.thEmail">Email</th>
+              <th class="pb-2 pr-3 font-medium" data-i18n="users.thRole">Role</th>
+              <th class="pb-2 pr-3 font-medium text-center" data-i18n="users.thStatus">Status</th>
+              <th class="pb-2 font-medium text-center" data-i18n="users.thActions">Actions</th>
             </tr>
           </thead>
           <tbody id="usersTableBody">
-            <tr><td colspan="7" class="py-10 text-center text-slate-500">Loading…</td></tr>
+            <tr><td colspan="7" class="py-10 text-center text-slate-500" data-i18n="users.loadingRow">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -184,20 +184,20 @@
     <!-- Permissions Matrix -->
     <div class="card">
       <div class="mb-4">
-        <h2 class="section-title">🔐 Role Permissions</h2>
-        <p class="text-xs text-slate-400 mt-1">Toggle write access per page for Manager role. Admin always has full access.</p>
+        <h2 class="section-title" data-i18n="users.permissionsTitle">🔐 Role Permissions</h2>
+        <p class="text-xs text-slate-400 mt-1" data-i18n="users.permissionsSubtitle">Toggle write access per page for Manager role. Admin always has full access.</p>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="text-slate-400 border-b border-slate-700 text-xs">
-              <th class="pb-2 pr-4 font-medium text-left">Page</th>
-              <th class="pb-2 pr-4 font-medium text-center">Admin (Write)</th>
-              <th class="pb-2 font-medium text-center">Manager (Write)</th>
+              <th class="pb-2 pr-4 font-medium text-left" data-i18n="users.thPage">Page</th>
+              <th class="pb-2 pr-4 font-medium text-center" data-i18n="users.thAdminWrite">Admin (Write)</th>
+              <th class="pb-2 font-medium text-center" data-i18n="users.thManagerWrite">Manager (Write)</th>
             </tr>
           </thead>
           <tbody id="permissionsMatrixBody">
-            <tr><td colspan="3" class="py-10 text-center text-slate-500">Loading…</td></tr>
+            <tr><td colspan="3" class="py-10 text-center text-slate-500" data-i18n="users.loadingRow">Loading…</td></tr>
           </tbody>
         </table>
       </div>

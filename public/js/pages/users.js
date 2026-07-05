@@ -2,6 +2,7 @@ import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
 import { getEl } from '../utils.js';
 import { logout } from '../auth.js';
 import { state } from '../state.js';
+import { t } from '../i18n.js';
 
 let usersList       = [];
 let permissionsList = [];
@@ -33,17 +34,17 @@ function renderUsersTable() {
   if (!tbody) return;
 
   if (!usersList.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="py-10 text-center text-slate-500">No users found</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="7" class="py-10 text-center text-slate-500">${t('users.noUsersFound')}</td></tr>`;
     return;
   }
 
   tbody.innerHTML = usersList.map((u, i) => {
     const roleBadge   = u.role === 'admin'
-      ? '<span class="badge" style="background:rgba(245,158,11,.15);color:#fbbf24">admin</span>'
-      : '<span class="badge" style="background:rgba(59,130,246,.12);color:#60a5fa">manager</span>';
+      ? `<span class="badge" style="background:rgba(245,158,11,.15);color:#fbbf24">${t('users.badgeAdmin')}</span>`
+      : `<span class="badge" style="background:rgba(59,130,246,.12);color:#60a5fa">${t('users.badgeManager')}</span>`;
     const statusBadge = u.is_active
-      ? '<span class="badge" style="background:rgba(34,197,94,.12);color:#4ade80">Active</span>'
-      : '<span class="badge" style="background:rgba(100,116,139,.14);color:#94a3b8">Inactive</span>';
+      ? `<span class="badge" style="background:rgba(34,197,94,.12);color:#4ade80">${t('staff.badgeActive')}</span>`
+      : `<span class="badge" style="background:rgba(100,116,139,.14);color:#94a3b8">${t('staff.badgeInactive')}</span>`;
     const toggleColor = u.is_active ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-emerald-400';
 
     return `<tr class="border-b border-slate-800 hover:bg-slate-800/30">
@@ -54,9 +55,9 @@ function renderUsersTable() {
       <td class="py-2.5 pr-3 text-xs">${roleBadge}</td>
       <td class="py-2.5 pr-3 text-xs text-center">${statusBadge}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
-        <button onclick="startEditUser(${u.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-3">Edit</button>
-        <button onclick="toggleUserStatus(${u.id}, ${!u.is_active})" class="text-xs ${toggleColor} mr-3">${u.is_active ? 'Deactivate' : 'Activate'}</button>
-        <button onclick="confirmDeleteUser(${u.id})" class="text-xs text-red-500 hover:text-red-400">Delete</button>
+        <button onclick="startEditUser(${u.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-3">${t('common.edit')}</button>
+        <button onclick="toggleUserStatus(${u.id}, ${!u.is_active})" class="text-xs ${toggleColor} mr-3">${u.is_active ? t('staff.toggleDeactivate') : t('staff.toggleActivate')}</button>
+        <button onclick="confirmDeleteUser(${u.id})" class="text-xs text-red-500 hover:text-red-400">${t('common.delete')}</button>
       </td>
     </tr>`;
   }).join('');
@@ -67,14 +68,14 @@ function renderPermissionsMatrix() {
   if (!tbody) return;
 
   const pages  = ['expenses', 'staff', 'receipts'];
-  const labels = { expenses: '💸 Expenses', staff: '👥 Staff', receipts: '🧾 Receipts' };
+  const labels = { expenses: t('users.pageExpenses'), staff: t('users.pageStaff'), receipts: t('users.pageReceipts') };
 
   tbody.innerHTML = pages.map(page => {
     const perm    = permissionsList.find(p => p.role === 'manager' && p.page === page);
     const checked = perm?.can_write ? 'checked' : '';
     return `<tr class="border-b border-slate-800">
       <td class="py-3 pr-4 text-sm text-slate-200">${labels[page]}</td>
-      <td class="py-3 pr-4 text-center text-xs text-emerald-400 font-semibold">✓ Always</td>
+      <td class="py-3 pr-4 text-center text-xs text-emerald-400 font-semibold">${t('users.alwaysWrite')}</td>
       <td class="py-3 text-center">
         <label class="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" class="sr-only peer" ${checked}
@@ -98,7 +99,7 @@ export async function submitUser(e) {
 
   const password = getEl('userPassword').value;
   if (!editingUserId && !password) {
-    if (msg) msg.textContent = 'Password is required for new users.';
+    if (msg) msg.textContent = t('users.passwordRequired');
     return;
   }
 
@@ -110,19 +111,21 @@ export async function submitUser(e) {
   if (!editingUserId) payload.username = getEl('userUsername').value.trim();
   if (password)       payload.password = password;
 
-  const label = editingUserId ? `update user "${payload.email}"` : `create user "${payload.username}"`;
-  if (state.currentUserRole !== 'admin' && !confirm(`Are you sure you want to ${label}?`)) return;
+  const confirmMsg = editingUserId
+    ? t('users.confirmUpdateUser', { email: payload.email })
+    : t('users.confirmCreateUser', { username: payload.username });
+  if (state.currentUserRole !== 'admin' && !confirm(confirmMsg)) return;
 
   const res = editingUserId
     ? await apiPut(`/api/users/${editingUserId}`, payload)
     : await apiPost('/api/users', payload);
 
   if (!res.ok) {
-    if (msg) msg.textContent = res.data?.message || 'Failed to save.';
+    if (msg) msg.textContent = res.data?.message || t('users.saveFailed');
     return;
   }
 
-  if (msg) msg.textContent = editingUserId ? 'Updated.' : 'User created.';
+  if (msg) msg.textContent = editingUserId ? t('users.updated') : t('users.created');
   cancelEditUser();
   loadUsersList();
 }
@@ -140,9 +143,9 @@ export function startEditUser(id) {
   getEl('userPassword').value = '';
 
   const pwdLabel = getEl('userPasswordLabel');
-  if (pwdLabel) pwdLabel.textContent = 'New Password (leave blank to keep)';
-  if (getEl('userFormTitle'))   getEl('userFormTitle').textContent   = 'Edit User';
-  if (getEl('userSubmitLabel')) getEl('userSubmitLabel').textContent = 'Save Changes';
+  if (pwdLabel) pwdLabel.textContent = t('users.newPasswordLabel');
+  if (getEl('userFormTitle'))   getEl('userFormTitle').textContent   = t('users.editTitle');
+  if (getEl('userSubmitLabel')) getEl('userSubmitLabel').textContent = t('common.save');
   getEl('userFormCancelBtn')?.classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -154,9 +157,9 @@ export function cancelEditUser() {
   const usernameEl = getEl('userUsername');
   if (usernameEl) usernameEl.disabled = false;
   const pwdLabel = getEl('userPasswordLabel');
-  if (pwdLabel) pwdLabel.textContent = 'Password';
-  if (getEl('userFormTitle'))   getEl('userFormTitle').textContent   = 'Add User';
-  if (getEl('userSubmitLabel')) getEl('userSubmitLabel').textContent = 'Create User';
+  if (pwdLabel) pwdLabel.textContent = t('users.fieldPassword');
+  if (getEl('userFormTitle'))   getEl('userFormTitle').textContent   = t('users.addTitle');
+  if (getEl('userSubmitLabel')) getEl('userSubmitLabel').textContent = t('users.createUser');
   getEl('userFormCancelBtn')?.classList.add('hidden');
   const msg = getEl('userMsg');
   if (msg) msg.textContent = '';
@@ -166,30 +169,32 @@ export async function toggleUserStatus(id, isActive) {
   const u = usersList.find(x => x.id === id);
   if (!u) return;
   const res = await apiPut(`/api/users/${id}`, { email: u.email, full_name: u.full_name, role: u.role, is_active: isActive });
-  if (!res.ok) { alert('Failed to update status.'); return; }
+  if (!res.ok) { alert(t('staff.statusUpdateFailed')); return; }
   loadUsersList();
 }
 
 export function confirmDeleteUser(id) {
   const u = usersList.find(x => x.id === id);
-  if (!confirm(`Delete user "${u?.username}"? This cannot be undone.`)) return;
+  if (!confirm(t('users.confirmDeleteUser', { username: u?.username }))) return;
   deleteUser(id);
 }
 
 async function deleteUser(id) {
   const res = await apiDelete(`/api/users/${id}`);
-  if (!res.ok) { alert(res.data?.message || 'Failed to delete.'); return; }
+  if (!res.ok) { alert(res.data?.message || t('staff.deleteFailed')); return; }
   loadUsersList();
 }
 
 export async function togglePermission(role, page, canWrite) {
-  const action = canWrite ? 'enable' : 'disable';
-  if (state.currentUserRole !== 'admin' && !confirm(`Are you sure you want to ${action} write permission for "${role}" on "${page}"?`)) {
+  const action     = canWrite ? t('users.actionEnable') : t('users.actionDisable');
+  const roleLabel  = role === 'manager' ? t('users.roleManager') : t('users.roleAdmin');
+  const pageLabel  = page === 'expenses' ? t('nav.expenses') : page === 'staff' ? t('nav.staff') : t('nav.receipts');
+  if (state.currentUserRole !== 'admin' && !confirm(t('users.confirmTogglePermission', { action, role: roleLabel, page: pageLabel }))) {
     loadPermissionsList();
     return;
   }
   const res = await apiPut('/api/permissions', { role, page, can_write: canWrite });
-  if (!res.ok) { alert('Failed to update permission.'); loadPermissionsList(); }
+  if (!res.ok) { alert(t('users.permissionUpdateFailed')); loadPermissionsList(); }
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
