@@ -150,8 +150,8 @@
   <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
     <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
     <div>
-      <h2 class="text-lg font-semibold">Expenses</h2>
-      <p class="text-xs text-slate-400">Manage expense entries</p>
+      <h2 class="text-lg font-semibold" data-i18n="expenses.title">Expenses</h2>
+      <p class="text-xs text-slate-400" data-i18n="expenses.subtitle">Manage expense entries</p>
     </div>
   </header>
 
@@ -159,46 +159,46 @@
     <section class="card">
       <div class="flex items-center justify-between mb-4">
         <div>
-          <h2 class="section-title">💸 Expenses</h2>
-          <p class="text-xs text-slate-400">Add, edit, and review expense records</p>
+          <h2 class="section-title" data-i18n="expenses.listTitle">💸 Expenses List</h2>
+          <p class="text-xs text-slate-400" data-i18n="expenses.listSubtitle">Add, edit, and review expense records</p>
         </div>
       </div>
 
       <form id="expenseForm" data-write-page="expenses" class="grid md:grid-cols-3 gap-3 mb-4" onsubmit="submitExpense(event)">
         <div>
-          <label class="text-xs text-slate-300">Date</label>
+          <label class="text-xs text-slate-300" data-i18n="expenses.date">Date</label>
           <input id="expenseDate" type="date" required class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
         </div>
         <div>
-          <label class="text-xs text-slate-300">Amount</label>
+          <label class="text-xs text-slate-300" data-i18n="expenses.amount">Amount</label>
           <input id="expenseAmount" type="number" step="0.01" required class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
         </div>
         <div>
-          <label class="text-xs text-slate-300">Expense by</label>
-          <input id="expenseBy" type="text" required placeholder="Name" class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
+          <label class="text-xs text-slate-300" data-i18n="expenses.expenseBy">Expense by</label>
+          <input id="expenseBy" type="text" required placeholder="Name" data-i18n-placeholder="expenses.expenseByPlaceholder" class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
         </div>
         <div class="md:col-span-3">
-          <label class="text-xs text-slate-300">Remark</label>
-          <textarea id="expenseRemark" placeholder="Optional note" class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2"></textarea>
+          <label class="text-xs text-slate-300" data-i18n="expenses.remark">Remark</label>
+          <textarea id="expenseRemark" placeholder="Optional note" data-i18n-placeholder="expenses.remarkPlaceholder" class="w-full rounded bg-slate-800 border border-slate-700 text-white text-sm p-2"></textarea>
         </div>
         <div class="md:col-span-3 flex items-center gap-2">
-          <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-4 py-2 rounded">Add Expense</button>
+          <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-4 py-2 rounded" data-i18n="expenses.addButton">Add Expense</button>
           <div id="expenseMsg" class="text-sm text-slate-400"></div>
         </div>
       </form>
 
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-3">
         <div class="flex flex-wrap items-center gap-3">
-          <h2 class="section-title">💸 Expenses List</h3>
+          <h2 class="section-title" data-i18n="expenses.listTitle">💸 Expenses List</h2>
           <!--<span id="expensesSummaryTotalItem" class="text-sm text-amber-300">0</span> items · Total: <span id="expensesSummaryTotalAmount" class="text-sm text-red-300">៛0.00</span>-->
           <span id="expensesSummary" class="text-sm text-slate-300"><span class="text-sm text-amber-600 font-bold">0</span> items · Total: <span class="text-sm text-amber-600 font-bold">៛0.00</span></span>
         </div>
         <div class="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-          <label for="expensesStartDate" class="text-slate-400">Start</label>
+          <label for="expensesStartDate" class="text-slate-400" data-i18n="expenses.start">Start</label>
           <input id="expensesStartDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
-          <label for="expensesEndDate" class="text-slate-400">End</label>
+          <label for="expensesEndDate" class="text-slate-400" data-i18n="expenses.end">End</label>
           <input id="expensesEndDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
-          <button onclick="exportExpensesCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1">⬇ CSV</button>
+          <button onclick="exportExpensesCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1">⬇ <span data-i18n="common.csv">CSV</span></button>
           <!--<button id="expensesFilterBtn" type="button" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded">Apply</button>
           <button id="expensesClearBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded">Clear</button>-->
         </div>
