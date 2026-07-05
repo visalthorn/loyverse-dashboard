@@ -13,6 +13,13 @@ export const km = {
   'common.csv': '⬇ ទាញយក CSV',
   'common.confirmCannotUndo': 'សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
   'common.thisStaffMember': 'បុគ្គលិកនេះ',
+  'common.today': 'ថ្ងៃនេះ',
+  'common.last10Days': '10ថ្ងៃចុងក្រោយ',
+  'common.custom': 'កំណត់ដោយខ្លួនឯង',
+  'common.from': 'ពី',
+  'common.to': 'ដល់',
+  'common.errorMissingDates': 'សូមជ្រើសរើសទាំងកាលបរិច្ឆេទចាប់ផ្តើម និងបញ្ចប់។',
+  'common.errorDateOrder': 'កាលបរិច្ឆេទចាប់ផ្តើមត្រូវតែមុន ឬស្មើកាលបរិច្ឆេទបញ្ចប់។',
 
   // ── nav ─────────────────────────────────────────────────
   'nav.dashboard': 'ផ្ទាំងគ្រប់គ្រង',

@@ -13,6 +13,13 @@ export const en = {
   'common.csv': '⬇ CSV',
   'common.confirmCannotUndo': 'This cannot be undone.',
   'common.thisStaffMember': 'this staff member',
+  'common.today': 'Today',
+  'common.last10Days': 'Last 10 days',
+  'common.custom': 'Custom',
+  'common.from': 'From',
+  'common.to': 'To',
+  'common.errorMissingDates': 'Please choose both a start and end date.',
+  'common.errorDateOrder': 'Start date must be before or equal to end date.',
 
   // ── nav ─────────────────────────────────────────────────
   'nav.dashboard': 'Dashboard',
