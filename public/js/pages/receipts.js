@@ -1,5 +1,6 @@
 import { fetchJSON } from '../api.js';
 import { getEl, fmtRaw, getTodayDate, downloadCSV, TZ } from '../utils.js';
+import { t } from '../i18n.js';
 
 const PAGE_SIZE = 25;
 
@@ -91,7 +92,9 @@ function applySearch() {
     : allReceipts;
 
   const resultCount = getEl('resultCount');
-  if (resultCount) resultCount.textContent = q ? `${displayed.length} of ${allReceipts.length} receipts` : `${allReceipts.length} receipts`;
+  if (resultCount) resultCount.textContent = q
+    ? t('receipts.resultCountFiltered', { count: displayed.length, total: allReceipts.length })
+    : t('receipts.resultCountAll', { total: allReceipts.length });
 
   setTableLoading(false);
   renderTable();
@@ -110,7 +113,9 @@ export function resetFilters() {
 function setTableLoading(on) {
   if (on) {
     const tbody = getEl('receiptsTbody');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span class="loading-dots">Loading</span></td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span class="loading-dots">${t('receipts.loading')}</span></td></tr>`;
+    const pageInfo = getEl('pageInfo');
+    if (pageInfo) pageInfo.textContent = t('receipts.pageInfo', { page: 1, pages: 1 });
   }
 }
 
@@ -123,16 +128,16 @@ function renderTable() {
   const rows  = displayed.slice(start, start + PAGE_SIZE);
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No receipts match your filters</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${t('receipts.noResults')}</td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map((r, i) => {
     const idx         = start + i + 1;
     const typeClass   = r.receipt_type === 'REFUND' ? 'badge-refund' : 'badge-sale';
-    const typeLabel   = r.receipt_type === 'SALE' ? 'Sale' : r.receipt_type === 'REFUND' ? 'Refund' : (r.receipt_type || '—');
+    const typeLabel   = r.receipt_type === 'SALE' ? t('receipts.typeSale') : r.receipt_type === 'REFUND' ? t('receipts.typeRefund') : (r.receipt_type || '—');
     const cancelBadge = r.is_canceled === 'Yes'
-      ? '<span class="badge badge-canceled">Yes</span>'
+      ? `<span class="badge badge-canceled">${t('receipts.yes')}</span>`
       : '<span class="text-slate-600 text-xs">—</span>';
     const sel = r.id === selectedId ? 'selected' : '';
 
@@ -156,7 +161,7 @@ function renderPagination() {
   const ctrl     = getEl('paginationControls');
   const pageInfo = getEl('pageInfo');
 
-  if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${total || 1}`;
+  if (pageInfo) pageInfo.textContent = t('receipts.pageInfo', { page: currentPage, pages: total || 1 });
   if (!ctrl) return;
   if (total <= 1) { ctrl.innerHTML = ''; return; }
 
@@ -202,8 +207,8 @@ export function selectReceipt(id) {
   const items     = Array.isArray(r.items) ? r.items : [];
   const isRefund  = r.receipt_type === 'REFUND';
   const typeClass = isRefund ? 'text-red-400' : 'text-emerald-400';
-  const typeLabel = isRefund ? 'Refund' : 'Sale';
-  const cancelNote = r.is_canceled === 'Yes' ? `<span class="badge badge-canceled ml-2">Canceled</span>` : '';
+  const typeLabel = isRefund ? t('receipts.typeRefund') : t('receipts.typeSale');
+  const cancelNote = r.is_canceled === 'Yes' ? `<span class="badge badge-canceled ml-2">${t('receipts.canceledBadge')}</span>` : '';
 
   const itemsHtml = items.map(it => `
     <div class="detail-item-row">
@@ -218,7 +223,7 @@ export function selectReceipt(id) {
     <div class="detail-header">
       <div class="flex items-start justify-between gap-2 mb-2">
         <div>
-          <div class="text-xs text-slate-400 mb-0.5">Receipt No.</div>
+          <div class="text-xs text-slate-400 mb-0.5">${t('receipts.thReceiptNo')}</div>
           <div class="font-mono font-bold text-amber-400 text-base">${r.receipt_number}</div>
         </div>
         <div class="text-right">
@@ -227,21 +232,21 @@ export function selectReceipt(id) {
         </div>
       </div>
       <div class="text-2xl font-bold text-white mb-1">${formatCurrency(r.total_money)}</div>
-      <div class="text-xs text-slate-400">Total</div>
+      <div class="text-xs text-slate-400">${t('receipts.thTotal')}</div>
     </div>
     <div class="p-4 space-y-3 text-xs">
       <div class="grid grid-cols-2 gap-2">
-        <div><div class="text-slate-500 mb-0.5">Order</div><div class="text-slate-200">${r.order ?? '—'}</div></div>
-        <div><div class="text-slate-500 mb-0.5">POS Device</div><div class="text-slate-200">${r.pos_device ?? '—'}</div></div>
-        <div><div class="text-slate-500 mb-0.5">Date</div><div class="text-slate-200">${formatDate(r.receipt_date)}</div></div>
+        <div><div class="text-slate-500 mb-0.5">${t('receipts.thOrder')}</div><div class="text-slate-200">${r.order ?? '—'}</div></div>
+        <div><div class="text-slate-500 mb-0.5">${t('receipts.detailPosDevice')}</div><div class="text-slate-200">${r.pos_device ?? '—'}</div></div>
+        <div><div class="text-slate-500 mb-0.5">${t('receipts.thDate')}</div><div class="text-slate-200">${formatDate(r.receipt_date)}</div></div>
       </div>
-      ${itemsHtml ? `<div class="border-t border-slate-700 pt-3"><div class="text-slate-400 font-semibold mb-2">Items</div>${itemsHtml}</div>` : ''}
+      ${itemsHtml ? `<div class="border-t border-slate-700 pt-3"><div class="text-slate-400 font-semibold mb-2">${t('receipts.detailItems')}</div>${itemsHtml}</div>` : ''}
       <div class="border-t border-slate-700 pt-3 flex justify-between font-semibold">
-        <span class="text-slate-300">Total</span>
+        <span class="text-slate-300">${t('receipts.thTotal')}</span>
         <span class="${typeClass}">${formatCurrency(r.total_money)}</span>
       </div>
       <div class="border-t border-slate-700 pt-3">
-        <button onclick="exportReceiptPDF()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold py-2 rounded flex items-center justify-center gap-1.5">🖨 Export PDF</button>
+        <button onclick="exportReceiptPDF()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold py-2 rounded flex items-center justify-center gap-1.5">${t('receipts.exportPdf')}</button>
       </div>
     </div>`;
 }
@@ -249,12 +254,12 @@ export function selectReceipt(id) {
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
 export function exportReceiptsCSV() {
-  if (!allReceipts.length) return alert('No receipts loaded.');
+  if (!allReceipts.length) return alert(t('receipts.exportNoData'));
   downloadCSV(`receipts-${new Date().toISOString().slice(0, 10)}.csv`, [
-    ['Receipt No.', 'Order', 'Date', 'POS Device', 'Type', 'Is Canceled', 'Total (KHR)'],
+    [t('receipts.csvReceiptNo'), t('receipts.csvOrder'), t('receipts.csvDate'), t('receipts.csvPosDevice'), t('receipts.csvType'), t('receipts.csvCanceled'), t('receipts.csvTotal')],
     ...allReceipts.map(r => [
       r.receipt_number, r.order ?? '', formatDate(r.receipt_date), r.pos_device ?? '',
-      r.receipt_type === 'SALE' ? 'Sale' : r.receipt_type === 'REFUND' ? 'Refund' : (r.receipt_type ?? ''),
+      r.receipt_type === 'SALE' ? t('receipts.typeSale') : r.receipt_type === 'REFUND' ? t('receipts.typeRefund') : (r.receipt_type ?? ''),
       r.is_canceled, r.total_money,
     ]),
   ]);

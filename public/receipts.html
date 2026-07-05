@@ -273,8 +273,8 @@
   <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
     <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
     <div>
-      <h2 class="text-lg font-semibold">Receipts</h2>
-      <p class="text-xs text-slate-400">View and search receipt records</p>
+      <h2 class="text-lg font-semibold" data-i18n="receipts.title">Receipts</h2>
+      <p class="text-xs text-slate-400" data-i18n="receipts.subtitle">View and search receipt records</p>
     </div>
   </header>
 
@@ -285,7 +285,7 @@
       <div class="stat-card">
         <div class="stat-icon bg-slate-700">🧾</div>
         <div>
-          <div class="text-xs text-slate-400 mb-0.5">All Receipts</div>
+          <div class="text-xs text-slate-400 mb-0.5" data-i18n="receipts.statAllReceipts">All Receipts</div>
           <div class="text-2xl font-bold text-white" id="statTotal">—</div>
           <div class="text-xs text-slate-400 mt-0.5" id="statTotalAmount">—</div>
         </div>
@@ -293,7 +293,7 @@
       <div class="stat-card">
         <div class="stat-icon" style="background:rgba(34,197,94,.12)">🟢</div>
         <div>
-          <div class="text-xs text-slate-400 mb-0.5">Sales</div>
+          <div class="text-xs text-slate-400 mb-0.5" data-i18n="receipts.statSales">Sales</div>
           <div class="text-2xl font-bold text-emerald-400" id="statSales">—</div>
           <div class="text-xs text-emerald-600 mt-0.5" id="statSalesAmount">—</div>
         </div>
@@ -301,7 +301,7 @@
       <div class="stat-card">
         <div class="stat-icon" style="background:rgba(239,68,68,.12)">🔴</div>
         <div>
-          <div class="text-xs text-slate-400 mb-0.5">Refunds</div>
+          <div class="text-xs text-slate-400 mb-0.5" data-i18n="receipts.statRefunds">Refunds</div>
           <div class="text-2xl font-bold text-red-400" id="statRefunds">—</div>
           <div class="text-xs text-red-700 mt-0.5" id="statRefundsAmount">—</div>
         </div>
@@ -319,61 +319,61 @@
           <div class="flex flex-wrap gap-3 items-end">
             <!-- Search -->
             <div class="flex-1 min-w-[180px]">
-              <label class="block text-xs text-slate-400 mb-1">Search</label>
+              <label class="block text-xs text-slate-400 mb-1" data-i18n="receipts.search">Search</label>
               <div class="relative">
                 <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
-                <input id="searchInput" type="text" placeholder="Receipt no., employee…" class="filter-input w-full pl-8" oninput="onSearchChange()"/>
+                <input id="searchInput" type="text" placeholder="Receipt no., employee…" data-i18n-placeholder="receipts.searchPlaceholder" class="filter-input w-full pl-8" oninput="onSearchChange()"/>
               </div>
             </div>
             <!-- Start date -->
             <div>
-              <label class="block text-xs text-slate-400 mb-1">From</label>
+              <label class="block text-xs text-slate-400 mb-1" data-i18n="receipts.from">From</label>
               <input id="filterStart" type="date" class="filter-input" onchange="onApiFilterChange()"/>
             </div>
             <!-- End date -->
             <div>
-              <label class="block text-xs text-slate-400 mb-1">To</label>
+              <label class="block text-xs text-slate-400 mb-1" data-i18n="receipts.to">To</label>
               <input id="filterEnd" type="date" class="filter-input" onchange="onApiFilterChange()"/>
             </div>
             <!-- Type -->
             <div>
-              <label class="block text-xs text-slate-400 mb-1">Type</label>
+              <label class="block text-xs text-slate-400 mb-1" data-i18n="receipts.type">Type</label>
               <select id="filterType" class="filter-input" onchange="onApiFilterChange()">
-                <option value="">All</option>
-                <option value="SALE">Sale</option>
-                <option value="REFUND">Refund</option>
+                <option value="" data-i18n="receipts.typeAll">All</option>
+                <option value="SALE" data-i18n="receipts.typeSale">Sale</option>
+                <option value="REFUND" data-i18n="receipts.typeRefund">Refund</option>
               </select>
             </div>
             <!-- Reset -->
-            <button onclick="resetFilters()" class="filter-input text-slate-400 hover:text-amber-400 hover:border-amber-400 transition-colors px-3 cursor-pointer">Reset</button>
+            <button onclick="resetFilters()" class="filter-input text-slate-400 hover:text-amber-400 hover:border-amber-400 transition-colors px-3 cursor-pointer" data-i18n="common.reset">Reset</button>
           </div>
         </div>
 
         <!-- Table -->
         <div class="card">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="section-title">🧾 Receipts List</h2>
+            <h2 class="section-title" data-i18n="receipts.listTitle">🧾 Receipts List</h2>
             <div class="flex items-center gap-3">
               <span class="text-xs text-slate-400" id="resultCount">—</span>
-              <button onclick="exportReceiptsCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1">⬇ CSV</button>
+              <button onclick="exportReceiptsCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1"><span data-i18n="common.csv">⬇ CSV</span></button>
             </div>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-slate-400 border-b border-slate-700 text-left">
-                  <th class="pb-2 pr-3 font-medium">#</th>
-                  <th class="pb-2 pr-3 font-medium">Receipt No.</th>
-                  <th class="pb-2 pr-3 font-medium">Order</th>
-                  <th class="pb-2 pr-3 font-medium">Date</th>
-                  <th class="pb-2 pr-3 font-medium">Pos Device</th>
-                  <th class="pb-2 pr-3 font-medium text-center">Type</th>
-                  <th class="pb-2 pr-3 font-medium text-center">Is Canceled</th>
-                  <th class="pb-2 font-medium text-right">Total</th>
+                  <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thIndex">#</th>
+                  <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thReceiptNo">Receipt No.</th>
+                  <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thOrder">Order</th>
+                  <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thDate">Date</th>
+                  <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thPosDevice">Pos Device</th>
+                  <th class="pb-2 pr-3 font-medium text-center" data-i18n="receipts.thType">Type</th>
+                  <th class="pb-2 pr-3 font-medium text-center" data-i18n="receipts.thCanceled">Is Canceled</th>
+                  <th class="pb-2 font-medium text-right" data-i18n="receipts.thTotal">Total</th>
                 </tr>
               </thead>
               <tbody id="receiptsTbody">
-                <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+                <tr><td colspan="8" class="empty-state" data-i18n="receipts.loading">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -391,7 +391,7 @@
       <div class="detail-panel" id="detailPanel">
         <div id="detailEmpty" class="empty-state py-16">
           <div class="text-3xl mb-2">🧾</div>
-          <div class="text-sm">Select a receipt to view details</div>
+          <div class="text-sm" data-i18n="receipts.selectPrompt">Select a receipt to view details</div>
         </div>
         <div id="detailContent" class="hidden">
           <!-- filled by JS -->
