@@ -68,13 +68,8 @@
           <span id="expensesSummary" class="text-sm text-slate-300"><span class="text-sm text-amber-600 font-bold">0</span> items · Total: <span class="text-sm text-amber-600 font-bold">៛0.00</span></span>
         </div>
         <div class="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-          <label for="expensesStartDate" class="text-slate-400" data-i18n="expenses.start">Start</label>
-          <input id="expensesStartDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
-          <label for="expensesEndDate" class="text-slate-400" data-i18n="expenses.end">End</label>
-          <input id="expensesEndDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-sm p-2" />
+          <div id="dateFilterMount"></div>
           <button onclick="exportExpensesCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><span data-i18n="common.csv">⬇ CSV</span></button>
-          <!--<button id="expensesFilterBtn" type="button" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded">Apply</button>
-          <button id="expensesClearBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded">Clear</button>-->
         </div>
       </div>
       <div id="expensesList" class="space-y-2 text-sm text-slate-300"></div>

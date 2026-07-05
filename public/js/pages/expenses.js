@@ -1,8 +1,9 @@
 import { state } from '../state.js';
 import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
-import { getEl, fmt, fmtRaw, fmtDate, getTodayDate, downloadCSV } from '../utils.js';
+import { getEl, fmt, fmtRaw, fmtDate, downloadCSV } from '../utils.js';
 import { logout } from '../auth.js';
 import { t, getLang } from '../i18n.js';
+import { renderDateFilter } from '../dateFilter.js';
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
@@ -101,20 +102,11 @@ function renderPagination(total, page, per_page) {
 
 // ─── Filters ─────────────────────────────────────────────────────────────────
 
-export function applyExpenseFilters() {
-  state.expenseFilterStartDate = getEl('expensesStartDate')?.value || '';
-  state.expenseFilterEndDate   = getEl('expensesEndDate')?.value   || '';
+export function applyDateFilter({ start, end }) {
+  state.expenseFilterStartDate = start;
+  state.expenseFilterEndDate   = end;
   window.expensesPage = 1;
   loadExpenses();
-}
-
-export function clearExpenseFilters() {
-  const today = getTodayDate();
-  const start = getEl('expensesStartDate');
-  const end   = getEl('expensesEndDate');
-  if (start) start.value = today;
-  if (end)   end.value   = today;
-  applyExpenseFilters();
 }
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
@@ -198,14 +190,9 @@ export async function exportExpensesCSV() {
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 export function init() {
-  const today = getTodayDate();
-  const start = getEl('expensesStartDate');
-  const end   = getEl('expensesEndDate');
-  if (start) start.value = today;
-  if (end)   end.value   = today;
-
-  start?.addEventListener('change', applyExpenseFilters);
-  end?.addEventListener('change',   applyExpenseFilters);
-
-  applyExpenseFilters();
+  renderDateFilter(getEl('dateFilterMount'), {
+    presets: [{ key: 'today', labelKey: 'common.today' }],
+    defaultPreset: 'today',
+    onChange: applyDateFilter,
+  });
 }

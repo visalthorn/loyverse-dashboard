@@ -128,8 +128,6 @@ export const en = {
   'expenses.addButton': 'Add Expense',
   'expenses.saveButton': 'Save Changes',
   'expenses.listTitle': '💸 Expenses List',
-  'expenses.start': 'Start',
-  'expenses.end': 'End',
   'expenses.loading': 'Loading...',
   'expenses.loadFailed': 'Failed to load expenses.',
   'expenses.noneForRange': 'No expenses recorded for the selected range.',
