@@ -3,7 +3,7 @@ import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, pieOpts } from '../charts.js';
 import { t } from '../i18n.js';
-import { renderDateFilter } from '../dateFilter.js';
+import { renderDateFilter, periodLabel } from '../dateFilter.js';
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
@@ -89,10 +89,7 @@ async function loadRevenueTrend() {
   const gran  = trendGranularity();
   const label = getEl('revTrendLabel');
   const { currentPeriod: p, currentStartDate: s, currentEndDate: e } = state;
-  if (label) label.textContent = p === 'range' ? t('report.trendRangeCustom', { start: s, end: e })
-    : p === 'week'  ? t('dashboard.grossIncomeRangeWeek')
-    : p === 'month' ? t('dashboard.grossIncomeRangeMonth')
-    : t('dashboard.grossIncomeRangeYear');
+  if (label) label.textContent = periodLabel(p, s, e);
 
   const data = await fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`);
   if (!data?.length) return;

@@ -4,7 +4,7 @@ import { fetchJSON } from '../api.js';
 import { apiPost } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate, fmtDatetime, TZ } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, donutOpts, heatColor } from '../charts.js';
-import { renderDateFilter } from '../dateFilter.js';
+import { renderDateFilter, periodLabel } from '../dateFilter.js';
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
@@ -153,12 +153,7 @@ async function loadGrossIncomeTrend() {
   const { currentPeriod: p, currentStartDate: s, currentEndDate: e } = state;
 
   const trendLabel = getEl('grossIncomeLabel');
-  if (trendLabel) trendLabel.textContent = p === 'range'
-    ? t('dashboard.grossIncomeRangeCustom', { start: s, end: e })
-    : p === 'week'  ? t('dashboard.grossIncomeRangeWeek')
-    : p === 'month' ? t('dashboard.grossIncomeRangeMonth')
-    : p === 'year'  ? t('dashboard.grossIncomeRangeYear')
-    : t('dashboard.grossIncomeRangePeriod', { period: p });
+  if (trendLabel) trendLabel.textContent = periodLabel(p, s, e);
 
   const [incomeData, expenseTrend] = await Promise.all([
     fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`),
@@ -247,12 +242,7 @@ async function loadPeakHours() {
   const { currentPeriod: p, currentStartDate: s, currentEndDate: e } = state;
 
   const heatmapLabel = getEl('heatmapRangeLabel');
-  if (heatmapLabel) heatmapLabel.textContent = p === 'range'
-    ? `(${s} → ${e})`
-    : p === 'week'  ? `(${t('dashboard.grossIncomeRangeWeek')})`
-    : p === 'month' ? `(${t('dashboard.grossIncomeRangeMonth')})`
-    : p === 'year'  ? `(${t('dashboard.grossIncomeRangeYear')})`
-    : `(${p})`;
+  if (heatmapLabel) heatmapLabel.textContent = periodLabel(p, s, e);
 
   const data = await fetchJSON(`/api/peak-hours?period=${p}${rangeQuery()}`);
   if (!data) return;
@@ -495,7 +485,6 @@ export async function init() {
   if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">▶</span> ${t('dashboard.showSlowMovers')}`;
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [
-      { key: 'today',  labelKey: 'common.today' },
       { key: 'last10', labelKey: 'common.last10Days' },
     ],
     defaultPreset: 'last10',

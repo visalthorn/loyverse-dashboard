@@ -383,3 +383,14 @@ body.app-shell { display: flex; min-height: 100vh; }
   }
   .sidebar.sidebar-open { transform: translateX(0); }
 }
+
+/* ── period-range badge (chart/heatmap labels) ──────────── */
+.period-badge {
+  display: inline-block;
+  background: rgba(245,158,11,.12);
+  color: #fbbf24;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
