@@ -249,9 +249,9 @@ async function loadPeakHours() {
   const heatmapLabel = getEl('heatmapRangeLabel');
   if (heatmapLabel) heatmapLabel.textContent = p === 'range'
     ? `(${s} → ${e})`
-    : p === 'week'  ? '(Last 7 days)'
-    : p === 'month' ? '(Last month)'
-    : p === 'year'  ? '(Last year)'
+    : p === 'week'  ? `(${t('dashboard.grossIncomeRangeWeek')})`
+    : p === 'month' ? `(${t('dashboard.grossIncomeRangeMonth')})`
+    : p === 'year'  ? `(${t('dashboard.grossIncomeRangeYear')})`
     : `(${p})`;
 
   const data = await fetchJSON(`/api/peak-hours?period=${p}${rangeQuery()}`);
