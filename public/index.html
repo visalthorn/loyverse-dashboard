@@ -35,17 +35,7 @@
           <button id="syncBtn" onclick="syncGrossIncome()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded" data-i18n="dashboard.syncButton">Sync Gross Income</button>
           <span id="lastSyncChip" class="text-xs text-slate-400 hidden"></span>
         </div>
-        <div class="period-selector flex gap-1 bg-slate-700 rounded-lg p-1">
-          <button onclick="setPeriod('week')"   class="period-btn active" data-period="week" data-i18n="dashboard.periodWeek">Last 7 days</button>
-          <button onclick="setPeriod('month')"  class="period-btn" data-period="month" data-i18n="dashboard.periodMonth">Last Month</button>
-          <button onclick="setPeriod('year')"   class="period-btn" data-period="year" data-i18n="dashboard.periodYear">Year</button>
-          <button onclick="setPeriod('range')"  class="period-btn" data-period="range" data-i18n="dashboard.periodCustom">Custom</button>
-        </div>
-        <div class="custom-range flex flex-wrap items-center gap-2">
-          <label class="text-xs text-slate-300"><span data-i18n="dashboard.from">From</span> <input id="startDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
-          <label class="text-xs text-slate-300"><span data-i18n="dashboard.to">To</span> <input id="endDate" type="date" class="rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
-          <button onclick="applyCustomRange()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded" data-i18n="common.apply">Apply</button>
-        </div>
+        <div id="dateFilterMount"></div>
       </div>
     </div>
   </header>

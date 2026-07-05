@@ -4,6 +4,7 @@ import { fetchJSON } from '../api.js';
 import { apiPost } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate, fmtDatetime, TZ } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, donutOpts, heatColor } from '../charts.js';
+import { renderDateFilter } from '../dateFilter.js';
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
@@ -36,7 +37,6 @@ function growthBadge(g) {
 }
 
 async function loadKPIs() {
-  state.currentPeriod = document.querySelector('.period-btn.active')?.dataset.period || state.currentPeriod;
   const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}`);
   if (!data) return;
 
@@ -423,33 +423,10 @@ export function loadAll() {
 
 // ─── Period Controls (exposed to window) ─────────────────────────────────────
 
-export function setPeriod(p) {
-  state.currentPeriod = p;
-  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
-
-  if (p !== 'range') {
-    state.currentStartDate = '';
-    state.currentEndDate   = '';
-    const startInput = getEl('startDate');
-    const endInput   = getEl('endDate');
-    if (startInput) startInput.value = '';
-    if (endInput)   endInput.value   = '';
-    loadAll();
-    return;
-  }
-  if (state.currentStartDate && state.currentEndDate) loadAll();
-}
-
-export function applyCustomRange() {
-  const start = getEl('startDate')?.value || '';
-  const end   = getEl('endDate')?.value   || '';
-  if (!start || !end) { alert(t('dashboard.errorMissingDates')); return; }
-  if (start > end)    { alert(t('dashboard.errorDateOrder')); return; }
-
-  state.currentPeriod    = 'range';
-  state.currentStartDate = start;
-  state.currentEndDate   = end;
-  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === 'range'));
+export function applyDateFilter({ period, start, end }) {
+  state.currentPeriod    = period;
+  state.currentStartDate = period === 'range' ? start : '';
+  state.currentEndDate   = period === 'range' ? end   : '';
   loadAll();
 }
 
@@ -516,7 +493,14 @@ export async function loadLastSync() {
 export async function init() {
   const slowMoversBtn = getEl('slowMoversBtn');
   if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">▶</span> ${t('dashboard.showSlowMovers')}`;
-  loadAll();
+  renderDateFilter(getEl('dateFilterMount'), {
+    presets: [
+      { key: 'today',  labelKey: 'common.today' },
+      { key: 'last10', labelKey: 'common.last10Days' },
+    ],
+    defaultPreset: 'today',
+    onChange: applyDateFilter,
+  });
   loadLastSync();
   setInterval(loadAll, 5 * 60 * 1000);
 }
