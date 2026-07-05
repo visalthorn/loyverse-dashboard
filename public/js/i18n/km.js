@@ -20,4 +20,20 @@ export const km = {
   'nav.receipts': 'បង្កាន់ដៃ',
   'nav.staff': 'បុគ្គលិក',
   'nav.users': 'អ្នកប្រើប្រាស់',
+
+  // ── login ───────────────────────────────────────────────
+  'login.title': 'POS Analytics',
+  'login.subtitle': 'ច្រកចូលផ្ទាំងគ្រប់គ្រង',
+  'login.welcome': 'សូមស្វាគមន៍ការត្រឡប់មកវិញ',
+  'login.instructions': 'ចូលគណនីដើម្បីចូលប្រើផ្ទាំងវិភាគរបស់អ្នក',
+  'login.username': 'ឈ្មោះអ្នកប្រើប្រាស់',
+  'login.usernamePlaceholder': 'បញ្ចូលឈ្មោះអ្នកប្រើប្រាស់',
+  'login.password': 'ពាក្យសម្ងាត់',
+  'login.passwordPlaceholder': 'បញ្ចូលពាក្យសម្ងាត់',
+  'login.signIn': 'ចូលប្រើប្រាស់',
+  'login.signingIn': 'កំពុងចូល...',
+  'login.errorDefault': 'ឈ្មោះអ្នកប្រើប្រាស់ ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ។',
+  'login.errorMissingFields': 'សូមបញ្ចូលទាំងឈ្មោះអ្នកប្រើប្រាស់ និងពាក្យសម្ងាត់។',
+  'login.errorConnection': 'មិនអាចភ្ជាប់ទៅម៉ាស៊ីនមេបានទេ។ សូមព្យាយាមម្តងទៀត។',
+  'login.footer': 'POS Analytics © ២០២៥',
 };

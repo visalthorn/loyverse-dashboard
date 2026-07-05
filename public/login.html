@@ -294,47 +294,54 @@
     <div class="logo">
       <div class="logo-icon">📊</div>
       <div class="logo-text">
-        <h1>POS Analytics</h1>
-        <p>Dashboard Portal</p>
+        <h1 data-i18n="login.title">POS Analytics</h1>
+        <p data-i18n="login.subtitle">Dashboard Portal</p>
       </div>
       <div id="langSwitcher" style="margin-left:auto;"></div>
     </div>
 
-    <h2 class="page-title">Welcome back</h2>
-    <p class="page-sub">Sign in to access your analytics dashboard</p>
+    <h2 class="page-title" data-i18n="login.welcome">Welcome back</h2>
+    <p class="page-sub" data-i18n="login.instructions">Sign in to access your analytics dashboard</p>
 
     <div class="error-msg" id="errorMsg">
       <span>⚠️</span>
-      <span id="errorText">Invalid username or password.</span>
+      <span id="errorText" data-i18n="login.errorDefault">Invalid username or password.</span>
     </div>
 
     <div class="field">
-      <label>Username</label>
+      <label data-i18n="login.username">Username</label>
       <div class="input-wrap">
         <span class="icon">👤</span>
-        <input type="text" id="username" placeholder="Enter your username" autocomplete="username"/>
+        <input type="text" id="username" data-i18n-placeholder="login.usernamePlaceholder" placeholder="Enter your username" autocomplete="username"/>
       </div>
     </div>
 
     <div class="field">
-      <label>Password</label>
+      <label data-i18n="login.password">Password</label>
       <div class="input-wrap">
         <span class="icon">🔒</span>
-        <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password"/>
+        <input type="password" id="password" data-i18n-placeholder="login.passwordPlaceholder" placeholder="Enter your password" autocomplete="current-password"/>
         <button class="toggle-pw" onclick="togglePassword()" id="toggleBtn" type="button">👁</button>
       </div>
     </div>
 
     <button class="btn-login" id="loginBtn" onclick="doLogin()">
       <span class="spinner" id="spinner"></span>
-      <span id="btnText">Sign In</span>
+      <span id="btnText" data-i18n="login.signIn">Sign In</span>
     </button>
 
     <div class="divider"></div>
-    <p class="footer-note">POS Analytics &copy; 2025 &nbsp;·&nbsp; <span>Chab Mouth</span></p>
+    <p class="footer-note"><span data-i18n="login.footer">POS Analytics © 2025</span> &nbsp;·&nbsp; <span>Chab Mouth</span></p>
 
   </div>
 </div>
+
+<script type="module">
+  import { applyTranslations, renderLangSwitcher, t } from '/js/i18n.js';
+  window.t = t;
+  applyTranslations();
+  renderLangSwitcher(document.getElementById('langSwitcher'));
+</script>
 
 <script>
 // Allow Enter key to submit
@@ -360,14 +367,14 @@ async function doLogin() {
   // Basic validation
   errorMsg.classList.remove('show');
   if (!username || !password) {
-    showError('Please enter both username and password.');
+    showError(window.t('login.errorMissingFields'));
     return;
   }
 
   // Loading state
   btn.disabled      = true;
   spinner.style.display = 'block';
-  btnText.textContent   = 'Signing in...';
+  btnText.textContent   = window.t('login.signingIn');
 
   try {
     const res = await fetch('/api/auth/login', {
@@ -385,14 +392,14 @@ async function doLogin() {
       // Redirect to dashboard
       window.location.href = '/';
     } else {
-      showError(data.message || 'Invalid username or password.');
+      showError(data.message || window.t('login.errorDefault'));
     }
   } catch (err) {
-    showError('Cannot connect to server. Please try again.');
+    showError(window.t('login.errorConnection'));
   } finally {
     btn.disabled          = false;
     spinner.style.display = 'none';
-    btnText.textContent   = 'Sign In';
+    btnText.textContent   = window.t('login.signIn');
   }
 }
 
@@ -403,10 +410,5 @@ function showError(msg) {
 }
 </script>
 
-<script type="module">
-  import { applyTranslations, renderLangSwitcher } from '/js/i18n.js';
-  applyTranslations();
-  renderLangSwitcher(document.getElementById('langSwitcher'));
-</script>
 </body>
 </html>

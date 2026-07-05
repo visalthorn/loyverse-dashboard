@@ -20,4 +20,20 @@ export const en = {
   'nav.receipts': 'Receipts',
   'nav.staff': 'Staff',
   'nav.users': 'Users',
+
+  // ── login ───────────────────────────────────────────────
+  'login.title': 'POS Analytics',
+  'login.subtitle': 'Dashboard Portal',
+  'login.welcome': 'Welcome back',
+  'login.instructions': 'Sign in to access your analytics dashboard',
+  'login.username': 'Username',
+  'login.usernamePlaceholder': 'Enter your username',
+  'login.password': 'Password',
+  'login.passwordPlaceholder': 'Enter your password',
+  'login.signIn': 'Sign In',
+  'login.signingIn': 'Signing in...',
+  'login.errorDefault': 'Invalid username or password.',
+  'login.errorMissingFields': 'Please enter both username and password.',
+  'login.errorConnection': 'Cannot connect to server. Please try again.',
+  'login.footer': 'POS Analytics © 2025',
 };
