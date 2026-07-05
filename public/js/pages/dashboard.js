@@ -409,7 +409,7 @@ async function loadCancelledOrders() {
 
 export function loadAll() {
   const lastUpdated = getEl('lastUpdated');
-  if (lastUpdated) lastUpdated.textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  if (lastUpdated) lastUpdated.textContent = t('dashboard.lastUpdated', { time: new Date().toLocaleTimeString() });
   loadKPIs();
   loadGrossIncomeTrend();
   loadDiningOptions();

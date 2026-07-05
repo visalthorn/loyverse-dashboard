@@ -106,6 +106,7 @@ export const en = {
   'dashboard.syncManual': 'manual',
   'dashboard.errorMissingDates': 'Please choose both a start and end date.',
   'dashboard.errorDateOrder': 'Start date must be before or equal to end date.',
+  'dashboard.lastUpdated': 'Updated: {time}',
 
   // ── expenses ────────────────────────────────────────────
   'expenses.title': 'Expenses',

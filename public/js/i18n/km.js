@@ -106,6 +106,7 @@ export const km = {
   'dashboard.syncManual': 'ដោយដៃ',
   'dashboard.errorMissingDates': 'សូមជ្រើសរើសទាំងកាលបរិច្ឆេទចាប់ផ្តើម និងបញ្ចប់។',
   'dashboard.errorDateOrder': 'កាលបរិច្ឆេទចាប់ផ្តើមត្រូវតែមុន ឬស្មើកាលបរិច្ឆេទបញ្ចប់។',
+  'dashboard.lastUpdated': 'ធ្វើបច្ចុប្បន្នភាព៖ {time}',
 
   // ── expenses ────────────────────────────────────────────
   'expenses.title': 'ចំណាយ',
