@@ -5,6 +5,10 @@ import { destroyChart, chartOpts, barOpts, pieOpts } from '../charts.js';
 import { t } from '../i18n.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
 
+function themeColor(varName, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
+}
+
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
 function rangeQuery() {
@@ -134,12 +138,12 @@ async function loadRevenueTrend() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'top', labels: { color: '#94a3b8', font: { size: 11 } } },
+        legend: { display: true, position: 'top', labels: { color: themeColor('--text-secondary', '#94a3b8'), font: { size: 11 } } },
       },
       scales: {
-        x:  { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } } },
-        y:  { position: 'left',  grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => '៛' + fmt(v) } },
-        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => v + '%' } },
+        x:  { grid: { color: themeColor('--bg-surface', '#1e293b') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 } } },
+        y:  { position: 'left',  grid: { color: themeColor('--border', '#334155') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 }, callback: v => '៛' + fmt(v) } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 }, callback: v => v + '%' } },
       },
     },
   });
@@ -329,7 +333,7 @@ async function loadExpenseTrend() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'top', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } },
+        legend: { display: true, position: 'top', labels: { color: themeColor('--text-secondary', '#94a3b8'), boxWidth: 12, font: { size: 11 } } },
         tooltip: {
           callbacks: {
             afterBody: items => {
@@ -341,8 +345,8 @@ async function loadExpenseTrend() {
         },
       },
       scales: {
-        x:  { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } } },
-        y:  { position: 'left',  grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => '៛' + fmt(v) } },
+        x:  { grid: { color: themeColor('--bg-surface', '#1e293b') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 } } },
+        y:  { position: 'left',  grid: { color: themeColor('--border', '#334155') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 }, callback: v => '៛' + fmt(v) } },
         y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#fb923c', font: { size: 11 }, callback: v => v + '%' }, suggestedMax: 100 },
       },
     },
@@ -376,11 +380,11 @@ async function loadDevicePerformance() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } },
+        legend: { display: true, position: 'bottom', labels: { color: themeColor('--text-secondary', '#94a3b8'), boxWidth: 12, font: { size: 11 } } },
       },
       scales: {
-        x:  { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 11 } } },
-        y:  { position: 'left',  grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => '៛' + fmt(v) } },
+        x:  { grid: { color: themeColor('--bg-surface', '#1e293b') }, ticks: { color: themeColor('--text-secondary', '#94a3b8'), font: { size: 11 } } },
+        y:  { position: 'left',  grid: { color: themeColor('--border', '#334155') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 }, callback: v => '៛' + fmt(v) } },
         y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#3b82f6', font: { size: 11 } } },
       },
     },
