@@ -601,6 +601,8 @@ Apply this mapping to the block's **first half only** — from `.card` through `
 
 Everything from `/* ── Roster spreadsheet table ── */` through the end of the `<style>` block — every `.rst-*` class and the entire `@media print` block — is deliberately fixed light/white "paper" styling for a printable roster grid, per Global Constraints. Do not add, remove, or reference any `var(--...)` in this section. Confirm by eye that this section is unchanged after Step 2.
 
+**One exception found during implementation:** the generic `::-webkit-scrollbar`/`::-webkit-scrollbar-track`/`::-webkit-scrollbar-thumb` rules sit *positionally* after the roster comment (just before `@media print`) but are ordinary page-wide chrome, not roster-specific. Migrate `::-webkit-scrollbar-thumb`'s `#334155` to `var(--border)` same as every other page's scrollbar thumb, even though it falls inside the "leave untouched" byte range.
+
 - [ ] **Step 4: Rewrite `staff.html`'s Tailwind utility classes**
 
 | Existing class | Replace with |

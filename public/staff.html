@@ -6,25 +6,33 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Staff Management</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+    document.documentElement.classList.toggle('dark', t === 'dark');
+  })();
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
 <link rel="stylesheet" href="/css/style.css"/>
 <style>
-  .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.25rem; }
-  .section-title { font-size: 0.9375rem; font-weight: 700; color: #f8fafc; }
+  .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; }
+  .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
 
   .stat-card {
-    background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem;
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 0.75rem;
     padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.875rem;
   }
   .stat-icon { width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
 
   .staff-input {
-    background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem;
-    color: #f8fafc; font-size: 0.8125rem; padding: 0.5rem 0.75rem;
+    background: var(--bg-canvas); border: 1px solid var(--border); border-radius: 0.5rem;
+    color: var(--text-primary); font-size: 0.8125rem; padding: 0.5rem 0.75rem;
     transition: border-color .15s; outline: none; width: 100%;
   }
-  .staff-input:focus { border-color: #fbbf24; }
-  .staff-input::placeholder { color: #475569; }
+  .staff-input:focus { border-color: var(--accent-strong); }
+  .staff-input::placeholder { color: var(--text-dim); }
 
   .badge-active   { background: rgba(34,197,94,.12);  color: #4ade80; }
   .badge-inactive { background: rgba(100,116,139,.14); color: #94a3b8; }
@@ -32,32 +40,32 @@
   .badge { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; }
 
   .staff-row { transition: background .12s; }
-  .staff-row:hover td { background: rgba(255,255,255,.03); }
+  .staff-row:hover td { background: var(--hover-tint); }
 
   /* ── Tabs ── */
-  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid #334155; margin-bottom: 1.25rem; }
+  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
   .tab-btn {
     display: inline-flex; align-items: center; gap: 0.4rem;
     padding: 0.625rem 1.125rem; font-size: 0.875rem; font-weight: 500;
-    color: #94a3b8; border: none; border-bottom: 2px solid transparent;
+    color: var(--text-secondary); border: none; border-bottom: 2px solid transparent;
     background: none; cursor: pointer; margin-bottom: -1px;
     transition: color .15s, border-color .15s;
   }
-  .tab-btn:hover { color: #e2e8f0; }
-  .tab-btn.active { color: #fbbf24; border-bottom-color: #fbbf24; }
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.active { color: var(--accent-strong); border-bottom-color: var(--accent-strong); }
 
   /* ── Month nav ── */
   .sch-nav-btn {
-    background: #1e293b; border: 1px solid #334155; border-radius: 6px;
-    color: #94a3b8; padding: 4px 12px; cursor: pointer;
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text-secondary); padding: 4px 12px; cursor: pointer;
     font-size: 0.875rem; transition: all .12s;
   }
-  .sch-nav-btn:hover { background: #334155; color: #fff; }
+  .sch-nav-btn:hover { background: var(--border); color: var(--text-primary); }
 
   /* ── Shift picker popup ── */
   .sch-picker {
     position: fixed; z-index: 9999;
-    background: #1e293b; border: 1px solid #334155;
+    background: var(--bg-surface); border: 1px solid var(--border);
     border-radius: 8px; padding: 4px;
     box-shadow: 0 8px 40px rgba(0,0,0,.6);
     min-width: 196px;
@@ -65,40 +73,40 @@
   .sch-picker-opt {
     display: flex; align-items: center; gap: 0.5rem;
     padding: 0.4375rem 0.75rem; border-radius: 5px;
-    font-size: 0.8125rem; color: #cbd5e1;
+    font-size: 0.8125rem; color: var(--text-primary);
     background: none; border: none; cursor: pointer; width: 100%; text-align: left;
     transition: background .12s;
   }
-  .sch-picker-opt:hover { background: rgba(255,255,255,.08); color: #fff; }
+  .sch-picker-opt:hover { background: var(--hover-tint); color: var(--text-primary); }
   .sch-picker-badge { padding: 2px 7px; border-radius: 3px; font-weight: 700; font-size: 0.6875rem; pointer-events: none; }
   .sch-picker-clear {
     display: inline-flex; align-items: center; justify-content: center;
     width: 20px; height: 20px; border-radius: 50%;
-    background: rgba(100,116,139,0.18); color: #94a3b8; font-size: 0.625rem;
+    background: rgba(100,116,139,0.18); color: var(--text-secondary); font-size: 0.625rem;
     pointer-events: none;
   }
 
   /* ── Roster fill popup ── */
   .sch-roster-picker {
     position: fixed; z-index: 9999;
-    background: #1e293b; border: 1px solid #334155;
+    background: var(--bg-surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 8px;
     box-shadow: 0 8px 40px rgba(0,0,0,.65);
     min-width: 270px;
   }
   .sch-roster-title {
-    font-size: 0.6875rem; font-weight: 700; color: #64748b;
+    font-size: 0.6875rem; font-weight: 700; color: var(--text-muted);
     text-transform: uppercase; letter-spacing: 0.05em;
-    padding: 4px 8px 8px; border-bottom: 1px solid #334155; margin-bottom: 4px;
+    padding: 4px 8px 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
   }
   .sch-roster-opt {
     display: flex; align-items: center; gap: 8px;
     padding: 5px 8px; border-radius: 5px; width: 100%; text-align: left;
-    font-size: 0.8125rem; color: #cbd5e1;
+    font-size: 0.8125rem; color: var(--text-primary);
     background: none; border: none; cursor: pointer; transition: background .12s;
   }
-  .sch-roster-opt:hover { background: rgba(255,255,255,.08); color: #fff; }
-  .sch-roster-divider { border: none; border-top: 1px solid #334155; margin: 6px 0; }
+  .sch-roster-opt:hover { background: var(--hover-tint); color: var(--text-primary); }
+  .sch-roster-divider { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
 
   /* ── Future month badge ── */
   .sch-future-badge {
@@ -208,7 +216,7 @@
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
 
   /* ── Print ── */
   @media print {
@@ -250,21 +258,21 @@
   }
 </style>
 </head>
-<body class="app-shell bg-slate-900 text-white min-h-screen">
+<body class="app-shell bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen">
 
 <!-- Sidebar -->
-<aside id="sidebar" class="sidebar bg-slate-800 border-r border-slate-700"></aside>
+<aside id="sidebar" class="sidebar bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700"></aside>
 
 <!-- Mobile overlay -->
 <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <!-- Main content -->
 <div class="main-wrapper">
-  <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
+  <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
+    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Open menu">☰</button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="staff.title">Staff</h2>
-      <p class="text-xs text-slate-400" data-i18n="staff.subtitle">Manage staff profiles and monthly schedule</p>
+      <p class="text-xs text-slate-600 dark:text-slate-400" data-i18n="staff.subtitle">Manage staff profiles and monthly schedule</p>
     </div>
   </header>
 
@@ -286,23 +294,23 @@
       <!-- Stats -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="stat-card">
-          <div class="stat-icon bg-slate-700">👥</div>
+          <div class="stat-icon bg-slate-200 dark:bg-slate-700">👥</div>
           <div>
-            <div class="text-xs text-slate-400 mb-0.5" data-i18n="staff.statActiveStaff">Active Staff</div>
-            <div class="text-2xl font-bold text-white" id="statActiveStaff">—</div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mb-0.5" data-i18n="staff.statActiveStaff">Active Staff</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white" id="statActiveStaff">—</div>
           </div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background:rgba(34,197,94,.12)">💵</div>
           <div>
-            <div class="text-xs text-slate-400 mb-0.5" data-i18n="staff.statMonthlySalary">Monthly Salary</div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mb-0.5" data-i18n="staff.statMonthlySalary">Monthly Salary</div>
             <div class="text-2xl font-bold text-emerald-400" id="statTotalSalary">—</div>
           </div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background:rgba(245,158,11,.12)">💳</div>
           <div>
-            <div class="text-xs text-slate-400 mb-0.5" data-i18n="staff.statTotalLoans">Total Loans</div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mb-0.5" data-i18n="staff.statTotalLoans">Total Loans</div>
             <div class="text-2xl font-bold text-amber-400" id="statTotalLoan">—</div>
           </div>
         </div>
@@ -312,19 +320,19 @@
       <div class="card" data-write-page="staff">
         <div class="flex items-center justify-between mb-4">
           <h2 class="section-title">👤 <span id="staffFormTitle" data-i18n="staff.addTitle">Add Staff</span></h2>
-          <button id="staffFormCancelBtn" onclick="cancelEditStaff()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
+          <button id="staffFormCancelBtn" onclick="cancelEditStaff()" class="hidden text-xs text-slate-600 dark:text-slate-400 hover:text-amber-400 border border-slate-300 dark:border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
         </div>
         <form id="staffForm" onsubmit="submitStaff(event)" class="grid md:grid-cols-3 gap-3">
           <div>
-            <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="staff.fieldStaffId">Staff ID</span> <span class="text-red-400">*</span></label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block"><span data-i18n="staff.fieldStaffId">Staff ID</span> <span class="text-red-400">*</span></label>
             <input id="staffId" type="text" required placeholder="e.g. 00-9" data-i18n-placeholder="staff.staffIdPlaceholder" class="staff-input"/>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="staff.fieldFullName">Full Name</span> <span class="text-red-400">*</span></label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block"><span data-i18n="staff.fieldFullName">Full Name</span> <span class="text-red-400">*</span></label>
             <input id="staffFullName" type="text" required placeholder="Full name" data-i18n-placeholder="staff.fullNamePlaceholder" class="staff-input"/>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldPosition">Position</label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block" data-i18n="staff.fieldPosition">Position</label>
             <input id="staffPosition" type="text" list="positionList" placeholder="e.g. Waiter" data-i18n-placeholder="staff.positionPlaceholder" class="staff-input"/>
             <datalist id="positionList">
               <option data-i18n="staff.posOwner">Owner/Biz</option>
@@ -337,11 +345,11 @@
             </datalist>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldJoinDate">Join Date</label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block" data-i18n="staff.fieldJoinDate">Join Date</label>
             <input id="staffJoinDate" type="date" class="staff-input"/>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldSalary">Salary</label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block" data-i18n="staff.fieldSalary">Salary</label>
             <div class="flex gap-1.5">
               <input id="staffSalary" type="number" step="0.01" min="0" placeholder="0.00" class="staff-input flex-1"/>
               <select id="staffSalaryCcy" class="staff-input" style="width:5.5rem">
@@ -351,11 +359,11 @@
             </div>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldPhone">Phone</label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block" data-i18n="staff.fieldPhone">Phone</label>
             <input id="staffPhone" type="text" placeholder="0xx-xxxxxxx" class="staff-input"/>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldLoan">Loan</label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block" data-i18n="staff.fieldLoan">Loan</label>
             <div class="flex gap-1.5">
               <input id="staffLoan" type="number" min="0" placeholder="0" class="staff-input flex-1"/>
               <select id="staffLoanCcy" class="staff-input" style="width:5.5rem">
@@ -365,7 +373,7 @@
             </div>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldDefaultShift">Default Shift</label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block" data-i18n="staff.fieldDefaultShift">Default Shift</label>
             <select id="staffDefaultShift" class="staff-input">
               <option value="" data-i18n="staff.shiftNone">— None —</option>
               <option value="M" data-i18n="staff.shiftMorningOpt">M · Morning (11am–10pm)</option>
@@ -373,14 +381,14 @@
             </select>
           </div>
           <div>
-            <label class="text-xs text-slate-300 mb-1 block" data-i18n="staff.fieldNotes">Notes</label>
+            <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block" data-i18n="staff.fieldNotes">Notes</label>
             <input id="staffNotes" type="text" placeholder="Optional notes" data-i18n-placeholder="staff.notesPlaceholder" class="staff-input"/>
           </div>
           <div class="md:col-span-3 flex items-center gap-3 pt-1">
             <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-5 py-2 rounded">
               <span id="staffSubmitLabel" data-i18n="staff.addTitle">Add Staff</span>
             </button>
-            <span id="staffMsg" class="text-sm text-slate-400"></span>
+            <span id="staffMsg" class="text-sm text-slate-600 dark:text-slate-400"></span>
           </div>
         </form>
       </div>
@@ -390,17 +398,17 @@
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h2 class="section-title" data-i18n="staff.listTitle">📋 Staff List</h2>
           <div class="flex items-center gap-3">
-            <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+            <label class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
               <input type="checkbox" id="showInactive" onchange="renderStaffTable()" class="accent-amber-400"/>
               <span data-i18n="staff.showInactive">Show inactive</span>
             </label>
-            <button onclick="exportStaffCSV()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1"><span data-i18n="common.csv">⬇ CSV</span></button>
+            <button onclick="exportStaffCSV()" class="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1"><span data-i18n="common.csv">⬇ CSV</span></button>
           </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-slate-400 border-b border-slate-700 text-left text-xs">
+              <tr class="text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 text-left text-xs">
                 <th class="pb-2 pr-3 font-medium" data-i18n="staff.thIndex">#</th>
                 <th class="pb-2 pr-3 font-medium" data-i18n="staff.thId">ID</th>
                 <th class="pb-2 pr-3 font-medium" data-i18n="staff.thName">Name</th>
@@ -430,7 +438,7 @@
       <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div class="flex items-center gap-3">
           <button onclick="prevMonth()" class="sch-nav-btn">◀</button>
-          <span id="scheduleMonthTitle" class="text-base font-bold text-white min-w-[140px] text-center">—</span>
+          <span id="scheduleMonthTitle" class="text-base font-bold text-slate-900 dark:text-white min-w-[140px] text-center">—</span>
           <button onclick="nextMonth()" class="sch-nav-btn">▶</button>
           <span id="scheduleFutureNote" class="hidden sch-future-badge" data-i18n="schedule.planningAhead">Planning ahead</span>
         </div>
