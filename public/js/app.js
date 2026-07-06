@@ -21,16 +21,16 @@ function renderUserHeader(user) {
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="text-align:right;">
-          <div style="font-size:13px;font-weight:600;color:#e2e8f0;">${user.fullName || user.username}</div>
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">${user.role}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${user.fullName || user.username}</div>
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">${user.role}</div>
         </div>
         <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0b1120;">
           ${(user.fullName || user.username).charAt(0).toUpperCase()}
         </div>
         <button onclick="logout()" title="${t('common.signOut')}"
-          style="background:none;border:1px solid #1f2d45;border-radius:8px;padding:6px 10px;color:#64748b;cursor:pointer;font-size:12px;transition:all 0.2s;"
+          style="background:none;border:1px solid var(--border-subtle);border-radius:8px;padding:6px 10px;color:var(--text-muted);cursor:pointer;font-size:12px;transition:all 0.2s;"
           onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
-          onmouseout="this.style.color='#64748b';this.style.borderColor='#1f2d45'">
+          onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border-subtle)'">
           ${t('common.signOut')}
         </button>
       </div>`;
