@@ -6,40 +6,48 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>User Management</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+    document.documentElement.classList.toggle('dark', t === 'dark');
+  })();
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
 <link rel="stylesheet" href="/css/style.css"/>
 <style>
-  .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.25rem; }
-  .section-title { font-size: 0.9375rem; font-weight: 700; color: #f8fafc; }
+  .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; }
+  .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
   .field-input {
-    background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem;
-    color: #f8fafc; font-size: 0.8125rem; padding: 0.5rem 0.75rem;
+    background: var(--bg-canvas); border: 1px solid var(--border); border-radius: 0.5rem;
+    color: var(--text-primary); font-size: 0.8125rem; padding: 0.5rem 0.75rem;
     transition: border-color .15s; outline: none; width: 100%;
   }
-  .field-input:focus { border-color: #fbbf24; }
-  .field-input::placeholder { color: #475569; }
+  .field-input:focus { border-color: var(--accent-strong); }
+  .field-input::placeholder { color: var(--text-dim); }
   .field-input:disabled { opacity: 0.5; cursor: not-allowed; }
   .badge { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; }
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
 </style>
 </head>
-<body class="app-shell bg-slate-900 text-white min-h-screen">
+<body class="app-shell bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen">
 
 <!-- Sidebar -->
-<aside id="sidebar" class="sidebar bg-slate-800 border-r border-slate-700"></aside>
+<aside id="sidebar" class="sidebar bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700"></aside>
 
 <!-- Mobile overlay -->
 <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <!-- Main content -->
 <div class="main-wrapper">
-  <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
+  <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40 flex items-center gap-3">
+    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Open menu">☰</button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="users.title">User Management</h2>
-      <p class="text-xs text-slate-400" data-i18n="users.subtitle">Manage users and role permissions</p>
+      <p class="text-xs text-slate-600 dark:text-slate-400" data-i18n="users.subtitle">Manage users and role permissions</p>
     </div>
   </header>
 
@@ -49,37 +57,37 @@
     <div class="card">
       <div class="flex items-center justify-between mb-4">
         <h2 class="section-title">👤 <span id="userFormTitle" data-i18n="users.addTitle">Add User</span></h2>
-        <button id="userFormCancelBtn" onclick="cancelEditUser()" class="hidden text-xs text-slate-400 hover:text-amber-400 border border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
+        <button id="userFormCancelBtn" onclick="cancelEditUser()" class="hidden text-xs text-slate-600 dark:text-slate-400 hover:text-amber-400 border border-slate-300 dark:border-slate-600 hover:border-amber-400 px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
       </div>
       <form id="userForm" onsubmit="submitUser(event)" class="grid md:grid-cols-3 gap-3">
         <div>
-          <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="users.fieldUsername">Username</span> <span class="text-red-400">*</span></label>
+          <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block"><span data-i18n="users.fieldUsername">Username</span> <span class="text-red-400">*</span></label>
           <input id="userUsername" type="text" required data-i18n-placeholder="users.usernamePlaceholder" placeholder="e.g. john" class="field-input"/>
         </div>
         <div>
-          <label class="text-xs text-slate-300 mb-1 block" data-i18n="users.fieldFullName">Full Name</label>
+          <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block" data-i18n="users.fieldFullName">Full Name</label>
           <input id="userFullName" type="text" data-i18n-placeholder="users.fullNamePlaceholder" placeholder="Full name" class="field-input"/>
         </div>
         <div>
-          <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="users.fieldEmail">Email</span> <span class="text-red-400">*</span></label>
+          <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block"><span data-i18n="users.fieldEmail">Email</span> <span class="text-red-400">*</span></label>
           <input id="userEmail" type="email" required data-i18n-placeholder="users.emailPlaceholder" placeholder="user@example.com" class="field-input"/>
         </div>
         <div>
-          <label class="text-xs text-slate-300 mb-1 block"><span data-i18n="users.fieldRole">Role</span> <span class="text-red-400">*</span></label>
+          <label class="text-xs text-slate-700 dark:text-slate-300 mb-1 block"><span data-i18n="users.fieldRole">Role</span> <span class="text-red-400">*</span></label>
           <select id="userRole" required class="field-input">
             <option value="manager" data-i18n="users.roleManager">Manager</option>
             <option value="admin" data-i18n="users.roleAdmin">Admin</option>
           </select>
         </div>
         <div>
-          <label id="userPasswordLabel" class="text-xs text-slate-300 mb-1 block"><span data-i18n="users.fieldPassword">Password</span> <span class="text-red-400">*</span></label>
+          <label id="userPasswordLabel" class="text-xs text-slate-700 dark:text-slate-300 mb-1 block"><span data-i18n="users.fieldPassword">Password</span> <span class="text-red-400">*</span></label>
           <input id="userPassword" type="password" data-i18n-placeholder="users.passwordPlaceholder" placeholder="Password" class="field-input"/>
         </div>
         <div class="md:col-span-3 flex items-center gap-3 pt-1">
           <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold px-5 py-2 rounded">
             <span id="userSubmitLabel" data-i18n="users.createUser">Create User</span>
           </button>
-          <span id="userMsg" class="text-sm text-slate-400"></span>
+          <span id="userMsg" class="text-sm text-slate-600 dark:text-slate-400"></span>
         </div>
       </form>
     </div>
@@ -90,7 +98,7 @@
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
-            <tr class="text-slate-400 border-b border-slate-700 text-left text-xs">
+            <tr class="text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 text-left text-xs">
               <th class="pb-2 pr-3 font-medium" data-i18n="users.thIndex">#</th>
               <th class="pb-2 pr-3 font-medium" data-i18n="users.thUsername">Username</th>
               <th class="pb-2 pr-3 font-medium" data-i18n="users.thFullName">Full Name</th>
@@ -111,12 +119,12 @@
     <div class="card">
       <div class="mb-4">
         <h2 class="section-title" data-i18n="users.permissionsTitle">🔐 Role Permissions</h2>
-        <p class="text-xs text-slate-400 mt-1" data-i18n="users.permissionsSubtitle">Toggle write access per page for Manager role. Admin always has full access.</p>
+        <p class="text-xs text-slate-600 dark:text-slate-400 mt-1" data-i18n="users.permissionsSubtitle">Toggle write access per page for Manager role. Admin always has full access.</p>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
-            <tr class="text-slate-400 border-b border-slate-700 text-xs">
+            <tr class="text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 text-xs">
               <th class="pb-2 pr-4 font-medium text-left" data-i18n="users.thPage">Page</th>
               <th class="pb-2 pr-4 font-medium text-center" data-i18n="users.thAdminWrite">Admin (Write)</th>
               <th class="pb-2 font-medium text-center" data-i18n="users.thManagerWrite">Manager (Write)</th>
