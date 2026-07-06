@@ -1,5 +1,6 @@
 import { t, renderLangSwitcher } from './i18n.js';
 import { renderUserMenu } from './userMenu.js';
+import { renderThemeToggle } from './themeToggle.js';
 
 const NAV_ITEMS = [
   { page: 'dashboard', href: '/',              icon: '📊', labelKey: 'nav.dashboard' },
@@ -27,6 +28,7 @@ export function renderSidebar(sidebarEl, activePage) {
         <span class="user-menu-caret text-slate-500 flex-shrink-0">▾</span>
       </button>
       <div id="sidebarLangSwitcher" class="flex-shrink-0"></div>
+      <div id="sidebarThemeToggle" class="flex-shrink-0"></div>
       <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700 flex-shrink-0" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
       <div id="userMenuMount"></div>
     </div>
@@ -39,4 +41,5 @@ export function renderSidebar(sidebarEl, activePage) {
 
   renderUserMenu(sidebarEl.querySelector('#userMenuMount'));
   renderLangSwitcher(sidebarEl.querySelector('#sidebarLangSwitcher'));
+  renderThemeToggle(sidebarEl.querySelector('#sidebarThemeToggle'));
 }

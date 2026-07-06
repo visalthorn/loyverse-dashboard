@@ -267,9 +267,11 @@ At the end of `renderSidebar()`, add a call alongside the existing `renderLangSw
   renderThemeToggle(sidebarEl.querySelector('#sidebarThemeToggle'));
 ```
 
-- [ ] **Step 2: Add the flash-prevention + Tailwind config script to `index.html`'s `<head>`**
+- [ ] **Step 2: Add the flash-prevention + Tailwind config scripts to `index.html`'s `<head>`**
 
-In `public/index.html`, immediately before the existing `<script src="https://cdn.tailwindcss.com"></script>` line, insert:
+**Important ordering note (found during implementation):** the Tailwind Play CDN only defines the global `tailwind` object once its own `<script src="https://cdn.tailwindcss.com">` tag has executed. Setting `tailwind.config` in a `<script>` block placed *before* that tag throws `ReferenceError: tailwind is not defined` and aborts the rest of that script's execution. The config script must go *after* the CDN script tag, not before.
+
+In `public/index.html`, immediately *before* the existing `<script src="https://cdn.tailwindcss.com"></script>` line, insert the flash-prevention script:
 
 ```html
 <script>
@@ -279,10 +281,15 @@ In `public/index.html`, immediately before the existing `<script src="https://cd
     document.documentElement.classList.toggle('dark', t === 'dark');
   })();
 </script>
+```
+
+Then, immediately *after* the `<script src="https://cdn.tailwindcss.com"></script>` line, insert the config script:
+
+```html
 <script>tailwind.config = { darkMode: 'class' };</script>
 ```
 
-(The flash-prevention logic is duplicated inline, not imported from `themeToggle.js`'s `applyTheme()`, because it must run synchronously before first paint — an ES module import cannot be relied on to complete before the browser paints. This same three-line block is repeated verbatim in every page touched by this plan.)
+(The flash-prevention logic is duplicated inline, not imported from `themeToggle.js`'s `applyTheme()`, because it must run synchronously before first paint — an ES module import cannot be relied on to complete before the browser paints. This same block pair — flash-prevention script before the CDN tag, config script after it — is repeated in every Tailwind-using page touched by this plan.)
 
 - [ ] **Step 3: Rewrite `index.html`'s Tailwind utility classes**
 
@@ -303,7 +310,7 @@ Apply this exact mapping to every occurrence in `public/index.html`:
 
 - [ ] **Step 4: Repeat Steps 2–3 for `expenses.html`**
 
-Insert the identical flash-prevention + Tailwind-config script block before its `<script src="https://cdn.tailwindcss.com"></script>` line, and apply this mapping to every occurrence in `public/expenses.html`:
+Insert the flash-prevention script before its `<script src="https://cdn.tailwindcss.com"></script>` line and the config script after it (same ordering as Task 3 Step 2), and apply this mapping to every occurrence in `public/expenses.html`:
 
 | Existing class | Replace with |
 |---|---|
@@ -312,6 +319,7 @@ Insert the identical flash-prevention + Tailwind-config script block before its 
 | `border-slate-700` | `border-slate-200 dark:border-slate-700` |
 | `hover:bg-slate-700` | `hover:bg-slate-200 dark:hover:bg-slate-700` |
 | `hover:bg-slate-600` | `hover:bg-slate-300 dark:hover:bg-slate-600` |
+| `text-slate-300` (form labels, summary/list text) | `text-slate-700 dark:text-slate-300` |
 | `text-slate-200` (on the CSV export button, paired with `bg-slate-700 hover:bg-slate-600`) | `text-slate-700 dark:text-slate-200` |
 | `text-white` | `text-slate-900 dark:text-white` |
 
@@ -426,7 +434,7 @@ git commit -m "feat(theme): consolidate login.html onto shared style.css variabl
 
 - [ ] **Step 1: Add the flash-prevention + Tailwind config script**
 
-Immediately before `receipts.html`'s existing `<script src="https://cdn.tailwindcss.com"></script>` line, insert the identical block used in Task 3:
+Immediately *before* `receipts.html`'s existing `<script src="https://cdn.tailwindcss.com"></script>` line, insert the flash-prevention script; immediately *after* that same line, insert the config script (same ordering as Task 3 Step 2 — the config script must come after the CDN tag, or `tailwind` is undefined):
 
 ```html
 <script>
@@ -436,6 +444,9 @@ Immediately before `receipts.html`'s existing `<script src="https://cdn.tailwind
     document.documentElement.classList.toggle('dark', t === 'dark');
   })();
 </script>
+```
+```html
+<!-- ... existing <script src="https://cdn.tailwindcss.com"></script> stays here ... -->
 <script>tailwind.config = { darkMode: 'class' };</script>
 ```
 
@@ -492,7 +503,7 @@ git commit -m "feat(theme): theme-enable receipts.html"
 
 - [ ] **Step 1: `report.html` — flash-prevention + Tailwind config script**
 
-Insert the same block as Task 5 Step 1, before `report.html`'s `<script src="https://cdn.tailwindcss.com"></script>`.
+Insert the same script pair as Task 5 Step 1 — flash-prevention script before `report.html`'s `<script src="https://cdn.tailwindcss.com"></script>` line, config script after it.
 
 - [ ] **Step 2: `report.html` — migrate its embedded `<style>` block**
 
@@ -519,7 +530,7 @@ Its entire embedded block is:
 
 - [ ] **Step 4: `users.html` — flash-prevention + Tailwind config script**
 
-Insert the same block, before `users.html`'s `<script src="https://cdn.tailwindcss.com"></script>`.
+Insert the same script pair — flash-prevention script before `users.html`'s `<script src="https://cdn.tailwindcss.com"></script>` line, config script after it.
 
 - [ ] **Step 5: `users.html` — migrate its embedded `<style>` block**
 
@@ -564,7 +575,7 @@ git commit -m "feat(theme): theme-enable report.html and users.html"
 
 - [ ] **Step 1: Flash-prevention + Tailwind config script**
 
-Insert the same block as prior tasks, before `staff.html`'s `<script src="https://cdn.tailwindcss.com"></script>`.
+Insert the same script pair as prior tasks — flash-prevention script before `staff.html`'s `<script src="https://cdn.tailwindcss.com"></script>` line, config script after it.
 
 - [ ] **Step 2: Migrate the app-chrome portion of the embedded `<style>` block**
 

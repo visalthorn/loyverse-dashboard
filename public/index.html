@@ -6,14 +6,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>POS Analytics Dashboard</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+    document.documentElement.classList.toggle('dark', t === 'dark');
+  })();
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="/css/style.css"/>
 </head>
-<body class="app-shell bg-slate-900 text-white min-h-screen">
+<body class="app-shell bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen">
 
 <!-- Sidebar -->
-<aside id="sidebar" class="sidebar bg-slate-800 border-r border-slate-700"></aside>
+<aside id="sidebar" class="sidebar bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700"></aside>
 
 <!-- Mobile overlay -->
 <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
@@ -22,10 +30,10 @@
 <div class="main-wrapper">
 
   <!-- Top bar -->
-  <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40">
+  <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 md:px-6 py-3 sticky top-0 z-40">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-700" aria-label="Open menu">☰</button>
+        <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Open menu">☰</button>
         <h2 class="text-lg font-semibold" data-i18n="dashboard.title">Dashboard</h2>
       </div>
 
@@ -33,7 +41,7 @@
       <div class="flex flex-col md:flex-row items-start md:items-center gap-5">
         <div class="custom-range flex flex-wrap items-center gap-2">
           <button id="syncBtn" onclick="syncGrossIncome()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded" data-i18n="dashboard.syncButton">Sync Gross Income</button>
-          <span id="lastSyncChip" class="text-xs text-slate-400 hidden"></span>
+          <span id="lastSyncChip" class="text-xs text-slate-600 dark:text-slate-400 hidden"></span>
         </div>
         <div id="dateFilterMount"></div>
       </div>
@@ -46,7 +54,7 @@
     <section>
       <div class="flex items-center gap-3 mb-3">
         <span class="kpi-section-lbl" data-i18n="dashboard.periodPerformance">Period Performance</span>
-        <div class="flex-1 h-px" style="background:#1e3448"></div>
+        <div class="flex-1 h-px" style="background:var(--border)"></div>
       </div>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpiPrimary">
         <div class="kpi-primary kpi-primary--amber skeleton"><div class="h-28 rounded-lg"></div></div>
@@ -60,8 +68,8 @@
     <section>
       <div class="flex items-center gap-3 mb-3">
         <span class="kpi-section-lbl" data-i18n="dashboard.dailyBenchmarks">Daily Benchmarks</span>
-        <span class="text-xs" style="color:#2d4460;white-space:nowrap" data-i18n="dashboard.dailyBenchmarksSub">per-day averages for the period</span>
-        <div class="flex-1 h-px" style="background:#1e3448"></div>
+        <span class="text-xs" style="color:var(--text-dim);white-space:nowrap" data-i18n="dashboard.dailyBenchmarksSub">per-day averages for the period</span>
+        <div class="flex-1 h-px" style="background:var(--border)"></div>
       </div>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="kpiAverage">
         <div class="kpi-avg kpi-avg--amber skeleton"><div class="h-20 rounded-lg"></div></div>
@@ -107,7 +115,7 @@
       <div class="flex items-center justify-between mb-4">
         <h2 class="section-title" data-i18n="dashboard.topProductsTitle">🛒 Top Products</h2>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-slate-400" data-i18n="dashboard.topProductsSub">Top 20 by revenue · green = growing · red = declining</span>
+          <span class="text-xs text-slate-600 dark:text-slate-400" data-i18n="dashboard.topProductsSub">Top 20 by revenue · green = growing · red = declining</span>
           <select id="topProductsCategory" class="filter-select" onchange="dashboardSetTopProductsCategory(this.value)">
             <option value="" selected data-i18n="dashboard.categoryAll">All</option>
             <option value="food" data-i18n="dashboard.categoryFood">Food</option>
@@ -118,7 +126,7 @@
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
-            <tr class="text-slate-400 border-b border-slate-700 text-left">
+            <tr class="text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 text-left">
               <th class="pb-2 pr-3" data-i18n="dashboard.table.rank">#</th>
               <th class="pb-2 pr-3" data-i18n="dashboard.table.item">Item</th>
               <th class="pb-2 pr-3 text-right" data-i18n="dashboard.table.qty">Qty</th>
@@ -134,15 +142,15 @@
       </div>
 
       <!-- Slow movers toggle -->
-      <div class="mt-4 pt-4 border-t border-slate-700">
+      <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
         <button onclick="dashboardToggleSlowMovers()" id="slowMoversBtn"
-          class="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1">
+          class="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center gap-1">
           <span id="slowMoversArrow">▶</span>
         </button>
         <div id="slowMoversSection" class="hidden mt-3 overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-slate-400 border-b border-slate-700 text-left">
+              <tr class="text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 text-left">
                 <th class="pb-2 pr-3" data-i18n="dashboard.table.rank">#</th>
                 <th class="pb-2 pr-3" data-i18n="dashboard.table.item">Item</th>
                 <th class="pb-2 pr-3 text-right" data-i18n="dashboard.table.qty">Qty</th>
