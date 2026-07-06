@@ -5,29 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css"/>
 <title>POS Dashboard — Sign In</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --navy:   #0B1120;
-    --card:   #111827;
-    --border: #1F2D45;
-    --amber:  #F59E0B;
-    --amber2: #FCD34D;
-    --text:   #E2E8F0;
-    --muted:  #64748B;
-    --error:  #F87171;
-    --success:#4ADE80;
-  }
-
   html, body {
     height: 100%;
-    background: var(--navy);
+    background: var(--bg-canvas);
     font-family: 'DM Sans', 'Noto Sans Khmer', sans-serif;
-    color: var(--text);
+    color: var(--text-primary);
     overflow: hidden;
   }
 
@@ -88,7 +83,7 @@
   .card {
     width: 100%;
     max-width: 420px;
-    background: var(--card);
+    background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: 20px;
     padding: 44px 40px;
@@ -109,7 +104,7 @@
   }
   .logo-icon {
     width: 44px; height: 44px;
-    background: linear-gradient(135deg, var(--amber), #D97706);
+    background: linear-gradient(135deg, var(--accent), #D97706);
     border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
     font-size: 20px;
@@ -118,12 +113,12 @@
   .logo-text h1 {
     font-family: 'DM Serif Display', serif;
     font-size: 18px;
-    color: var(--amber);
+    color: var(--accent);
     line-height: 1.1;
   }
   .logo-text p {
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-secondary);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     margin-top: 2px;
@@ -132,12 +127,12 @@
   .page-title {
     font-family: 'DM Serif Display', serif;
     font-size: 26px;
-    color: var(--text);
+    color: var(--text-primary);
     margin-bottom: 6px;
   }
   .page-sub {
     font-size: 13px;
-    color: var(--muted);
+    color: var(--text-secondary);
     margin-bottom: 32px;
   }
 
@@ -150,7 +145,7 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-secondary);
     margin-bottom: 8px;
   }
 
@@ -161,7 +156,7 @@
     position: absolute;
     left: 14px; top: 50%;
     transform: translateY(-50%);
-    color: var(--muted);
+    color: var(--text-secondary);
     font-size: 15px;
     pointer-events: none;
   }
@@ -169,18 +164,18 @@
   input[type="text"],
   input[type="password"] {
     width: 100%;
-    background: var(--navy);
+    background: var(--bg-canvas);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 12px 14px 12px 40px;
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
-    color: var(--text);
+    color: var(--text-primary);
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
   input:focus {
-    border-color: var(--amber);
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(245,158,11,0.12);
   }
   input::placeholder { color: #374151; }
@@ -190,11 +185,11 @@
     right: 14px; top: 50%;
     transform: translateY(-50%);
     background: none; border: none;
-    color: var(--muted); cursor: pointer;
+    color: var(--text-secondary); cursor: pointer;
     font-size: 15px; padding: 4px;
     transition: color 0.2s;
   }
-  .toggle-pw:hover { color: var(--amber); }
+  .toggle-pw:hover { color: var(--accent); }
 
   /* Error */
   .error-msg {
@@ -204,7 +199,7 @@
     border-radius: 8px;
     padding: 10px 14px;
     font-size: 13px;
-    color: var(--error);
+    color: #F87171;
     margin-bottom: 18px;
     animation: shake 0.4s ease;
   }
@@ -219,7 +214,7 @@
   .btn-login {
     width: 100%;
     padding: 13px;
-    background: linear-gradient(135deg, var(--amber), #D97706);
+    background: linear-gradient(135deg, var(--accent), #D97706);
     border: none;
     border-radius: 10px;
     font-family: 'DM Sans', sans-serif;
@@ -256,15 +251,15 @@
   .footer-note {
     text-align: center;
     font-size: 12px;
-    color: var(--muted);
+    color: var(--text-secondary);
   }
-  .footer-note span { color: var(--amber); }
+  .footer-note span { color: var(--accent); }
 
   /* Language switcher */
   .lang-switch {
     display: flex;
     gap: 2px;
-    background: var(--navy);
+    background: var(--bg-canvas);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 2px;
