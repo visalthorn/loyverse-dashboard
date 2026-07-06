@@ -24,7 +24,7 @@ export function renderSidebar(sidebarEl, activePage) {
       <button id="userMenuTrigger" type="button" class="flex items-center gap-2 min-w-0 flex-1" style="background:none;border:none;cursor:pointer;padding:0;text-align:left;">
         <div id="sidebarAvatar" class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 flex items-center justify-center font-bold text-black flex-shrink-0">U</div>
         <span id="sidebarUserName" class="text-base font-bold text-amber-400 truncate">User</span>
-        <span class="user-menu-caret text-slate-500 flex-shrink-0" style="font-size:10px;">▾</span>
+        <span class="user-menu-caret text-slate-500 flex-shrink-0">▾</span>
       </button>
       <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700 flex-shrink-0" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
       <div id="userMenuMount"></div>

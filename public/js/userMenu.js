@@ -22,8 +22,10 @@ export function renderUserMenu(mountEl) {
   const panel   = mountEl.querySelector('#userMenuPanel');
   if (!trigger || !panel) return;
 
-  function closeMenu() { panel.style.display = 'none'; }
-  function openMenu()  { panel.style.display = 'block'; }
+  const caret = trigger.querySelector('.user-menu-caret');
+
+  function closeMenu() { panel.style.display = 'none'; caret?.classList.remove('open'); }
+  function openMenu()  { panel.style.display = 'block'; caret?.classList.add('open'); }
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();

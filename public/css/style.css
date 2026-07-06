@@ -289,7 +289,7 @@ body {
 /* ── i18n: language switcher ─────────────────────────────── */
 .lang-switch {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   background: #0f172a;
   border: 1px solid #1f2d45;
   border-radius: 8px;
@@ -299,9 +299,9 @@ body {
   border: none;
   background: transparent;
   color: #64748b;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 4px 8px;
+  padding: 8px 14px;
   border-radius: 6px;
   cursor: pointer;
   transition: background-color .15s, color .15s;
@@ -399,6 +399,12 @@ body.app-shell { display: flex; min-height: 100vh; }
 }
 
 /* ── user menu dropdown (avatar-triggered) ───────────────── */
+.user-menu-caret {
+  display: inline-block;
+  font-size: 16px;
+  transition: transform .2s ease;
+}
+.user-menu-caret.open { transform: rotate(180deg); }
 .user-menu-panel {
   position: absolute;
   top: calc(100% + 8px);
