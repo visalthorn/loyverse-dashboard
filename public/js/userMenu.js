@@ -1,5 +1,5 @@
 // public/js/userMenu.js
-import { t, renderLangSwitcher } from './i18n.js';
+import { t } from './i18n.js';
 
 export function renderUserMenu(mountEl) {
   if (!mountEl) return;
@@ -11,17 +11,11 @@ export function renderUserMenu(mountEl) {
         <span id="sidebarUserRole">Role</span>
         <span id="envBadge" class="px-2 py-0.5 rounded text-xs font-bold"></span>
       </div>
-      <div class="user-menu-row">
-        <span class="user-menu-icon" aria-hidden="true">🌐</span>
-        <div id="userMenuLangSwitcher" class="user-menu-lang"></div>
-      </div>
       <button onclick="logout()" class="user-menu-signout">
         <span class="user-menu-icon" aria-hidden="true">⏻</span>
         <span data-i18n="common.signOut">${t('common.signOut')}</span>
       </button>
     </div>`;
-
-  renderLangSwitcher(mountEl.querySelector('#userMenuLangSwitcher'));
 
   const trigger = document.getElementById('userMenuTrigger');
   const panel   = mountEl.querySelector('#userMenuPanel');

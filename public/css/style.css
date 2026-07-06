@@ -298,16 +298,24 @@ body {
 .lang-btn {
   border: none;
   background: transparent;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color .15s, color .15s;
+  opacity: .55;
+  filter: grayscale(35%);
+  transition: opacity .15s, filter .15s, background-color .15s;
 }
-.lang-btn:hover { color: #cbd5e1; }
-.lang-btn.active { background: #f59e0b; color: #0b1120; }
+.lang-btn svg { width: 22px; height: auto; display: block; border-radius: 2px; }
+.lang-btn:hover { opacity: .85; }
+.lang-btn.active {
+  opacity: 1;
+  filter: none;
+  background: rgba(245,158,11,.18);
+  box-shadow: 0 0 0 1px rgba(245,158,11,.5) inset;
+}
 
 /* ── shared app shell / sidebar layout (was duplicated per-page) ──────── */
 body.app-shell { display: flex; min-height: 100vh; }
@@ -330,6 +338,9 @@ body.app-shell { display: flex; min-height: 100vh; }
 .sidebar-collapsed #sidebarUserName,
 .sidebar-collapsed .user-menu-caret,
 .sidebar-collapsed .sidebar-footer { display: none; }
+.sidebar-collapsed .lang-switch { gap: 3px; padding: 2px; }
+.sidebar-collapsed .lang-btn { padding: 3px; }
+.sidebar-collapsed .lang-btn svg { width: 16px; }
 .sidebar-collapsed .nav-item {
   justify-content: center;
   padding-left: 0.5rem;
@@ -437,12 +448,6 @@ body.app-shell { display: flex; min-height: 100vh; }
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.user-menu-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-}
 .user-menu-icon {
   display: inline-flex;
   justify-content: center;
@@ -451,7 +456,6 @@ body.app-shell { display: flex; min-height: 100vh; }
   opacity: .8;
   flex-shrink: 0;
 }
-.user-menu-lang { flex: 1; }
 .user-menu-signout {
   width: 100%;
   display: flex;

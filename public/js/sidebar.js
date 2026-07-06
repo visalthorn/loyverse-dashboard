@@ -1,4 +1,4 @@
-import { t } from './i18n.js';
+import { t, renderLangSwitcher } from './i18n.js';
 import { renderUserMenu } from './userMenu.js';
 
 const NAV_ITEMS = [
@@ -26,6 +26,7 @@ export function renderSidebar(sidebarEl, activePage) {
         <span id="sidebarUserName" class="text-base font-bold text-amber-400 truncate">User</span>
         <span class="user-menu-caret text-slate-500 flex-shrink-0">▾</span>
       </button>
+      <div id="sidebarLangSwitcher" class="flex-shrink-0"></div>
       <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700 flex-shrink-0" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
       <div id="userMenuMount"></div>
     </div>
@@ -37,4 +38,5 @@ export function renderSidebar(sidebarEl, activePage) {
     </div>`;
 
   renderUserMenu(sidebarEl.querySelector('#userMenuMount'));
+  renderLangSwitcher(sidebarEl.querySelector('#sidebarLangSwitcher'));
 }
