@@ -4,6 +4,8 @@
 
 **Context:** The app currently has no theming system at all: colors are hardcoded as literal hex values in ~150+ places, spread across `public/css/style.css`, five pages' own embedded `<style>` blocks (`receipts.html`, `report.html`, `staff.html`, `users.html`, and `login.html` — the last of which doesn't even link `style.css`, running an entirely separate, duplicated color-variable system), and several JS files that configure Chart.js with literal hex colors (`charts.js`, and the chart-consuming page modules `dashboard.js`, `report.js`, `staff.js`, `receipts.js`, `users.js`, `schedule.js`). This fragmentation was directly responsible for a bug earlier this session (a flag-icon fix applied to the shared `style.css` component silently missed `login.html`'s private duplicate copy). Introducing theming is the forcing function to consolidate this.
 
+**Scope revision:** an initial hex-color survey (~150 hits) missed a second, larger source of hardcoded chrome: 134 instances of Tailwind's own utility classes (`bg-slate-800`, `border-slate-700`, `text-slate-400`, etc.) hardcoded directly in each page's static markup (body/header/sidebar/tables) across `index.html`, `expenses.html`, `receipts.html`, `report.html`, `staff.html`, `users.html`. These bypass our CSS variables entirely, since Tailwind's CDN build has no awareness of our custom `data-theme` attribute. This roughly doubles the migration surface and is addressed via Tailwind's own dark-mode variant mechanism (below) rather than replacing them with custom classes, to stay consistent with the project's existing Tailwind-first convention.
+
 ---
 
 ## Architecture
@@ -15,6 +17,8 @@
 **Chart.js.** Charts render to `<canvas>`, so they cannot pick up CSS variables via the cascade. `charts.js`'s option-builder functions (`chartOpts()`, `barOpts()`, etc.) read the resolved values at chart-creation time via `getComputedStyle(document.documentElement).getPropertyValue('--chart-grid')` (and similar), rather than hardcoding hex. This keeps one source of truth (the CSS variables) instead of a parallel JS palette that could drift out of sync.
 
 **Toggle behavior: reload, not live-swap.** Clicking the toggle sets `localStorage.pos_theme` and calls `location.reload()` — identical to how the existing language switcher (`renderLangSwitcher()`) already behaves. This means every chart simply re-initializes with the correct theme's colors on the next load; no page needs to listen for a "theme changed" event and live-update its Chart.js instances. This trades a full reload for a large reduction in moving parts and risk.
+
+**Tailwind's own dark-mode variant, for the 134 hardcoded Tailwind utility classes.** Each Tailwind-CDN page (all except `login.html`, which doesn't load Tailwind) gets a small inline `<script>tailwind.config = { darkMode: 'class' }</script>` placed before the CDN `<script src="https://cdn.tailwindcss.com">` tag. The same init/toggle logic that sets `data-theme` also toggles a `.dark` class on `<html>` — two attributes driven by one action, since our hand-rolled CSS variables and Tailwind's utilities are two different engines that both need to hear about a theme change. Existing bare utility classes (e.g. `bg-slate-800`) are rewritten with an explicit light default plus a `dark:`-prefixed version of the current value (e.g. `bg-white dark:bg-slate-800`), so light mode is the new default appearance and dark mode (today's look) requires `.dark` to be present — matching the "dark theme has zero visual regression" requirement above.
 
 ## Palette
 
@@ -48,7 +52,8 @@ A sun/moon inline SVG icon (same technique as the recently-added flag icons — 
 - **`receipts.html`, `report.html`, `staff.html`, `users.html`**: these already link `style.css`, so their embedded `<style>` blocks' hardcoded colors convert to reference the same `var()`s (CSS variables cascade regardless of which stylesheet declares vs. consumes them).
 - **`login.html`**: consolidated onto the shared `style.css` variable system. Its private `:root` block (`--navy`, `--amber`, `--border`, `--text`, `--muted`, etc.) is removed; it adds a `<link rel="stylesheet" href="/css/style.css">` and an inline theme-init script matching the other pages.
 - **`public/js/sidebar.js`, `public/js/userMenu.js`**: inline colors in their JS-generated markup (template literals) move to CSS classes backed by variables, following the pattern already used for `.user-menu-panel`, `.lang-btn`, etc.
-- **New**: `public/js/themeToggle.js`, a sun/moon toggle component mirroring `userMenu.js`'s "render into a mount point" pattern + the `:root` variable tables in `style.css` + per-page inline flash-prevention scripts.
+- **`index.html`, `expenses.html`, `receipts.html`, `report.html`, `staff.html`, `users.html`**: the 134 hardcoded Tailwind slate utility classes in each page's markup get the `tailwind.config` snippet added and are rewritten to light-default + `dark:`-prefixed pairs.
+- **New**: `public/js/themeToggle.js`, a sun/moon toggle component mirroring `userMenu.js`'s "render into a mount point" pattern + the `:root` variable tables in `style.css` + per-page inline flash-prevention scripts (which now also toggle the `.dark` class for Tailwind).
 
 ## Testing
 
