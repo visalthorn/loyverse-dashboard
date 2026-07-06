@@ -1,6 +1,7 @@
 export const km = {
   // ── common ──────────────────────────────────────────────
   'common.signOut': 'ចាកចេញ',
+  'common.signedInAs': 'ចូលជា',
   'common.collapseSidebar': 'បង្រួមម៉ឺនុយ',
   'common.openMenu': 'បើកម៉ឺនុយ',
   'common.loading': 'កំពុងផ្ទុក...',

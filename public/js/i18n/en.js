@@ -1,6 +1,7 @@
 export const en = {
   // ── common ──────────────────────────────────────────────
   'common.signOut': 'Sign out',
+  'common.signedInAs': 'Signed in as',
   'common.collapseSidebar': 'Collapse sidebar',
   'common.openMenu': 'Open menu',
   'common.loading': 'Loading...',

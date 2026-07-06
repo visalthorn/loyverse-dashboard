@@ -6,12 +6,17 @@ export function renderUserMenu(mountEl) {
 
   mountEl.innerHTML = `
     <div id="userMenuPanel" class="user-menu-panel" style="display:none;">
+      <div class="user-menu-meta-label" data-i18n="common.signedInAs">${t('common.signedInAs')}</div>
       <div class="user-menu-info">
         <span id="sidebarUserRole">Role</span>
         <span id="envBadge" class="px-2 py-0.5 rounded text-xs font-bold"></span>
       </div>
-      <div id="userMenuLangSwitcher" class="user-menu-lang"></div>
+      <div class="user-menu-row">
+        <span class="user-menu-icon" aria-hidden="true">🌐</span>
+        <div id="userMenuLangSwitcher" class="user-menu-lang"></div>
+      </div>
       <button onclick="logout()" class="user-menu-signout">
+        <span class="user-menu-icon" aria-hidden="true">⏻</span>
         <span data-i18n="common.signOut">${t('common.signOut')}</span>
       </button>
     </div>`;
