@@ -3,11 +3,25 @@ import { fmt } from './utils.js';
 
 export { COLORS };
 
+function themeColor(varName, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  return v || fallback;
+}
+
+function hexToRgb(hex) {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+  const num = parseInt(full, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
 export function heatColor(ratio) {
-  if (ratio === 0) return '#1e293b';
-  const r = Math.round(30  + ratio * (245 - 30));
-  const g = Math.round(41  + ratio * (158 - 41));
-  const b = Math.round(59  + ratio * (11  - 59));
+  const empty = themeColor('--heatmap-empty', '#1e293b');
+  if (ratio === 0) return empty;
+  const { r: r0, g: g0, b: b0 } = hexToRgb(empty);
+  const r = Math.round(r0 + ratio * (245 - r0));
+  const g = Math.round(g0 + ratio * (158 - g0));
+  const b = Math.round(b0 + ratio * (11  - b0));
   return `rgb(${r},${g},${b})`;
 }
 
@@ -16,13 +30,16 @@ export function destroyChart(id) {
 }
 
 export function chartOpts(prefix = '') {
+  const gridX = themeColor('--bg-surface', '#1e293b');
+  const gridY = themeColor('--border', '#334155');
+  const tick  = themeColor('--text-muted', '#64748b');
   return {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { display: false } },
     scales: {
-      x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } } },
-      y: { grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => prefix + fmt(v) } },
+      x: { grid: { color: gridX }, ticks: { color: tick, font: { size: 11 } } },
+      y: { grid: { color: gridY }, ticks: { color: tick, font: { size: 11 }, callback: v => prefix + fmt(v) } },
     },
   };
 }
@@ -52,7 +69,7 @@ export function pieOpts(showLegend = true) {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: showLegend, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } },
+      legend: { display: showLegend, position: 'bottom', labels: { color: themeColor('--text-secondary', '#94a3b8'), boxWidth: 12, font: { size: 11 } } },
       tooltip: {
         callbacks: {
           label: c => ` ${c.label}: ៛${fmt(c.raw)} (${((c.raw / c.chart.getDatasetMeta(0).total) * 100).toFixed(1)}%)`,
