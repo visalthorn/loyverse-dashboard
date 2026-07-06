@@ -327,16 +327,19 @@ body.app-shell { display: flex; min-height: 100vh; }
   padding-left: 0.5rem;
   padding-right: 0.5rem;
 }
-.sidebar-collapsed .sidebar-header .brand-meta,
-.sidebar-collapsed #langSwitcher,
+.sidebar-collapsed #sidebarUserName,
+.sidebar-collapsed .user-menu-caret,
 .sidebar-collapsed .sidebar-footer { display: none; }
-.sidebar-collapsed .sidebar-header-controls { margin-left: 0; }
 .sidebar-collapsed .nav-item {
   justify-content: center;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
 }
 .sidebar-collapsed .nav-label { display: none; }
+.sidebar-collapsed .user-menu-panel {
+  left: calc(100% + 8px);
+  top: 0;
+}
 
 .main-wrapper {
   flex: 1;
