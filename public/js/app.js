@@ -1,7 +1,7 @@
 import { checkAuth, logout } from './auth.js';
 import { state } from './state.js';
 import { getEl } from './utils.js';
-import { applyTranslations, renderLangSwitcher, t } from './i18n.js';
+import { applyTranslations, t } from './i18n.js';
 import { renderSidebar } from './sidebar.js';
 
 // Page modules — loaded on demand
@@ -167,7 +167,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   renderUserHeader(authData.user);
   applyPermissions();
   applyTranslations();
-  renderLangSwitcher(getEl('langSwitcher'));
 
   const navUsers = getEl('navUsers');
   if (navUsers) navUsers.style.display = state.currentUserRole === 'admin' ? '' : 'none';
