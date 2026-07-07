@@ -21,22 +21,22 @@ export function renderSidebar(sidebarEl, activePage) {
     </a>`).join('');
 
   sidebarEl.innerHTML = `
-    <div class="sidebar-header px-5 py-4 border-b border-slate-700 flex items-center justify-between gap-3" style="position:relative;">
-      <button id="userMenuTrigger" type="button" class="flex items-center gap-2 min-w-0 flex-1" style="background:none;border:none;cursor:pointer;padding:0;text-align:left;">
+    <div class="sidebar-header px-5 py-4 border-b border-[color:var(--border)] flex items-center flex-wrap justify-between gap-y-2.5 gap-x-3" style="position:relative;">
+      <button id="userMenuTrigger" type="button" class="flex items-center gap-2" style="background:none;border:none;cursor:pointer;padding:0;text-align:left;">
         <div id="sidebarAvatar" class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 flex items-center justify-center font-bold text-black flex-shrink-0">U</div>
         <span id="sidebarUserName" class="text-base font-bold text-amber-400 truncate">User</span>
-        <span class="user-menu-caret text-slate-500 flex-shrink-0">▾</span>
+        <span class="user-menu-caret text-[color:var(--text-muted)] flex-shrink-0">▾</span>
       </button>
       <div id="sidebarLangSwitcher" class="flex-shrink-0"></div>
       <div id="sidebarThemeToggle" class="flex-shrink-0"></div>
-      <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-slate-700 flex-shrink-0" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
+      <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)] flex-shrink-0" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
       <div id="userMenuMount"></div>
     </div>
 
     <nav class="flex-1 px-3 py-4 space-y-1">${navHtml}</nav>
 
-    <div class="px-5 py-4 border-t border-slate-700 sidebar-footer">
-      <div id="userInfo" class="text-xs text-slate-400"></div>
+    <div class="px-5 py-4 border-t border-[color:var(--border)] sidebar-footer">
+      <div id="userInfo" class="text-xs text-[color:var(--text-muted)]"></div>
     </div>`;
 
   renderUserMenu(sidebarEl.querySelector('#userMenuMount'));

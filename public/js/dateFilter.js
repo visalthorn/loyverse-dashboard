@@ -8,12 +8,19 @@ function resolveDates(key) {
     d.setDate(d.getDate() - 10);
     return { start: d.toISOString().slice(0, 10), end };
   }
+  if (key === 'yesterday') {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const yesterday = d.toISOString().slice(0, 10);
+    return { start: yesterday, end: yesterday };
+  }
   return { start: end, end };
 }
 
 export function periodLabel(period, start, end) {
   if (period === 'range') return `${start} → ${end}`;
   if (period === 'last10') return t('common.last10Days');
+  if (period === 'yesterday') return t('common.yesterday');
   return t('common.today');
 }
 
@@ -23,13 +30,13 @@ export function renderDateFilter(mountEl, { presets, defaultPreset, onChange }) 
   function render(activeKey, showCustom) {
     mountEl.innerHTML = `
       <div class="flex flex-wrap items-center gap-2">
-        <div class="period-selector flex gap-1 bg-slate-700 rounded-lg p-1">
+        <div class="period-selector flex gap-1 bg-[color:var(--bg-surface-alt)] rounded-lg p-1">
           ${presets.map(p => `<button type="button" class="period-btn${p.key === activeKey ? ' active' : ''}" data-key="${p.key}">${t(p.labelKey)}</button>`).join('')}
           <button type="button" class="period-btn${activeKey === 'range' ? ' active' : ''}" data-key="range">${t('common.custom')}</button>
         </div>
         <div class="date-filter-custom flex flex-wrap items-center gap-2"${showCustom ? '' : ' style="display:none"'}>
-          <label class="text-xs text-slate-300"><span>${t('common.from')}</span> <input type="date" class="date-filter-start rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
-          <label class="text-xs text-slate-300"><span>${t('common.to')}</span> <input type="date" class="date-filter-end rounded bg-slate-800 border border-slate-700 text-white text-xs p-1"></label>
+          <label class="text-xs text-[color:var(--text-secondary)]"><span>${t('common.from')}</span> <input type="date" class="date-filter-start rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1"></label>
+          <label class="text-xs text-[color:var(--text-secondary)]"><span>${t('common.to')}</span> <input type="date" class="date-filter-end rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1"></label>
           <button type="button" class="date-filter-apply bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded">${t('common.apply')}</button>
         </div>
       </div>`;

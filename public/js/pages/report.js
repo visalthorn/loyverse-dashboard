@@ -58,17 +58,17 @@ async function loadReportKPIs() {
     {
       accent: 'amber', icon: '💰', label: t('report.kpi.totalRevenue'),
       val: '៛' + fmtRaw(grossVal), valClass: 'text-amber-400',
-      sub: `<span class="text-slate-500">${t('report.kpi.vsPrev')} </span><span class="text-slate-300">${growthBadge(data.gross_income.growth)}</span>`,
+      sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.vsPrev')} </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.gross_income.growth)}</span>`,
     },
     {
       accent: 'red', icon: '💸', label: t('dashboard.kpi.expenses'),
       val: '-៛' + fmtRaw(expVal), valClass: 'text-red-400',
-      sub: `<span class="text-slate-500">${t('report.kpi.pctOfRevenue', { pct: expPct })} · </span><span class="text-slate-300">${growthBadge(data.expenses.growth)}</span>`,
+      sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.pctOfRevenue', { pct: expPct })} · </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.expenses.growth)}</span>`,
     },
     {
       accent: 'violet', icon: '🧾', label: t('report.kpi.avgOrderValue'),
       val: '៛' + fmtRaw(aov), valClass: 'text-violet-400',
-      sub: `<span class="text-slate-500">${t('report.kpi.vsPrev')} </span><span class="text-slate-300">${growthBadge(data.aov.growth)}</span>`,
+      sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.vsPrev')} </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.aov.growth)}</span>`,
     },
     {
       accent: 'emerald', icon: '📊', label: t('report.kpi.netMargin'),
@@ -156,7 +156,7 @@ async function loadDiningOptions() {
   const legend = getEl('diningLegend');
   if (!data?.length) {
     destroyChart('diningChart');
-    if (legend) legend.innerHTML = `<p class="text-slate-500 text-sm">${t('dashboard.noDataRow')}</p>`;
+    if (legend) legend.innerHTML = `<p class="text-[color:var(--text-muted)] text-sm">${t('dashboard.noDataRow')}</p>`;
     return;
   }
 
@@ -174,7 +174,7 @@ async function loadDiningOptions() {
   if (legend) legend.innerHTML = data.map((r, i) => `
     <div class="legend-item">
       <span><span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.dining_option}</span>
-      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-slate-500">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
+      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-[color:var(--text-muted)]">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
     </div>
   `).join('');
 }
@@ -186,7 +186,7 @@ async function loadPaymentMethods() {
   const legend = getEl('paymentLegend');
   if (!data?.length) {
     destroyChart('paymentChart');
-    if (legend) legend.innerHTML = `<p class="text-slate-500 text-sm">${t('dashboard.noDataRow')}</p>`;
+    if (legend) legend.innerHTML = `<p class="text-[color:var(--text-muted)] text-sm">${t('dashboard.noDataRow')}</p>`;
     return;
   }
 
@@ -204,7 +204,7 @@ async function loadPaymentMethods() {
   if (legend) legend.innerHTML = data.map((r, i) => `
     <div class="legend-item">
       <span><span class="legend-dot" style="background:${COLORS[(i + 2) % COLORS.length]}"></span>${r.payment_name || r.payment_type}</span>
-      <span class="font-medium">៛${fmt(r.total)} <span class="text-slate-500">(${total > 0 ? ((r.total / total) * 100).toFixed(1) : 0}%)</span></span>
+      <span class="font-medium">៛${fmt(r.total)} <span class="text-[color:var(--text-muted)]">(${total > 0 ? ((r.total / total) * 100).toFixed(1) : 0}%)</span></span>
     </div>
   `).join('');
 }
@@ -224,7 +224,7 @@ async function loadTopProducts() {
     const categoryLabel = topProductsCategory === 'food' ? t('dashboard.categoryFood')
       : topProductsCategory === 'beverage' ? t('dashboard.categoryBeverage')
       : '';
-    if (legend) legend.innerHTML = `<p class="text-slate-500 text-sm">${categoryLabel ? t('report.noCategoryItemsForPeriod', { category: categoryLabel }) : t('dashboard.noDataRow')}</p>`;
+    if (legend) legend.innerHTML = `<p class="text-[color:var(--text-muted)] text-sm">${categoryLabel ? t('report.noCategoryItemsForPeriod', { category: categoryLabel }) : t('dashboard.noDataRow')}</p>`;
     return;
   }
 
@@ -240,11 +240,11 @@ async function loadTopProducts() {
   });
 
   if (legend) legend.innerHTML = data.map((r, i) => `
-    <div class="flex items-center justify-between py-2 border-b border-slate-800 last:border-0">
+    <div class="flex items-center justify-between py-2 border-b border-[color:var(--border)] last:border-0">
       <span class="flex items-center gap-2 text-sm">
         <span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.item_name}
       </span>
-      <span class="font-medium text-sm">៛${fmt(r.revenue)} <span class="text-slate-500 text-xs">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
+      <span class="font-medium text-sm">៛${fmt(r.revenue)} <span class="text-[color:var(--text-muted)] text-xs">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
     </div>
   `).join('');
 }
@@ -417,9 +417,10 @@ export function applyDateFilter({ period, start, end }) {
 export function init() {
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [
+      { key: 'yesterday', labelKey: 'common.yesterday' },
       { key: 'last10', labelKey: 'common.last10Days' },
     ],
-    defaultPreset: 'last10',
+    defaultPreset: 'yesterday',
     onChange: applyDateFilter,
   });
 }

@@ -63,27 +63,27 @@ async function loadKPIs() {
       val: '៛' + fmtRaw(grossVal), valClass: 'text-amber-400',
       growth: data.gross_income.growth,
       sub: `<span class="${netValClass} font-semibold">Net ៛${fmtRaw(Math.abs(netVal))}</span>`
-         + `<span class="text-slate-600"> · ${t('dashboard.kpi.marginSub', { margin })}</span>`,
+         + `<span class="text-[color:var(--text-muted)]"> · ${t('dashboard.kpi.marginSub', { margin })}</span>`,
     },
     {
       accent: netAccent, icon: netIcon, label: t('dashboard.kpi.netProfit'),
       val: (netPositive ? '' : '-') + '៛' + fmtRaw(Math.abs(netVal)),
       valClass: netValClass,
       growth: null,
-      sub: `<span class="text-slate-500">${t('dashboard.kpi.netSub')}</span>`,
+      sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.netSub')}</span>`,
     },
     {
       accent: 'blue', icon: '🧾', label: t('dashboard.kpi.orders'),
       val: fmtRaw(data.orders.value), valClass: 'text-sky-400',
       growth: data.orders.growth,
-      sub: `<span class="text-slate-500">${t('dashboard.kpi.aovSub')} </span>`
-         + `<span class="text-slate-300 font-semibold">៛${fmtRaw(data.aov.value)}</span>`,
+      sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.aovSub')} </span>`
+         + `<span class="text-[color:var(--text-secondary)] font-semibold">៛${fmtRaw(data.aov.value)}</span>`,
     },
     {
       accent: 'red', icon: '💸', label: t('dashboard.kpi.expenses'),
       val: '-៛' + fmtRaw(expVal), valClass: 'text-red-400',
       growth: data.expenses.growth,
-      sub: `<span class="text-slate-600">${t('dashboard.kpi.pctOfGross', { pct: expPct })}</span>`,
+      sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.pctOfGross', { pct: expPct })}</span>`,
     },
   ];
 
@@ -205,7 +205,7 @@ async function loadDiningOptions() {
   if (diningLegend) diningLegend.innerHTML = data.map((r, i) => `
     <div class="legend-item">
       <span><span class="legend-dot" style="background:${COLORS[i]}"></span>${r.dining_option}</span>
-      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-slate-500">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
+      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-[color:var(--text-muted)]">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
     </div>
   `).join('');
 }
@@ -231,7 +231,7 @@ async function loadPaymentMethods() {
   if (paymentLegend) paymentLegend.innerHTML = data.map((r, i) => `
     <div class="legend-item">
       <span><span class="legend-dot" style="background:${COLORS[i + 2]}"></span>${r.payment_name || r.payment_type}</span>
-      <span class="font-medium">៛${fmt(r.total)} <span class="text-slate-500">(${total > 0 ? ((r.total / total) * 100).toFixed(1) : 0}%)</span></span>
+      <span class="font-medium">៛${fmt(r.total)} <span class="text-[color:var(--text-muted)]">(${total > 0 ? ((r.total / total) * 100).toFixed(1) : 0}%)</span></span>
     </div>
   `).join('');
 }
@@ -281,20 +281,20 @@ function renderProductRows(rows, tbodyId, startRank = 1) {
   const tbody = getEl(tbodyId);
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-500">${t('dashboard.noDataRow')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-[color:var(--text-muted)]">${t('dashboard.noDataRow')}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, i) => `
-    <tr class="border-b border-slate-800 hover:bg-slate-800 transition-colors">
-      <td class="py-2 pr-3 text-slate-400 font-mono">${startRank + i}</td>
+    <tr class="border-b border-[color:var(--border)] hover:bg-[color:var(--hover-tint)] transition-colors">
+      <td class="py-2 pr-3 text-[color:var(--text-muted)] font-mono">${startRank + i}</td>
       <td class="py-2 pr-3">
         <div class="font-medium">${r.item_name}</div>
-        <div class="text-xs text-slate-500">${r.sku || ''}</div>
+        <div class="text-xs text-[color:var(--text-muted)]">${r.sku || ''}</div>
       </td>
-      <td class="py-2 pr-3 text-right text-slate-300">${fmt(r.qty)}</td>
+      <td class="py-2 pr-3 text-right text-[color:var(--text-secondary)]">${fmt(r.qty)}</td>
       <td class="py-2 pr-3 text-right text-amber-400 font-medium">៛${fmt(r.revenue)}</td>
-      <td class="py-2 pr-3 text-right text-slate-400">${r.prev_revenue > 0 ? '៛' + fmt(r.prev_revenue) : '—'}</td>
-      <td class="py-2 text-right">${growthBadge(r.growth) || '<span class="text-slate-500">—</span>'}</td>
+      <td class="py-2 pr-3 text-right text-[color:var(--text-muted)]">${r.prev_revenue > 0 ? '៛' + fmt(r.prev_revenue) : '—'}</td>
+      <td class="py-2 text-right">${growthBadge(r.growth) || '<span class="text-[color:var(--text-muted)]">—</span>'}</td>
     </tr>
   `).join('');
 }
@@ -378,7 +378,7 @@ async function loadCancelledOrders() {
   const cancelSummary = getEl('cancelSummary');
   if (cancelSummary) cancelSummary.innerHTML = `
     <span class="text-red-400 font-bold">${t('dashboard.cancelledCount', { count: data.summary.count })}</span>
-    <span class="text-slate-400">${t('dashboard.cancelledLost', { amount: '<span class="text-red-300 font-bold">$' + fmt(data.summary.lost_revenue) + '</span>' })}</span>
+    <span class="text-[color:var(--text-muted)]">${t('dashboard.cancelledLost', { amount: '<span class="text-red-300 font-bold">$' + fmt(data.summary.lost_revenue) + '</span>' })}</span>
   `;
 
   const cancelList = getEl('cancelList');
@@ -387,12 +387,12 @@ async function loadCancelledOrders() {
         <div class="cancel-row">
           <div>
             <div class="font-medium text-red-200">#${r.receipt_number}</div>
-            <div class="text-xs text-slate-500">${fmtDatetime(r.cancelled_at)} · ${r.dining_option || '-'} · ${r.employee_id || '-'}</div>
+            <div class="text-xs text-[color:var(--text-muted)]">${fmtDatetime(r.cancelled_at)} · ${r.dining_option || '-'} · ${r.employee_id || '-'}</div>
           </div>
           <div class="text-red-400 font-bold">-$${fmt(r.total_money)}</div>
         </div>
       `).join('')
-    : `<p class="text-slate-500 text-sm">${t('dashboard.noCancellations')}</p>`;
+    : `<p class="text-[color:var(--text-muted)] text-sm">${t('dashboard.noCancellations')}</p>`;
 }
 
 // ─── Load All ────────────────────────────────────────────────────────────────
@@ -485,9 +485,10 @@ export async function init() {
   if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">▶</span> ${t('dashboard.showSlowMovers')}`;
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [
+      { key: 'yesterday', labelKey: 'common.yesterday' },
       { key: 'last10', labelKey: 'common.last10Days' },
     ],
-    defaultPreset: 'last10',
+    defaultPreset: 'yesterday',
     onChange: applyDateFilter,
   });
   loadLastSync();

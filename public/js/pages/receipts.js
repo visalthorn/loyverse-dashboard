@@ -112,8 +112,8 @@ export function applyDateFilter({ start, end }) {
 
 function mountDateFilter() {
   renderDateFilter(getEl('dateFilterMount'), {
-    presets: [{ key: 'today', labelKey: 'common.today' }],
-    defaultPreset: 'today',
+    presets: [{ key: 'yesterday', labelKey: 'common.yesterday' }],
+    defaultPreset: 'yesterday',
     onChange: applyDateFilter,
   });
 }
@@ -153,18 +153,18 @@ function renderTable() {
     const typeLabel   = r.receipt_type === 'SALE' ? t('receipts.typeSale') : r.receipt_type === 'REFUND' ? t('receipts.typeRefund') : (r.receipt_type || '—');
     const cancelBadge = r.is_canceled === 'Yes'
       ? `<span class="badge badge-canceled">${t('receipts.yes')}</span>`
-      : '<span class="text-slate-600 text-xs">—</span>';
+      : '<span class="text-[color:var(--text-muted)] text-xs">—</span>';
     const sel = r.id === selectedId ? 'selected' : '';
 
     return `<tr class="receipt-row ${sel}" onclick="selectReceipt(${r.id})">
-      <td class="py-2.5 pr-3 text-slate-500 text-xs pl-1">${idx}</td>
+      <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs pl-1">${idx}</td>
       <td class="py-2.5 pr-3 font-mono text-amber-400 font-semibold text-xs">${r.receipt_number}</td>
-      <td class="py-2.5 pr-3 text-slate-400 text-xs">${r.order ?? '—'}</td>
-      <td class="py-2.5 pr-3 text-slate-300 text-xs whitespace-nowrap">${formatDate(r.receipt_date)}</td>
-      <td class="py-2.5 pr-3 text-slate-300 text-xs">${r.pos_device ?? '—'}</td>
+      <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs">${r.order ?? '—'}</td>
+      <td class="py-2.5 pr-3 text-[color:var(--text-secondary)] text-xs whitespace-nowrap">${formatDate(r.receipt_date)}</td>
+      <td class="py-2.5 pr-3 text-[color:var(--text-secondary)] text-xs">${r.pos_device ?? '—'}</td>
       <td class="py-2.5 pr-3 text-center"><span class="badge ${typeClass}">${typeLabel}</span></td>
       <td class="py-2.5 pr-3 text-center">${cancelBadge}</td>
-      <td class="py-2.5 text-right font-semibold text-white text-xs whitespace-nowrap">${formatCurrency(r.total_money)}</td>
+      <td class="py-2.5 text-right font-semibold text-[color:var(--text-primary)] text-xs whitespace-nowrap">${formatCurrency(r.total_money)}</td>
     </tr>`;
   }).join('');
 }
@@ -186,7 +186,7 @@ function renderPagination() {
   let html = `<button class="page-btn" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
   let prev = 0;
   for (const p of sorted) {
-    if (p - prev > 1) html += `<span class="page-btn" style="cursor:default;color:#475569">…</span>`;
+    if (p - prev > 1) html += `<span class="page-btn" style="cursor:default;color:var(--text-muted)">…</span>`;
     html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="changePage(${p})">${p}</button>`;
     prev = p;
   }
@@ -238,7 +238,7 @@ export function selectReceipt(id) {
     <div class="detail-header">
       <div class="flex items-start justify-between gap-2 mb-2">
         <div>
-          <div class="text-xs text-slate-400 mb-0.5">${t('receipts.thReceiptNo')}</div>
+          <div class="text-xs text-[color:var(--text-muted)] mb-0.5">${t('receipts.thReceiptNo')}</div>
           <div class="font-mono font-bold text-amber-400 text-base">${r.receipt_number}</div>
         </div>
         <div class="text-right">
@@ -246,22 +246,22 @@ export function selectReceipt(id) {
           ${cancelNote}
         </div>
       </div>
-      <div class="text-2xl font-bold text-white mb-1">${formatCurrency(r.total_money)}</div>
-      <div class="text-xs text-slate-400">${t('receipts.thTotal')}</div>
+      <div class="text-2xl font-bold text-[color:var(--text-primary)] mb-1">${formatCurrency(r.total_money)}</div>
+      <div class="text-xs text-[color:var(--text-muted)]">${t('receipts.thTotal')}</div>
     </div>
     <div class="p-4 space-y-3 text-xs">
       <div class="grid grid-cols-2 gap-2">
-        <div><div class="text-slate-500 mb-0.5">${t('receipts.thOrder')}</div><div class="text-slate-200">${r.order ?? '—'}</div></div>
-        <div><div class="text-slate-500 mb-0.5">${t('receipts.detailPosDevice')}</div><div class="text-slate-200">${r.pos_device ?? '—'}</div></div>
-        <div><div class="text-slate-500 mb-0.5">${t('receipts.thDate')}</div><div class="text-slate-200">${formatDate(r.receipt_date)}</div></div>
+        <div><div class="text-[color:var(--text-muted)] mb-0.5">${t('receipts.thOrder')}</div><div class="text-[color:var(--text-primary)]">${r.order ?? '—'}</div></div>
+        <div><div class="text-[color:var(--text-muted)] mb-0.5">${t('receipts.detailPosDevice')}</div><div class="text-[color:var(--text-primary)]">${r.pos_device ?? '—'}</div></div>
+        <div><div class="text-[color:var(--text-muted)] mb-0.5">${t('receipts.thDate')}</div><div class="text-[color:var(--text-primary)]">${formatDate(r.receipt_date)}</div></div>
       </div>
-      ${itemsHtml ? `<div class="border-t border-slate-700 pt-3"><div class="text-slate-400 font-semibold mb-2">${t('receipts.detailItems')}</div>${itemsHtml}</div>` : ''}
-      <div class="border-t border-slate-700 pt-3 flex justify-between font-semibold">
-        <span class="text-slate-300">${t('receipts.thTotal')}</span>
+      ${itemsHtml ? `<div class="border-t border-[color:var(--border)] pt-3"><div class="text-[color:var(--text-muted)] font-semibold mb-2">${t('receipts.detailItems')}</div>${itemsHtml}</div>` : ''}
+      <div class="border-t border-[color:var(--border)] pt-3 flex justify-between font-semibold">
+        <span class="text-[color:var(--text-secondary)]">${t('receipts.thTotal')}</span>
         <span class="${typeClass}">${formatCurrency(r.total_money)}</span>
       </div>
-      <div class="border-t border-slate-700 pt-3">
-        <button onclick="exportReceiptPDF()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold py-2 rounded flex items-center justify-center gap-1.5">${t('receipts.exportPdf')}</button>
+      <div class="border-t border-[color:var(--border)] pt-3">
+        <button onclick="exportReceiptPDF()" class="w-full bg-[color:var(--bg-surface-alt)] hover:bg-[color:var(--border)] text-[color:var(--text-primary)] text-xs font-semibold py-2 rounded flex items-center justify-center gap-1.5">${t('receipts.exportPdf')}</button>
       </div>
     </div>`;
 }

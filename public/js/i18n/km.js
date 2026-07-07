@@ -15,6 +15,7 @@ export const km = {
   'common.confirmCannotUndo': 'សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
   'common.thisStaffMember': 'បុគ្គលិកនេះ',
   'common.today': 'ថ្ងៃនេះ',
+  'common.yesterday': 'ម្សិលមិញ',
   'common.last10Days': '10ថ្ងៃចុងក្រោយ',
   'common.custom': 'កំណត់ដោយខ្លួនឯង',
   'common.from': 'ពី',

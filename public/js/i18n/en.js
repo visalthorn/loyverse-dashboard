@@ -15,6 +15,7 @@ export const en = {
   'common.confirmCannotUndo': 'This cannot be undone.',
   'common.thisStaffMember': 'this staff member',
   'common.today': 'Today',
+  'common.yesterday': 'Yesterday',
   'common.last10Days': 'Last 10 days',
   'common.custom': 'Custom',
   'common.from': 'From',

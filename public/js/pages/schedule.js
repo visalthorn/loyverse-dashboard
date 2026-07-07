@@ -194,7 +194,7 @@ export function exportScheduleCSV() {
 async function load() {
   setNavTitle();
   const container = getEl('scheduleGridContainer');
-  if (container) container.innerHTML = `<div class="py-10 text-center text-slate-500 text-sm">${t('schedule.loading')}</div>`;
+  if (container) container.innerHTML = `<div class="py-10 text-center text-[color:var(--text-muted)] text-sm">${t('schedule.loading')}</div>`;
 
   const prevY = currentMonth === 1 ? currentYear - 1 : currentYear;
   const prevM = currentMonth === 1 ? 12 : currentMonth - 1;

@@ -49,7 +49,7 @@ export function renderStaffTable() {
   const rows = showInactive ? staffList : staffList.filter(s => s.is_active);
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-500">${t('staff.noStaffFound')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-[color:var(--text-muted)]">${t('staff.noStaffFound')}</td></tr>`;
     return;
   }
 
@@ -61,29 +61,29 @@ export function renderStaffTable() {
     const loanCcy      = s.loan_ccy || 'KHR';
     const loanBadge    = parseFloat(s.loan_amount) > 0
       ? `<span class="badge badge-loan">${loanCcy === 'KHR' ? '៛' : '$'}${fmtRaw(s.loan_amount, loanCcy === 'KHR' ? 0 : 2)}</span>`
-      : '<span class="text-slate-600 text-xs">—</span>';
+      : '<span class="text-[color:var(--text-muted)] text-xs">—</span>';
     const toggleLabel = s.is_active ? t('staff.toggleDeactivate') : t('staff.toggleActivate');
-    const toggleColor = s.is_active ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-emerald-400';
+    const toggleColor = s.is_active ? 'text-[color:var(--text-muted)] hover:text-red-400' : 'text-[color:var(--text-muted)] hover:text-emerald-400';
 
     const shiftBadge = s.default_shift
       ? `<span style="background:${s.default_shift === 'M' ? 'rgba(59,130,246,0.18)' : 'rgba(168,85,247,0.18)'};color:${SHIFT_COLORS[s.default_shift]};padding:2px 7px;border-radius:4px;font-size:0.6875rem;font-weight:700">${s.default_shift}</span>`
-      : '<span class="text-slate-600 text-xs">—</span>';
+      : '<span class="text-[color:var(--text-muted)] text-xs">—</span>';
 
-    return `<tr class="staff-row border-b border-slate-800">
-      <td class="py-2.5 pr-3 text-slate-500 text-xs">${i + 1}</td>
+    return `<tr class="staff-row border-b border-[color:var(--border)]">
+      <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs">${i + 1}</td>
       <td class="py-2.5 pr-3 font-mono text-amber-400 text-xs font-semibold">${s.staff_id}</td>
-      <td class="py-2.5 pr-3 font-medium text-slate-100 text-xs">${s.full_name}</td>
-      <td class="py-2.5 pr-3 text-slate-300 text-xs">${s.position || '—'}</td>
-      <td class="py-2.5 pr-3 text-slate-400 text-xs whitespace-nowrap">${joinDate}</td>
+      <td class="py-2.5 pr-3 font-medium text-[color:var(--text-primary)] text-xs">${s.full_name}</td>
+      <td class="py-2.5 pr-3 text-[color:var(--text-secondary)] text-xs">${s.position || '—'}</td>
+      <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs whitespace-nowrap">${joinDate}</td>
       <td class="py-2.5 pr-3 text-right text-emerald-400 font-semibold text-xs">${salaryDisplay}</td>
-      <td class="py-2.5 pr-3 text-slate-300 text-xs">${s.phone || '—'}</td>
+      <td class="py-2.5 pr-3 text-[color:var(--text-secondary)] text-xs">${s.phone || '—'}</td>
       <td class="py-2.5 pr-3 text-right text-xs">${loanBadge}</td>
       <td class="py-2.5 pr-3 text-center">${statusBadge}</td>
       <td class="py-2.5 pr-3 text-center">${shiftBadge}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
-        ${s.join_date && s.position ? `<button onclick="viewInSchedule(${s.id})" class="text-xs text-slate-400 hover:text-blue-400 mr-2" title="${t('staff.viewInScheduleTitle')}">📅</button>` : ''}
+        ${s.join_date && s.position ? `<button onclick="viewInSchedule(${s.id})" class="text-xs text-[color:var(--text-muted)] hover:text-blue-400 mr-2" title="${t('staff.viewInScheduleTitle')}">📅</button>` : ''}
         ${state.userPermissions.staff?.can_write ? `
-          <button onclick="startEditStaff(${s.id})" class="text-xs text-slate-400 hover:text-amber-400 mr-2">${t('common.edit')}</button>
+          <button onclick="startEditStaff(${s.id})" class="text-xs text-[color:var(--text-muted)] hover:text-amber-400 mr-2">${t('common.edit')}</button>
           <button onclick="toggleStaffStatus(${s.id}, ${!s.is_active})" class="text-xs ${toggleColor} mr-2">${toggleLabel}</button>
           <button onclick="confirmDeleteStaff(${s.id})" class="text-xs text-red-500 hover:text-red-400">${t('common.delete')}</button>
         ` : ''}

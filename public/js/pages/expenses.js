@@ -21,7 +21,7 @@ function updateExpenseSummary(count, totalAmount) {
 export async function loadExpenses() {
   const container = getEl('expensesList');
   if (!container) return;
-  container.innerHTML = `<div class="text-slate-500">${t('expenses.loading')}</div>`;
+  container.innerHTML = `<div class="text-[color:var(--text-muted)]">${t('expenses.loading')}</div>`;
 
   const page     = window.expensesPage    || 1;
   const per_page = window.expensesPerPage || 10;
@@ -32,14 +32,14 @@ export async function loadExpenses() {
   const data = await fetchJSON(`/api/expenses?${queryParts.join('&')}`);
   if (!data) {
     updateExpenseSummary(0, 0);
-    container.innerHTML = `<div class="text-slate-500">${t('expenses.loadFailed')}</div>`;
+    container.innerHTML = `<div class="text-[color:var(--text-muted)]">${t('expenses.loadFailed')}</div>`;
     return;
   }
 
   updateExpenseSummary(data.total || 0, parseFloat(data.total_amount || 0));
 
   if (!data.items?.length) {
-    container.innerHTML = `<div class="text-slate-500">${t('expenses.noneForRange')}</div>`;
+    container.innerHTML = `<div class="text-[color:var(--text-muted)]">${t('expenses.noneForRange')}</div>`;
     renderPagination(data.total || 0, data.page, data.per_page);
     return;
   }
@@ -49,16 +49,16 @@ export async function loadExpenses() {
     const dayLabel  = fmtDate(e.expense_date, 'weekly');
     const showHeader = dayLabel !== lastDate;
     lastDate = dayLabel;
-    return `${showHeader ? `<div class="mt-3 mb-1 text-xs uppercase tracking-wide text-amber-500 font-bold border-b border-slate-700 pb-1">${dayLabel}</div>` : ''}
-    <div class="flex items-center justify-between p-2 bg-slate-800 rounded ${showHeader ? '' : 'mt-2'}">
+    return `${showHeader ? `<div class="mt-3 mb-1 text-xs uppercase tracking-wide text-amber-500 font-bold border-b border-[color:var(--border)] pb-1">${dayLabel}</div>` : ''}
+    <div class="flex items-center justify-between p-2 bg-[color:var(--bg-surface-alt)] rounded ${showHeader ? '' : 'mt-2'}">
       <div>
         <div class="font-medium">${e.expense_by}</div>
-        <div class="text-xs text-slate-400">${e.remark || ''}</div>
+        <div class="text-xs text-[color:var(--text-muted)]">${e.remark || ''}</div>
       </div>
       <div class="flex items-center gap-3">
         <div class="text-amber-400 font-bold">៛${fmt(e.amount)}</div>
         ${state.userPermissions.expenses?.can_write ? `
-          <button onclick="startEditExpense(${e.id})" class="text-sm text-slate-300 hover:text-amber-400">${t('common.edit')}</button>
+          <button onclick="startEditExpense(${e.id})" class="text-sm text-[color:var(--text-secondary)] hover:text-amber-400">${t('common.edit')}</button>
           <button onclick="confirmDeleteExpense(${e.id})" class="text-sm text-red-400 hover:text-red-300">${t('common.delete')}</button>` : ''}
       </div>
     </div>`;
@@ -93,7 +93,7 @@ function renderPagination(total, page, per_page) {
   next.onclick     = () => { if (page < pages) { window.expensesPage = page + 1; loadExpenses(); } };
 
   const info       = document.createElement('span');
-  info.className   = 'text-slate-400 text-sm';
+  info.className   = 'text-[color:var(--text-muted)] text-sm';
   info.textContent = t('expenses.pageInfo', { page, pages, total });
 
   pager.append(prev, info, next);
@@ -191,8 +191,8 @@ export async function exportExpensesCSV() {
 
 export function init() {
   renderDateFilter(getEl('dateFilterMount'), {
-    presets: [{ key: 'today', labelKey: 'common.today' }],
-    defaultPreset: 'today',
+    presets: [{ key: 'yesterday', labelKey: 'common.yesterday' }],
+    defaultPreset: 'yesterday',
     onChange: applyDateFilter,
   });
 }

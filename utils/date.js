@@ -24,7 +24,8 @@ function buildPeriodFilter(period, startDate, endDate, alias = 'r', firstParam =
     return { clause: `DATE(${col}) <= $${firstParam}`, params: [endDate] };
   }
   switch (period) {
-    case 'today':  return { clause: `DATE(${col}) = CURRENT_DATE`, params: [] };
+    case 'today':     return { clause: `DATE(${col}) = CURRENT_DATE`, params: [] };
+    case 'yesterday': return { clause: `DATE(${col}) = CURRENT_DATE - INTERVAL '1 day'`, params: [] };
     case 'week':   return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE`, params: [] };
     case 'last10': return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '10 days' AND CURRENT_DATE`, params: [] };
     case 'month':  return { clause: `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`, params: [] };
@@ -35,7 +36,7 @@ function buildPeriodFilter(period, startDate, endDate, alias = 'r', firstParam =
 
 function getTrendPeriod(period, startDate, endDate) {
   if (period === 'year') return 'month';
-  if (period === 'week' || period === 'last10' || period === 'month') return 'day';
+  if (period === 'week' || period === 'last10' || period === 'month' || period === 'yesterday') return 'day';
   if (period === 'range' && startDate && endDate) {
     const days = Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1);
     if (days <= 31)  return 'day';
@@ -48,6 +49,8 @@ function getTrendPeriod(period, startDate, endDate) {
 function getPrevPeriodSQL(period, startDate, endDate, alias = 'r', colName = 'receipt_date') {
   const col = `${alias}.${colName}`;
   switch (period) {
+    case 'yesterday':
+      return { clause: `DATE(${col}) = CURRENT_DATE - INTERVAL '2 day'`, params: [] };
     case 'week':
       return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '13 days' AND CURRENT_DATE - INTERVAL '7 days'`, params: [] };
     case 'last10':
@@ -88,6 +91,10 @@ function getPeriodDateRange(period, startDate, endDate) {
       const d = now.format('YYYY-MM-DD');
       return { start: d, end: d };
     }
+    case 'yesterday': {
+      const d = now.subtract(1, 'day').format('YYYY-MM-DD');
+      return { start: d, end: d };
+    }
     case 'week':
       return { start: now.subtract(7, 'day').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
     case 'last10':
@@ -113,6 +120,10 @@ function getPrevPeriodDateRange(period, startDate, endDate) {
   switch (period) {
     case 'today': {
       const d = now.subtract(1, 'day').format('YYYY-MM-DD');
+      return { start: d, end: d };
+    }
+    case 'yesterday': {
+      const d = now.subtract(2, 'day').format('YYYY-MM-DD');
       return { start: d, end: d };
     }
     case 'week':
