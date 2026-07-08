@@ -3,7 +3,7 @@ import { t, days } from '../i18n.js';
 import { fetchJSON } from '../api.js';
 import { apiPost } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, fmtDatetime, TZ } from '../utils.js';
-import { destroyChart, chartOpts, barOpts, donutOpts, heatColor } from '../charts.js';
+import { destroyChart, chartOpts, barOpts, donutOpts, heatColor, themeColor, withAlpha, legendTheme } from '../charts.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
 import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear } from '../ui.js';
 
@@ -169,7 +169,16 @@ async function loadGrossIncomeTrend() {
     fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`),
     fetchJSON(`/api/expenses-trend?period=${p}${rangeQuery()}`),
   ]);
-  if (!incomeData) return;
+  destroyChart('grossIncomeChart');
+  if (!incomeData) {
+    chartStateShow('grossIncomeChart', errorStateHTML({ vars: { range: currentRangeLabel() } }));
+    return;
+  }
+  if (!incomeData.length) {
+    chartStateShow('grossIncomeChart', emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }));
+    return;
+  }
+  chartStateClear('grossIncomeChart');
 
   const ppDateKey = period => new Date(period).toLocaleDateString('en-CA', { timeZone: TZ });
 
@@ -180,17 +189,18 @@ async function loadGrossIncomeTrend() {
   if (expenseTrend?.length) expenseTrend.forEach(e => { expenseMap[ppDateKey(e.period)] = parseFloat(e.total_expense); });
   const expenses = incomeData.map(r => expenseMap[ppDateKey(r.period)] || 0);
 
-  destroyChart('grossIncomeChart');
+  const opts = chartOpts('៛');
+  opts.plugins.legend = legendTheme();
   state.charts.grossIncomeChart = new Chart(document.getElementById('grossIncomeChart'), {
     type: 'bar',
     data: {
       labels,
       datasets: [
-        { label: t('dashboard.kpi.grossIncome'), data: revenue, backgroundColor: 'rgba(245,158,11,0.7)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 6 },
-        { label: t('dashboard.kpi.expenses'),     data: expenses, backgroundColor: 'rgba(239,68,68,0.7)',  borderColor: '#ef4444', borderWidth: 1, borderRadius: 6 },
+        { label: t('dashboard.kpi.grossIncome'), data: revenue, backgroundColor: withAlpha('--accent', 0.7), borderColor: themeColor('--accent', '#f59e0b'), borderWidth: 1, borderRadius: 6 },
+        { label: t('dashboard.kpi.expenses'),     data: expenses, backgroundColor: withAlpha('--loss', 0.7),  borderColor: themeColor('--loss', '#e28377'), borderWidth: 1, borderRadius: 6 },
       ],
     },
-    options: chartOpts('៛'),
+    options: opts,
   });
 }
 

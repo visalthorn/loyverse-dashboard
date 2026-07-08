@@ -2,7 +2,7 @@ import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtKHR, fmtDate } from '../utils.js';
 import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear } from '../ui.js';
-import { destroyChart, chartOpts, barOpts, pieOpts, themeColor, tooltipTheme } from '../charts.js';
+import { destroyChart, chartOpts, barOpts, pieOpts, themeColor, tooltipTheme, legendTheme, numTicks, withAlpha } from '../charts.js';
 import { t } from '../i18n.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
 
@@ -95,7 +95,16 @@ async function loadRevenueTrend() {
   if (label) label.textContent = periodLabel(p, s, e);
 
   const data = await fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`);
-  if (!data?.length) return;
+  destroyChart('revTrendChart');
+  if (!data) {
+    chartStateShow('revTrendChart', errorStateHTML({ vars: { range: periodLabel(p, s, e) } }));
+    return;
+  }
+  if (!data.length) {
+    chartStateShow('revTrendChart', emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }));
+    return;
+  }
+  chartStateClear('revTrendChart');
 
   const labels   = data.map(r => fmtDate(r.period, gran));
   const revenue  = data.map(r => parseFloat(r.gross_income));
@@ -104,7 +113,7 @@ async function loadRevenueTrend() {
     return parseFloat(((v - revenue[i - 1]) / revenue[i - 1] * 100).toFixed(1));
   });
 
-  destroyChart('revTrendChart');
+  const gain = themeColor('--gain', '#7fc98f');
   state.charts.revTrendChart = new Chart(document.getElementById('revTrendChart'), {
     type: 'bar',
     data: {
@@ -113,8 +122,8 @@ async function loadRevenueTrend() {
         {
           label: t('report.chartRevenue'),
           data: revenue,
-          backgroundColor: 'rgba(245,158,11,0.7)',
-          borderColor: '#f59e0b',
+          backgroundColor: withAlpha('--accent', 0.7),
+          borderColor: themeColor('--accent', '#f59e0b'),
           borderWidth: 1,
           borderRadius: 6,
           yAxisID: 'y',
@@ -123,11 +132,11 @@ async function loadRevenueTrend() {
           label: t('report.chartGrowthPct'),
           data: growth,
           type: 'line',
-          borderColor: '#34d399',
+          borderColor: gain,
           backgroundColor: 'transparent',
           borderWidth: 2,
           pointRadius: 3,
-          pointBackgroundColor: '#34d399',
+          pointBackgroundColor: gain,
           tension: 0.3,
           yAxisID: 'y2',
         },
@@ -136,13 +145,11 @@ async function loadRevenueTrend() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true, position: 'top', labels: { color: themeColor('--text-secondary', '#94a3b8'), font: { size: 11 } } },
-      },
+      plugins: { legend: legendTheme(), tooltip: tooltipTheme() },
       scales: {
-        x:  { grid: { color: themeColor('--bg-surface', '#1e293b') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 } } },
-        y:  { position: 'left',  grid: { color: themeColor('--border', '#334155') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 }, callback: v => '៛' + fmt(v) } },
-        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 }, callback: v => v + '%' } },
+        x:  { grid: { color: themeColor('--bg-surface', '#151f33') }, ticks: numTicks() },
+        y:  { position: 'left',  grid: { color: themeColor('--border', '#2b3952') }, ticks: numTicks({ callback: v => fmtKHR(v) }) },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: numTicks({ callback: v => v + '%' }) },
       },
     },
   });
@@ -269,7 +276,16 @@ async function loadExpenseTrend() {
     fetchJSON(`/api/expenses-trend?period=${p}${rangeQuery()}`),
     fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`),
   ]);
-  if (!expData?.length) return;
+  destroyChart('expenseTrendChart');
+  if (!expData) {
+    chartStateShow('expenseTrendChart', errorStateHTML({ vars: { range: periodLabel(p, state.currentStartDate, state.currentEndDate) } }));
+    return;
+  }
+  if (!expData.length) {
+    chartStateShow('expenseTrendChart', emptyStateHTML({}));
+    return;
+  }
+  chartStateClear('expenseTrendChart');
 
   // Normalise both to Cambodia local date string so they align as map keys
   const toKey = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
@@ -289,9 +305,9 @@ async function loadExpenseTrend() {
   const totalRev = revenue.reduce((a, b) => a + b, 0);
   const overallPct = totalRev > 0 ? (totalExp / totalRev * 100).toFixed(1) : '0';
   const chip = getEl('expenseSummaryChip');
-  if (chip) chip.textContent = t('report.expenseSummaryChip', { total: '៛' + fmt(totalExp), pct: overallPct });
+  if (chip) chip.textContent = t('report.expenseSummaryChip', { total: fmtKHR(totalExp), pct: overallPct });
 
-  destroyChart('expenseTrendChart');
+  const ratioColor = themeColor('--chart-6', '#2f9cbd');
   state.charts.expenseTrendChart = new Chart(document.getElementById('expenseTrendChart'), {
     type: 'bar',
     data: {
@@ -300,8 +316,8 @@ async function loadExpenseTrend() {
         {
           label: t('report.chartRevenueKhr'),
           data: revenue,
-          backgroundColor: 'rgba(245,158,11,0.5)',
-          borderColor: '#f59e0b',
+          backgroundColor: withAlpha('--accent', 0.5),
+          borderColor: themeColor('--accent', '#f59e0b'),
           borderWidth: 1,
           borderRadius: 6,
           yAxisID: 'y',
@@ -309,8 +325,8 @@ async function loadExpenseTrend() {
         {
           label: t('report.chartExpensesKhr'),
           data: expenses,
-          backgroundColor: 'rgba(239,68,68,0.7)',
-          borderColor: '#ef4444',
+          backgroundColor: withAlpha('--loss', 0.7),
+          borderColor: themeColor('--loss', '#e28377'),
           borderWidth: 1,
           borderRadius: 6,
           yAxisID: 'y',
@@ -319,11 +335,11 @@ async function loadExpenseTrend() {
           label: t('report.chartExpensePct'),
           data: expPct,
           type: 'line',
-          borderColor: '#fb923c',
+          borderColor: ratioColor,
           backgroundColor: 'transparent',
           borderWidth: 2,
           pointRadius: 3,
-          pointBackgroundColor: '#fb923c',
+          pointBackgroundColor: ratioColor,
           tension: 0.3,
           yAxisID: 'y2',
         },
@@ -333,8 +349,9 @@ async function loadExpenseTrend() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'top', labels: { color: themeColor('--text-secondary', '#94a3b8'), boxWidth: 12, font: { size: 11 } } },
+        legend: legendTheme(),
         tooltip: {
+          ...tooltipTheme(),
           callbacks: {
             afterBody: items => {
               const i = items[0]?.dataIndex;
@@ -345,9 +362,9 @@ async function loadExpenseTrend() {
         },
       },
       scales: {
-        x:  { grid: { color: themeColor('--bg-surface', '#1e293b') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 } } },
-        y:  { position: 'left',  grid: { color: themeColor('--border', '#334155') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 }, callback: v => '៛' + fmt(v) } },
-        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#fb923c', font: { size: 11 }, callback: v => v + '%' }, suggestedMax: 100 },
+        x:  { grid: { color: themeColor('--bg-surface', '#151f33') }, ticks: numTicks() },
+        y:  { position: 'left',  grid: { color: themeColor('--border', '#2b3952') }, ticks: numTicks({ callback: v => fmtKHR(v) }) },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: numTicks({ color: ratioColor, callback: v => v + '%' }), suggestedMax: 100 },
       },
     },
   });

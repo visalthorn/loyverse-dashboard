@@ -42,8 +42,23 @@ if (typeof Chart !== 'undefined') {
   Chart.defaults.color = themeVar('--text-muted', '#8a887c');
 }
 
+// Series fills: token hex + alpha, so bars stay theme-derived.
+export function withAlpha(hexOrVar, alpha) {
+  const hex = hexOrVar.startsWith('--') ? themeVar(hexOrVar, '#888888') : hexOrVar;
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+export function legendTheme(position = 'top') {
+  return {
+    display: true,
+    position,
+    labels: { color: themeVar('--text-secondary', '#a5a396'), boxWidth: 12, font: { size: 11 } },
+  };
+}
+
 // Tick figures are numbers — set them in the tabular mono face.
-function numTicks(extra = {}) {
+export function numTicks(extra = {}) {
   return {
     color: themeVar('--text-muted', '#8a887c'),
     font: { family: themeVar('--font-num', 'monospace'), size: 11 },
