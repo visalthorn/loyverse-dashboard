@@ -430,7 +430,7 @@ export function openRosterFill(event, staffId) {
       </button>`).join('')}
     <hr class="sch-roster-divider"/>
     <button class="sch-roster-opt" style="color:#f87171" onclick="applyRosterFill(${staffId},'clear')">
-      <span class="sch-picker-clear" style="background:rgba(239,68,68,0.15);color:#f87171">✕</span>
+      <span class="sch-picker-clear" style="background:var(--loss-soft);color:var(--loss)">✕</span>
       <span>${t('schedule.clearAllEntries')}</span>
     </button>`;
 

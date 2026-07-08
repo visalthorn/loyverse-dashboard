@@ -40,7 +40,7 @@ function renderUsersTable() {
 
   tbody.innerHTML = usersList.map((u, i) => {
     const roleBadge   = u.role === 'admin'
-      ? `<span class="badge" style="background:rgba(245,158,11,.15);color:#fbbf24">${t('users.badgeAdmin')}</span>`
+      ? `<span class="badge" style="background:var(--accent-soft);color:var(--accent-strong)">${t('users.badgeAdmin')}</span>`
       : `<span class="badge" style="background:rgba(59,130,246,.12);color:#60a5fa">${t('users.badgeManager')}</span>`;
     const statusBadge = u.is_active
       ? `<span class="badge" style="background:rgba(34,197,94,.12);color:#4ade80">${t('staff.badgeActive')}</span>`
