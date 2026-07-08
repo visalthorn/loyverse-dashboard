@@ -1,6 +1,7 @@
 import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
-import { getEl, fmt, fmtRaw, fmtDate } from '../utils.js';
+import { getEl, fmt, fmtRaw, fmtKHR, fmtDate } from '../utils.js';
+import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear } from '../ui.js';
 import { destroyChart, chartOpts, barOpts, pieOpts, themeColor, tooltipTheme } from '../charts.js';
 import { t } from '../i18n.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
@@ -38,7 +39,12 @@ function growthBadge(g) {
 
 async function loadReportKPIs() {
   const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data) return;
+  const el = getEl('reportKpis');
+  if (!el) return;
+  if (!data) {
+    el.innerHTML = `<div class="col-span-full card">${errorStateHTML({ vars: { range: periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate) } })}</div>`;
+    return;
+  }
 
   const grossVal = parseFloat(data.gross_income.value);
   const expVal   = parseFloat(data.expenses.value);
@@ -47,29 +53,26 @@ async function loadReportKPIs() {
   const aov      = parseFloat(data.aov.value);
   const expPct   = grossVal > 0 ? (expVal / grossVal * 100).toFixed(1) : '0';
 
-  const el = getEl('reportKpis');
-  if (!el) return;
-
   el.innerHTML = [
     {
       accent: 'amber', icon: '💰', label: t('report.kpi.totalRevenue'),
-      val: '៛' + fmtRaw(grossVal), valClass: 'text-amber-400',
+      val: fmtKHR(grossVal), valClass: 'val-accent',
       sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.vsPrev')} </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.gross_income.growth)}</span>`,
     },
     {
       accent: 'red', icon: '💸', label: t('dashboard.kpi.expenses'),
-      val: '-៛' + fmtRaw(expVal), valClass: 'text-red-400',
+      val: '-' + fmtKHR(expVal), valClass: 'val-loss',
       sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.pctOfRevenue', { pct: expPct })} · </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.expenses.growth)}</span>`,
     },
     {
       accent: 'violet', icon: '🧾', label: t('report.kpi.avgOrderValue'),
-      val: '៛' + fmtRaw(aov), valClass: 'text-violet-400',
+      val: fmtKHR(aov), valClass: 'val-violet',
       sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.vsPrev')} </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.aov.growth)}</span>`,
     },
     {
       accent: 'emerald', icon: '📊', label: t('report.kpi.netMargin'),
-      val: margin + '%', valClass: netVal >= 0 ? 'text-blue-400' : 'text-red-400',
-      sub: `<span class="text-blue-500">${t('report.kpi.netAmount', { amount: '៛' + fmtRaw(Math.abs(netVal)) })}</span>`,
+      val: margin + '%', valClass: netVal >= 0 ? 'val-blue' : 'val-loss',
+      sub: `<span class="text-[color:var(--chart-2)] num">${t('report.kpi.netAmount', { amount: fmtKHR(Math.abs(netVal)) })}</span>`,
     },
   ].map(c => `
     <div class="kpi-primary kpi-primary--${c.accent}"${c.id ? ` id="${c.id}"` : ''}>

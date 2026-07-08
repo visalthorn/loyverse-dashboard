@@ -97,6 +97,13 @@
   --shadow-lift: 0 10px 32px rgba(30,36,51,.12);
 }
 
+/* ── value ink — semantic colors for figures ─────────────── */
+.val-accent { color: var(--accent-strong); }
+.val-gain   { color: var(--gain); }
+.val-loss   { color: var(--loss); }
+.val-blue   { color: var(--chart-2); }
+.val-violet { color: var(--chart-4); }
+
 /* ── signature: ledger rules + tabular figures ───────────── */
 .ledger-rule {
   border: 0;

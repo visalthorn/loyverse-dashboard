@@ -2,9 +2,14 @@ import { state, COLORS } from '../state.js';
 import { t, days } from '../i18n.js';
 import { fetchJSON } from '../api.js';
 import { apiPost } from '../api.js';
-import { getEl, fmt, fmtRaw, fmtDate, fmtDatetime, TZ } from '../utils.js';
+import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, fmtDatetime, TZ } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, donutOpts, heatColor } from '../charts.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
+import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear } from '../ui.js';
+
+function currentRangeLabel() {
+  return periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate);
+}
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
@@ -38,7 +43,12 @@ function growthBadge(g) {
 
 async function loadKPIs() {
   const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data) return;
+  if (!data) {
+    const html = `<div class="col-span-full card">${errorStateHTML({ vars: { range: currentRangeLabel() } })}</div>`;
+    const p = getEl('kpiPrimary'); if (p) p.innerHTML = html;
+    const a = getEl('kpiAverage'); if (a) a.innerHTML = html;
+    return;
+  }
 
   const grossVal  = parseFloat(data.gross_income.value);
   const netVal    = parseFloat(data.net_revenue);
@@ -47,41 +57,41 @@ async function loadKPIs() {
 
   const netPositive  = netVal >= 0;
   const netAccent    = netPositive ? 'emerald' : 'red';
-  const netValClass  = netPositive ? 'text-emerald-400' : 'text-red-400';
+  const netValClass  = netPositive ? 'val-gain' : 'val-loss';
   const netIcon      = netPositive ? '📈' : '📉';
   const margin       = grossVal > 0 ? Math.round((netVal / grossVal) * 100) : 0;
   const expPct       = grossVal > 0 ? Math.round((expVal / grossVal) * 100) : 0;
 
   const avgNetPositive = avgNetVal >= 0;
   const avgNetAccent   = avgNetPositive ? 'emerald' : 'red';
-  const avgNetClass    = avgNetPositive ? 'text-emerald-400' : 'text-red-400';
+  const avgNetClass    = avgNetPositive ? 'val-gain' : 'val-loss';
 
   // ── Section 1: Period totals ────────────────────────────────────────────────
   const primary = [
     {
       accent: 'amber', icon: '💰', label: t('dashboard.kpi.grossIncome'),
-      val: '៛' + fmtRaw(grossVal), valClass: 'text-amber-400',
+      val: fmtKHR(grossVal), valClass: 'val-accent',
       growth: data.gross_income.growth,
-      sub: `<span class="${netValClass} font-semibold">Net ៛${fmtRaw(Math.abs(netVal))}</span>`
+      sub: `<span class="${netValClass} font-semibold num">Net ${fmtKHR(Math.abs(netVal))}</span>`
          + `<span class="text-[color:var(--text-muted)]"> · ${t('dashboard.kpi.marginSub', { margin })}</span>`,
     },
     {
       accent: netAccent, icon: netIcon, label: t('dashboard.kpi.netProfit'),
-      val: (netPositive ? '' : '-') + '៛' + fmtRaw(Math.abs(netVal)),
+      val: (netPositive ? '' : '-') + fmtKHR(Math.abs(netVal)),
       valClass: netValClass,
       growth: null,
       sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.netSub')}</span>`,
     },
     {
       accent: 'blue', icon: '🧾', label: t('dashboard.kpi.orders'),
-      val: fmtRaw(data.orders.value), valClass: 'text-sky-400',
+      val: fmtRaw(data.orders.value), valClass: 'val-blue',
       growth: data.orders.growth,
       sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.aovSub')} </span>`
-         + `<span class="text-[color:var(--text-secondary)] font-semibold">៛${fmtRaw(data.aov.value)}</span>`,
+         + `<span class="text-[color:var(--text-secondary)] font-semibold num">${fmtKHR(data.aov.value)}</span>`,
     },
     {
       accent: 'red', icon: '💸', label: t('dashboard.kpi.expenses'),
-      val: '-៛' + fmtRaw(expVal), valClass: 'text-red-400',
+      val: '-' + fmtKHR(expVal), valClass: 'val-loss',
       growth: data.expenses.growth,
       sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.pctOfGross', { pct: expPct })}</span>`,
     },
@@ -104,14 +114,14 @@ async function loadKPIs() {
   const averages = [
     {
       accent: 'amber', label: t('dashboard.kpi.grossIncome'),
-      val: '៛' + fmtRaw(data.avg_gross_income?.value ?? 0),
-      valClass: 'text-amber-400',
+      val: fmtKHR(data.avg_gross_income?.value ?? 0),
+      valClass: 'val-accent',
       growth: data.avg_gross_income?.growth,
       sub: t('dashboard.perDayAvg'),
     },
     {
       accent: avgNetAccent, label: t('dashboard.kpi.netProfit'),
-      val: (avgNetPositive ? '' : '-') + '៛' + fmtRaw(Math.abs(avgNetVal)),
+      val: (avgNetPositive ? '' : '-') + fmtKHR(Math.abs(avgNetVal)),
       valClass: avgNetClass,
       growth: data.net_per_order?.growth,
       sub: t('dashboard.perDayAvg'),
@@ -119,15 +129,15 @@ async function loadKPIs() {
     },
     {
       accent: 'violet', label: t('dashboard.kpi.orders'),
-      val: '៛' + fmtRaw(data.aov?.value ?? 0),
-      valClass: 'text-violet-400',
+      val: fmtKHR(data.aov?.value ?? 0),
+      valClass: 'val-violet',
       growth: data.aov?.growth,
       sub: t('dashboard.avgValuePerOrder'),
     },
     {
       accent: 'red', label: t('dashboard.kpi.expenses'),
-      val: '-៛' + fmtRaw(data.avg_expense?.value ?? 0),
-      valClass: 'text-red-400',
+      val: '-' + fmtKHR(data.avg_expense?.value ?? 0),
+      valClass: 'val-loss',
       growth: data.avg_expense?.growth,
       sub: t('dashboard.perDayAvg'),
     },
