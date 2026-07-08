@@ -23,6 +23,16 @@ export function errorStateHTML({ titleKey = 'common.errorPanelTitle', hintKey = 
     </div>`;
 }
 
+// One legend renderer for every donut/pie panel: ledger rows with a color
+// dot, name, mono amount, and share. rows: [{ label, amount, pct, color, meta }]
+export function legendRowsHTML(rows) {
+  return rows.map(r => `
+    <div class="legend-row">
+      <span class="legend-name"><span class="legend-dot" style="background:${r.color}"></span><span class="truncate">${r.label}</span>${r.meta ? `<span class="legend-pct">${r.meta}</span>` : ''}</span>
+      <span class="legend-amount num">${r.amount} <span class="legend-pct">(${r.pct}%)</span></span>
+    </div>`).join('');
+}
+
 // Chart canvases live inside a positioned .chart-container; the skeleton is
 // an overlay so the canvas doesn't reflow when data lands.
 export function showChartSkeleton(canvasId) {

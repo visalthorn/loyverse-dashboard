@@ -456,19 +456,29 @@
   color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 10%, transparent);
 }
 
-/* Legend */
-.legend-item {
+/* Legend — ledger rows: dashed rules between entries, mono figures */
+.legend-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   font-size: 12px;
   color: var(--text-primary);
+  padding: 6px 0;
 }
+.legend-row + .legend-row { border-top: 1px dashed var(--border); }
+.legend-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.legend-amount { font-weight: 500; white-space: nowrap; }
+.legend-pct { color: var(--text-muted); font-size: 11px; }
 .legend-dot {
   width: 10px; height: 10px;
   border-radius: 50%;
   display: inline-block;
-  margin-right: 6px;
   flex-shrink: 0;
 }
 

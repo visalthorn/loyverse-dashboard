@@ -5,7 +5,7 @@ import { apiPost } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, fmtDatetime, TZ } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, donutOpts, heatColor, themeColor, withAlpha, legendTheme } from '../charts.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
-import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear } from '../ui.js';
+import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML } from '../ui.js';
 
 function currentRangeLabel() {
   return periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate);
@@ -208,52 +208,66 @@ async function loadGrossIncomeTrend() {
 
 async function loadDiningOptions() {
   const data = await fetchJSON(`/api/dining-options?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data?.length) return;
+  const legend = getEl('diningLegend');
+  destroyChart('diningChart');
+  if (!data?.length) {
+    chartStateShow('diningChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: currentRangeLabel() } }));
+    if (legend) legend.innerHTML = '';
+    return;
+  }
+  chartStateClear('diningChart');
 
   const labels  = data.map(r => r.dining_option);
   const revenue = data.map(r => parseFloat(r.revenue));
   const total   = revenue.reduce((a, b) => a + b, 0);
 
-  destroyChart('diningChart');
   state.charts.diningChart = new Chart(document.getElementById('diningChart'), {
     type: 'doughnut',
     data: { labels, datasets: [{ data: revenue, backgroundColor: COLORS, borderWidth: 0 }] },
     options: donutOpts(),
   });
 
-  const diningLegend = getEl('diningLegend');
-  if (diningLegend) diningLegend.innerHTML = data.map((r, i) => `
-    <div class="legend-item">
-      <span><span class="legend-dot" style="background:${COLORS[i]}"></span>${r.dining_option}</span>
-      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-[color:var(--text-muted)]">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
-    </div>
-  `).join('');
+  if (legend) legend.innerHTML = legendRowsHTML(data.map((r, i) => ({
+    label: r.dining_option,
+    color: COLORS[i % COLORS.length],
+    amount: fmtKHR(r.revenue),
+    pct: total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0,
+  })));
 }
 
 // ─── Payment Methods ─────────────────────────────────────────────────────────
 
 async function loadPaymentMethods() {
   const data = await fetchJSON(`/api/payment-methods?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data?.length) return;
+  const legend = getEl('paymentLegend');
+  destroyChart('paymentChart');
+  if (!data?.length) {
+    chartStateShow('paymentChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: currentRangeLabel() } }));
+    if (legend) legend.innerHTML = '';
+    return;
+  }
+  chartStateClear('paymentChart');
 
   const labels = data.map(r => r.payment_name || r.payment_type);
   const totals = data.map(r => parseFloat(r.total));
   const total  = totals.reduce((a, b) => a + b, 0);
 
-  destroyChart('paymentChart');
+  // Offset into the fixed palette so payment hues differ from the dining
+  // donut beside it; modulo keeps >6 slices from running off the palette.
+  const sliceColor = i => COLORS[(i + 2) % COLORS.length];
+
   state.charts.paymentChart = new Chart(document.getElementById('paymentChart'), {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: totals, backgroundColor: COLORS.slice(2), borderWidth: 0 }] },
+    data: { labels, datasets: [{ data: totals, backgroundColor: labels.map((_, i) => sliceColor(i)), borderWidth: 0 }] },
     options: donutOpts(),
   });
 
-  const paymentLegend = getEl('paymentLegend');
-  if (paymentLegend) paymentLegend.innerHTML = data.map((r, i) => `
-    <div class="legend-item">
-      <span><span class="legend-dot" style="background:${COLORS[i + 2]}"></span>${r.payment_name || r.payment_type}</span>
-      <span class="font-medium">៛${fmt(r.total)} <span class="text-[color:var(--text-muted)]">(${total > 0 ? ((r.total / total) * 100).toFixed(1) : 0}%)</span></span>
-    </div>
-  `).join('');
+  if (legend) legend.innerHTML = legendRowsHTML(data.map((r, i) => ({
+    label: r.payment_name || r.payment_type,
+    color: sliceColor(i),
+    amount: fmtKHR(r.total),
+    pct: total > 0 ? ((r.total / total) * 100).toFixed(1) : 0,
+  })));
 }
 
 // ─── Peak Hours Heatmap ──────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtKHR, fmtDate } from '../utils.js';
-import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear } from '../ui.js';
+import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML } from '../ui.js';
 import { destroyChart, chartOpts, barOpts, pieOpts, themeColor, tooltipTheme, legendTheme, numTicks, withAlpha } from '../charts.js';
 import { t } from '../i18n.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
@@ -160,29 +160,30 @@ async function loadRevenueTrend() {
 async function loadDiningOptions() {
   const data = await fetchJSON(`/api/dining-options?period=${state.currentPeriod}${rangeQuery()}`);
   const legend = getEl('diningLegend');
+  destroyChart('diningChart');
   if (!data?.length) {
-    destroyChart('diningChart');
-    if (legend) legend.innerHTML = `<p class="text-[color:var(--text-muted)] text-sm">${t('dashboard.noDataRow')}</p>`;
+    chartStateShow('diningChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate) } }));
+    if (legend) legend.innerHTML = '';
     return;
   }
+  chartStateClear('diningChart');
 
   const labels  = data.map(r => r.dining_option);
   const revenue = data.map(r => parseFloat(r.revenue));
   const total   = revenue.reduce((a, b) => a + b, 0);
 
-  destroyChart('diningChart');
   state.charts.diningChart = new Chart(document.getElementById('diningChart'), {
     type: 'pie',
     data: { labels, datasets: [{ data: revenue, backgroundColor: COLORS, borderWidth: 0 }] },
     options: pieOpts(false),
   });
 
-  if (legend) legend.innerHTML = data.map((r, i) => `
-    <div class="legend-item">
-      <span><span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.dining_option}</span>
-      <span class="font-medium">៛${fmt(r.revenue)} <span class="text-[color:var(--text-muted)]">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
-    </div>
-  `).join('');
+  if (legend) legend.innerHTML = legendRowsHTML(data.map((r, i) => ({
+    label: r.dining_option,
+    color: COLORS[i % COLORS.length],
+    amount: fmtKHR(r.revenue),
+    pct: total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0,
+  })));
 }
 
 // ─── Section 3b: Payment Method ──────────────────────────────────────────────
@@ -190,29 +191,32 @@ async function loadDiningOptions() {
 async function loadPaymentMethods() {
   const data = await fetchJSON(`/api/payment-methods?period=${state.currentPeriod}${rangeQuery()}`);
   const legend = getEl('paymentLegend');
+  destroyChart('paymentChart');
   if (!data?.length) {
-    destroyChart('paymentChart');
-    if (legend) legend.innerHTML = `<p class="text-[color:var(--text-muted)] text-sm">${t('dashboard.noDataRow')}</p>`;
+    chartStateShow('paymentChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate) } }));
+    if (legend) legend.innerHTML = '';
     return;
   }
+  chartStateClear('paymentChart');
 
   const labels = data.map(r => r.payment_name || r.payment_type);
   const totals = data.map(r => parseFloat(r.total));
   const total  = totals.reduce((a, b) => a + b, 0);
 
-  destroyChart('paymentChart');
+  const sliceColor = i => COLORS[(i + 2) % COLORS.length];
+
   state.charts.paymentChart = new Chart(document.getElementById('paymentChart'), {
     type: 'pie',
-    data: { labels, datasets: [{ data: totals, backgroundColor: COLORS.slice(2), borderWidth: 0 }] },
+    data: { labels, datasets: [{ data: totals, backgroundColor: labels.map((_, i) => sliceColor(i)), borderWidth: 0 }] },
     options: pieOpts(false),
   });
 
-  if (legend) legend.innerHTML = data.map((r, i) => `
-    <div class="legend-item">
-      <span><span class="legend-dot" style="background:${COLORS[(i + 2) % COLORS.length]}"></span>${r.payment_name || r.payment_type}</span>
-      <span class="font-medium">៛${fmt(r.total)} <span class="text-[color:var(--text-muted)]">(${total > 0 ? ((r.total / total) * 100).toFixed(1) : 0}%)</span></span>
-    </div>
-  `).join('');
+  if (legend) legend.innerHTML = legendRowsHTML(data.map((r, i) => ({
+    label: r.payment_name || r.payment_type,
+    color: sliceColor(i),
+    amount: fmtKHR(r.total),
+    pct: total > 0 ? ((r.total / total) * 100).toFixed(1) : 0,
+  })));
 }
 
 // ─── Section 3c: Top Product Performance ─────────────────────────────────────
