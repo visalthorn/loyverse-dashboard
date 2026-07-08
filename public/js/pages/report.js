@@ -229,35 +229,39 @@ async function loadTopProducts() {
   const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=${topProductsLimit}${categoryQuery}`);
   const legend = getEl('topProductsLegend');
 
+  destroyChart('topProductsChart');
   if (!data?.length) {
-    destroyChart('topProductsChart');
     const categoryLabel = topProductsCategory === 'food' ? t('dashboard.categoryFood')
       : topProductsCategory === 'beverage' ? t('dashboard.categoryBeverage')
       : '';
-    if (legend) legend.innerHTML = `<p class="text-[color:var(--text-muted)] text-sm">${categoryLabel ? t('report.noCategoryItemsForPeriod', { category: categoryLabel }) : t('dashboard.noDataRow')}</p>`;
+    const message = !data
+      ? errorStateHTML({ vars: { range: periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate) } })
+      : categoryLabel
+        ? `<div class="panel-state"><div class="panel-state-icon">🧾</div><div class="panel-state-title">${t('report.noCategoryItemsForPeriod', { category: categoryLabel })}</div><div class="panel-state-hint">${t('common.emptyHintWiden')}</div></div>`
+        : emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' });
+    chartStateShow('topProductsChart', message);
+    if (legend) legend.innerHTML = '';
     return;
   }
+  chartStateClear('topProductsChart');
 
   const labels  = data.map(r => r.item_name);
   const revenue = data.map(r => parseFloat(r.revenue));
   const total   = revenue.reduce((a, b) => a + b, 0);
 
-  destroyChart('topProductsChart');
   state.charts.topProductsChart = new Chart(document.getElementById('topProductsChart'), {
     type: 'pie',
     data: { labels, datasets: [{ data: revenue, backgroundColor: COLORS, borderWidth: 0 }] },
     options: pieOpts(false),
   });
 
-  if (legend) legend.innerHTML = data.map((r, i) => `
-    <div class="flex items-center justify-between py-2 border-b border-[color:var(--border)] last:border-0">
-      <span class="flex items-center gap-2 text-sm">
-        <span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.item_name}
-        <span class="text-[color:var(--text-muted)] text-xs">(${t('dashboard.table.qty')}: ${fmt(r.qty)})</span>
-      </span>
-      <span class="font-medium text-sm">៛${fmt(r.revenue)} <span class="text-[color:var(--text-muted)] text-xs">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
-    </div>
-  `).join('');
+  if (legend) legend.innerHTML = legendRowsHTML(data.map((r, i) => ({
+    label: r.item_name,
+    color: COLORS[i % COLORS.length],
+    meta: `${t('dashboard.table.qty')}: ${fmt(r.qty)}`,
+    amount: fmtKHR(r.revenue),
+    pct: total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0,
+  })));
 }
 
 export function setTopProductsLimit(val) {
