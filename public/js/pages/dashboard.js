@@ -320,20 +320,24 @@ async function loadPeakHours() {
 function renderProductRows(rows, tbodyId, startRank = 1) {
   const tbody = getEl(tbodyId);
   if (!tbody) return;
+  if (!rows) {
+    tbody.innerHTML = `<tr><td colspan="6">${errorStateHTML({ vars: { range: currentRangeLabel() } })}</td></tr>`;
+    return;
+  }
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-[color:var(--text-muted)]">${t('dashboard.noDataRow')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6">${emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' })}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, i) => `
-    <tr class="border-b border-[color:var(--border)] hover:bg-[color:var(--hover-tint)] transition-colors">
-      <td class="py-2 pr-3 text-[color:var(--text-muted)] font-mono">${startRank + i}</td>
+    <tr class="border-b border-dashed border-[color:var(--border)] hover:bg-[color:var(--hover-tint)] transition-colors">
+      <td class="py-2 pr-3 text-[color:var(--text-muted)] num">${startRank + i}</td>
       <td class="py-2 pr-3">
         <div class="font-medium">${r.item_name}</div>
         <div class="text-xs text-[color:var(--text-muted)]">${r.sku || ''}</div>
       </td>
-      <td class="py-2 pr-3 text-right text-[color:var(--text-secondary)]">${fmt(r.qty)}</td>
-      <td class="py-2 pr-3 text-right text-amber-400 font-medium">៛${fmt(r.revenue)}</td>
-      <td class="py-2 pr-3 text-right text-[color:var(--text-muted)]">${r.prev_revenue > 0 ? '៛' + fmt(r.prev_revenue) : '—'}</td>
+      <td class="py-2 pr-3 text-right text-[color:var(--text-secondary)] num">${fmt(r.qty)}</td>
+      <td class="py-2 pr-3 text-right val-accent font-medium num">${fmtKHR(r.revenue)}</td>
+      <td class="py-2 pr-3 text-right text-[color:var(--text-muted)] num">${r.prev_revenue > 0 ? fmtKHR(r.prev_revenue) : '—'}</td>
       <td class="py-2 text-right">${growthBadge(r.growth) || '<span class="text-[color:var(--text-muted)]">—</span>'}</td>
     </tr>
   `).join('');
@@ -344,14 +348,12 @@ let topProductsCategory = '';
 async function loadTopItems() {
   const categoryQuery = topProductsCategory ? `&category=${topProductsCategory}` : '';
   const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=20${categoryQuery}`);
-  if (!data) return;
   renderProductRows(data, 'productTableBody');
 }
 
 async function loadSlowMovers() {
   const categoryQuery = topProductsCategory ? `&category=${topProductsCategory}` : '';
   const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=asc&limit=10${categoryQuery}`);
-  if (!data) return;
   renderProductRows(data, 'slowMoversBody', 1);
 }
 
