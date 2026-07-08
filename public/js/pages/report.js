@@ -243,6 +243,7 @@ async function loadTopProducts() {
     <div class="flex items-center justify-between py-2 border-b border-[color:var(--border)] last:border-0">
       <span class="flex items-center gap-2 text-sm">
         <span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${r.item_name}
+        <span class="text-[color:var(--text-muted)] text-xs">(${t('dashboard.table.qty')}: ${fmt(r.qty)})</span>
       </span>
       <span class="font-medium text-sm">៛${fmt(r.revenue)} <span class="text-[color:var(--text-muted)] text-xs">(${total > 0 ? ((r.revenue / total) * 100).toFixed(1) : 0}%)</span></span>
     </div>
