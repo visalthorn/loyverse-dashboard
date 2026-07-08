@@ -456,6 +456,11 @@
   color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 10%, transparent);
 }
 
+/* inline growth markers (report KPI subs) */
+.growth-up   { color: var(--gain); font-weight: 600; font-variant-numeric: tabular-nums; }
+.growth-down { color: var(--loss); font-weight: 600; font-variant-numeric: tabular-nums; }
+.growth-nil  { color: var(--text-muted); }
+
 /* Legend — ledger rows: dashed rules between entries, mono figures */
 .legend-row {
   display: flex;

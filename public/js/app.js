@@ -24,12 +24,12 @@ function renderUserHeader(user) {
           <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${user.fullName || user.username}</div>
           <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">${user.role}</div>
         </div>
-        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0b1120;">
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-strong));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent-contrast);">
           ${(user.fullName || user.username).charAt(0).toUpperCase()}
         </div>
         <button onclick="logout()" title="${t('common.signOut')}"
           style="background:none;border:1px solid var(--border-subtle);border-radius:8px;padding:6px 10px;color:var(--text-muted);cursor:pointer;font-size:12px;transition:all 0.2s;"
-          onmouseover="this.style.color='#f87171';this.style.borderColor='#f87171'"
+          onmouseover="this.style.color='var(--loss)';this.style.borderColor='var(--loss)'"
           onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border-subtle)'">
           ${t('common.signOut')}
         </button>

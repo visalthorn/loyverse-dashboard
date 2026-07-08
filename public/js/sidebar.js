@@ -23,8 +23,8 @@ export function renderSidebar(sidebarEl, activePage) {
   sidebarEl.innerHTML = `
     <div class="sidebar-header px-5 py-4 border-b border-[color:var(--border)] flex items-center flex-wrap justify-between gap-y-2.5 gap-x-3" style="position:relative;">
       <button id="userMenuTrigger" type="button" class="flex items-center gap-2" style="background:none;border:none;cursor:pointer;padding:0;text-align:left;">
-        <div id="sidebarAvatar" class="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 flex items-center justify-center font-bold text-black flex-shrink-0">U</div>
-        <span id="sidebarUserName" class="text-base font-bold text-amber-400 truncate">User</span>
+        <div id="sidebarAvatar" class="w-9 h-9 rounded-full flex items-center justify-center font-bold flex-shrink-0" style="background:linear-gradient(135deg,var(--accent),var(--accent-strong));color:var(--accent-contrast);">U</div>
+        <span id="sidebarUserName" class="text-base font-bold text-[color:var(--accent-strong)] truncate">User</span>
         <span class="user-menu-caret text-[color:var(--text-muted)] flex-shrink-0">▾</span>
       </button>
       <div id="sidebarLangSwitcher" class="flex-shrink-0"></div>
