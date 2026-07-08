@@ -382,35 +382,38 @@ async function loadExpenseTrend() {
 
 async function loadDevicePerformance() {
   const data = await fetchJSON(`/api/device-performance?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data?.length) return;
+  destroyChart('devicePerfChart');
+  if (!data?.length) {
+    chartStateShow('devicePerfChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate) } }));
+    return;
+  }
+  chartStateClear('devicePerfChart');
 
   const labels  = data.map(r => r.device_name || t('dashboard.unknown'));
   const revenue = data.map(r => parseFloat(r.revenue));
   const orders  = data.map(r => parseInt(r.orders));
 
   const maxRev    = Math.max(...revenue);
-  const revColors = revenue.map(v => v === maxRev ? 'rgba(245,158,11,0.9)' : 'rgba(245,158,11,0.45)');
+  const revColors = revenue.map(v => v === maxRev ? withAlpha('--accent', 0.9) : withAlpha('--accent', 0.45));
+  const ordersColor = themeColor('--chart-2', '#5c8fe6');
 
-  destroyChart('devicePerfChart');
   state.charts.devicePerfChart = new Chart(document.getElementById('devicePerfChart'), {
     type: 'bar',
     data: {
       labels,
       datasets: [
-        { label: t('report.chartRevenueKhr'), data: revenue, backgroundColor: revColors,               borderRadius: 4, yAxisID: 'y' },
-        { label: t('dashboard.kpi.orders'),   data: orders,  backgroundColor: 'rgba(59,130,246,0.6)', borderRadius: 4, yAxisID: 'y2' },
+        { label: t('report.chartRevenueKhr'), data: revenue, backgroundColor: revColors,                     borderRadius: 4, yAxisID: 'y' },
+        { label: t('dashboard.kpi.orders'),   data: orders,  backgroundColor: withAlpha('--chart-2', 0.6), borderRadius: 4, yAxisID: 'y2' },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true, position: 'bottom', labels: { color: themeColor('--text-secondary', '#94a3b8'), boxWidth: 12, font: { size: 11 } } },
-      },
+      plugins: { legend: legendTheme('bottom'), tooltip: tooltipTheme() },
       scales: {
-        x:  { grid: { color: themeColor('--bg-surface', '#1e293b') }, ticks: { color: themeColor('--text-secondary', '#94a3b8'), font: { size: 11 } } },
-        y:  { position: 'left',  grid: { color: themeColor('--border', '#334155') }, ticks: { color: themeColor('--text-muted', '#64748b'), font: { size: 11 }, callback: v => '៛' + fmt(v) } },
-        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#3b82f6', font: { size: 11 } } },
+        x:  { grid: { color: themeColor('--bg-surface', '#151f33') }, ticks: numTicks({ color: themeColor('--text-secondary', '#a5a396') }) },
+        y:  { position: 'left',  grid: { color: themeColor('--border', '#2b3952') }, ticks: numTicks({ callback: v => fmtKHR(v) }) },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: numTicks({ color: ordersColor }) },
       },
     },
   });

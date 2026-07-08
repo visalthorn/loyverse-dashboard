@@ -381,14 +381,18 @@ export function toggleSlowMovers() {
 
 async function loadEmployeePerformance() {
   const data = await fetchJSON(`/api/employee-performance?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data?.length) return;
-
   destroyChart('employeeChart');
+  if (!data?.length) {
+    chartStateShow('employeeChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: currentRangeLabel() } }));
+    return;
+  }
+  chartStateClear('employeeChart');
+
   state.charts.employeeChart = new Chart(document.getElementById('employeeChart'), {
     type: 'bar',
     data: {
       labels: data.map(r => r.employee_id || t('dashboard.unknown')),
-      datasets: [{ label: t('dashboard.table.revenue'), data: data.map(r => parseFloat(r.revenue)), backgroundColor: 'rgba(245,158,11,0.7)', borderRadius: 6 }],
+      datasets: [{ label: t('dashboard.table.revenue'), data: data.map(r => parseFloat(r.revenue)), backgroundColor: withAlpha('--accent', 0.7), borderRadius: 6 }],
     },
     options: barOpts('៛'),
   });
@@ -398,14 +402,18 @@ async function loadEmployeePerformance() {
 
 async function loadDevicePerformance() {
   const data = await fetchJSON(`/api/device-performance?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data?.length) return;
-
   destroyChart('deviceChart');
+  if (!data?.length) {
+    chartStateShow('deviceChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: currentRangeLabel() } }));
+    return;
+  }
+  chartStateClear('deviceChart');
+
   state.charts.deviceChart = new Chart(document.getElementById('deviceChart'), {
     type: 'bar',
     data: {
       labels: data.map(r => r.device_name || t('dashboard.unknown')),
-      datasets: [{ label: t('dashboard.table.revenue'), data: data.map(r => parseFloat(r.revenue)), backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 6 }],
+      datasets: [{ label: t('dashboard.table.revenue'), data: data.map(r => parseFloat(r.revenue)), backgroundColor: withAlpha('--chart-2', 0.7), borderRadius: 6 }],
     },
     options: barOpts('៛'),
   });
