@@ -423,23 +423,27 @@ async function loadDevicePerformance() {
 
 async function loadCancelledOrders() {
   const data = await fetchJSON(`/api/cancelled-orders?period=${state.currentPeriod}${rangeQuery()}`);
-  if (!data) return;
-
   const cancelSummary = getEl('cancelSummary');
+  const cancelList = getEl('cancelList');
+  if (!data) {
+    if (cancelSummary) cancelSummary.innerHTML = '';
+    if (cancelList) cancelList.innerHTML = errorStateHTML({ vars: { range: currentRangeLabel() } });
+    return;
+  }
+
   if (cancelSummary) cancelSummary.innerHTML = `
-    <span class="text-red-400 font-bold">${t('dashboard.cancelledCount', { count: data.summary.count })}</span>
-    <span class="text-[color:var(--text-muted)]">${t('dashboard.cancelledLost', { amount: '<span class="text-red-300 font-bold">$' + fmt(data.summary.lost_revenue) + '</span>' })}</span>
+    <span class="val-loss font-bold">${t('dashboard.cancelledCount', { count: data.summary.count })}</span>
+    <span class="text-[color:var(--text-muted)]">${t('dashboard.cancelledLost', { amount: '<span class="val-loss font-bold num">' + fmtKHR(data.summary.lost_revenue) + '</span>' })}</span>
   `;
 
-  const cancelList = getEl('cancelList');
   if (cancelList) cancelList.innerHTML = data.items.length
     ? data.items.map(r => `
         <div class="cancel-row">
           <div>
-            <div class="font-medium text-red-200">#${r.receipt_number}</div>
+            <div class="font-medium num">#${r.receipt_number}</div>
             <div class="text-xs text-[color:var(--text-muted)]">${fmtDatetime(r.cancelled_at)} · ${r.dining_option || '-'} · ${r.employee_id || '-'}</div>
           </div>
-          <div class="text-red-400 font-bold">-$${fmt(r.total_money)}</div>
+          <div class="val-loss font-bold num">-${fmtKHR(r.total_money)}</div>
         </div>
       `).join('')
     : `<p class="text-[color:var(--text-muted)] text-sm">${t('dashboard.noCancellations')}</p>`;
