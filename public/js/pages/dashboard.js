@@ -279,7 +279,16 @@ async function loadPeakHours() {
   if (heatmapLabel) heatmapLabel.textContent = periodLabel(p, s, e);
 
   const data = await fetchJSON(`/api/peak-hours?period=${p}${rangeQuery()}`);
-  if (!data) return;
+  const box = getEl('heatmap');
+  if (!box) return;
+  if (!data) {
+    box.innerHTML = errorStateHTML({ vars: { range: currentRangeLabel() } });
+    return;
+  }
+  if (!data.length) {
+    box.innerHTML = emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' });
+    return;
+  }
 
   const matrix = Array.from({ length: 7 }, () => new Array(24).fill(0));
   let maxVal = 0;
@@ -288,9 +297,6 @@ async function loadPeakHours() {
     matrix[d][h] = parseFloat(r.revenue);
     if (matrix[d][h] > maxVal) maxVal = matrix[d][h];
   });
-
-  const container = getEl('heatmap');
-  if (!container) return;
 
   let html = '<div class="heatmap-header-row"><div></div>';
   for (let h = 0; h < 24; h++) html += `<div class="heatmap-hour-label">${h}h</div>`;
@@ -301,12 +307,12 @@ async function loadPeakHours() {
     for (let h = 0; h < 24; h++) {
       const val   = matrix[d][h];
       const ratio = maxVal > 0 ? val / maxVal : 0;
-      html += `<div class="heatmap-cell" style="background:${heatColor(ratio)}" title="${day} ${h}:00 — ៛${fmt(val)}"></div>`;
+      html += `<div class="heatmap-cell" style="background:${heatColor(ratio)}" title="${day} ${h}:00 — ${fmtKHR(val)}"></div>`;
     }
     html += '</div>';
   });
 
-  container.innerHTML = html;
+  box.innerHTML = html;
 }
 
 // ─── Top Products (with growth vs last period + slow movers) ────────────────
