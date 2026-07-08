@@ -1,5 +1,5 @@
 import { fetchJSON } from '../api.js';
-import { getEl, fmtRaw, downloadCSV, TZ } from '../utils.js';
+import { getEl, fmtRaw, fmtKHR, downloadCSV, TZ } from '../utils.js';
 import { t } from '../i18n.js';
 import { renderDateFilter } from '../dateFilter.js';
 
@@ -68,11 +68,11 @@ function renderStats() {
 
   const set = (id, val) => { const el = getEl(id); if (el) el.textContent = val; };
   set('statTotal',         allReceipts.length);
-  set('statTotalAmount',   '៛' + fmtRaw(totalAmt));
+  set('statTotalAmount',   fmtKHR(totalAmt));
   set('statSales',         salesRows.length);
-  set('statSalesAmount',   '៛' + fmtRaw(salesAmt));
+  set('statSalesAmount',   fmtKHR(salesAmt));
   set('statRefunds',       refundRows.length);
-  set('statRefundsAmount', '៛' + fmtRaw(refundAmt));
+  set('statRefundsAmount', fmtKHR(refundAmt));
 }
 
 // ─── Search / Filter ─────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ function renderTable() {
 
     return `<tr class="receipt-row ${sel}" onclick="selectReceipt(${r.id})">
       <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs pl-1">${idx}</td>
-      <td class="py-2.5 pr-3 font-mono text-amber-400 font-semibold text-xs">${r.receipt_number}</td>
+      <td class="py-2.5 pr-3 num text-[color:var(--accent-strong)] font-semibold text-xs">${r.receipt_number}</td>
       <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs">${r.order ?? '—'}</td>
       <td class="py-2.5 pr-3 text-[color:var(--text-secondary)] text-xs whitespace-nowrap">${formatDate(r.receipt_date)}</td>
       <td class="py-2.5 pr-3 text-[color:var(--text-secondary)] text-xs">${r.pos_device ?? '—'}</td>
@@ -221,7 +221,7 @@ export function selectReceipt(id) {
 
   const items     = Array.isArray(r.items) ? r.items : [];
   const isRefund  = r.receipt_type === 'REFUND';
-  const typeClass = isRefund ? 'text-red-400' : 'text-emerald-400';
+  const typeClass = isRefund ? 'val-loss' : 'val-gain';
   const typeLabel = isRefund ? t('receipts.typeRefund') : t('receipts.typeSale');
   const cancelNote = r.is_canceled === 'Yes' ? `<span class="badge badge-canceled ml-2">${t('receipts.canceledBadge')}</span>` : '';
 
@@ -239,7 +239,7 @@ export function selectReceipt(id) {
       <div class="flex items-start justify-between gap-2 mb-2">
         <div>
           <div class="text-xs text-[color:var(--text-muted)] mb-0.5">${t('receipts.thReceiptNo')}</div>
-          <div class="font-mono font-bold text-amber-400 text-base">${r.receipt_number}</div>
+          <div class="num font-bold text-[color:var(--accent-strong)] text-base">${r.receipt_number}</div>
         </div>
         <div class="text-right">
           <span class="badge ${isRefund ? 'badge-refund' : 'badge-sale'} text-sm px-3 py-1">${typeLabel}</span>

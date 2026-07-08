@@ -1,6 +1,6 @@
 import { state } from '../state.js';
 import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
-import { getEl, fmtRaw, downloadCSV } from '../utils.js';
+import { getEl, fmtRaw, fmtKHR, fmtUSD, downloadCSV } from '../utils.js';
 import { logout } from '../auth.js';
 import { t } from '../i18n.js';
 
@@ -35,8 +35,8 @@ function renderStaffStats() {
 
   const set = (id, val) => { const el = getEl(id); if (el) el.textContent = val; };
   set('statActiveStaff', active.length);
-  set('statTotalSalary', '$' + fmtRaw(totalSalary, 2));
-  set('statTotalLoan',   '៛' + fmtRaw(totalLoan));
+  set('statTotalSalary', fmtUSD(totalSalary));
+  set('statTotalLoan',   fmtKHR(totalLoan));
 }
 
 // ─── Table ────────────────────────────────────────────────────────────────────
@@ -57,13 +57,13 @@ export function renderStaffTable() {
     const joinDate     = s.join_date ? new Date(s.join_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
     const statusBadge  = s.is_active ? `<span class="badge badge-active">${t('staff.badgeActive')}</span>` : `<span class="badge badge-inactive">${t('staff.badgeInactive')}</span>`;
     const salaryCcy    = s.salary_ccy || 'USD';
-    const salaryDisplay = salaryCcy === 'KHR' ? '៛' + fmtRaw(s.salary) : '$' + fmtRaw(s.salary, 2);
+    const salaryDisplay = salaryCcy === 'KHR' ? fmtKHR(s.salary) : fmtUSD(s.salary);
     const loanCcy      = s.loan_ccy || 'KHR';
     const loanBadge    = parseFloat(s.loan_amount) > 0
-      ? `<span class="badge badge-loan">${loanCcy === 'KHR' ? '៛' : '$'}${fmtRaw(s.loan_amount, loanCcy === 'KHR' ? 0 : 2)}</span>`
+      ? `<span class="badge badge-loan num">${loanCcy === 'KHR' ? fmtKHR(s.loan_amount) : fmtUSD(s.loan_amount)}</span>`
       : '<span class="text-[color:var(--text-muted)] text-xs">—</span>';
     const toggleLabel = s.is_active ? t('staff.toggleDeactivate') : t('staff.toggleActivate');
-    const toggleColor = s.is_active ? 'text-[color:var(--text-muted)] hover:text-red-400' : 'text-[color:var(--text-muted)] hover:text-emerald-400';
+    const toggleColor = s.is_active ? 'text-[color:var(--text-muted)] hover:text-[color:var(--loss)]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--gain)]';
 
     const shiftBadge = s.default_shift
       ? `<span style="background:${s.default_shift === 'M' ? 'rgba(59,130,246,0.18)' : 'rgba(168,85,247,0.18)'};color:${SHIFT_COLORS[s.default_shift]};padding:2px 7px;border-radius:4px;font-size:0.6875rem;font-weight:700">${s.default_shift}</span>`
@@ -71,11 +71,11 @@ export function renderStaffTable() {
 
     return `<tr class="staff-row border-b border-[color:var(--border)]">
       <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs">${i + 1}</td>
-      <td class="py-2.5 pr-3 font-mono text-amber-400 text-xs font-semibold">${s.staff_id}</td>
+      <td class="py-2.5 pr-3 num text-[color:var(--accent-strong)] text-xs font-semibold">${s.staff_id}</td>
       <td class="py-2.5 pr-3 font-medium text-[color:var(--text-primary)] text-xs">${s.full_name}</td>
       <td class="py-2.5 pr-3 text-[color:var(--text-secondary)] text-xs">${s.position || '—'}</td>
       <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs whitespace-nowrap">${joinDate}</td>
-      <td class="py-2.5 pr-3 text-right text-emerald-400 font-semibold text-xs">${salaryDisplay}</td>
+      <td class="py-2.5 pr-3 text-right val-gain font-semibold text-xs num">${salaryDisplay}</td>
       <td class="py-2.5 pr-3 text-[color:var(--text-secondary)] text-xs">${s.phone || '—'}</td>
       <td class="py-2.5 pr-3 text-right text-xs">${loanBadge}</td>
       <td class="py-2.5 pr-3 text-center">${statusBadge}</td>
@@ -83,9 +83,9 @@ export function renderStaffTable() {
       <td class="py-2.5 text-center whitespace-nowrap">
         ${s.join_date && s.position ? `<button onclick="viewInSchedule(${s.id})" class="text-xs text-[color:var(--text-muted)] hover:text-blue-400 mr-2" title="${t('staff.viewInScheduleTitle')}">📅</button>` : ''}
         ${state.userPermissions.staff?.can_write ? `
-          <button onclick="startEditStaff(${s.id})" class="text-xs text-[color:var(--text-muted)] hover:text-amber-400 mr-2">${t('common.edit')}</button>
+          <button onclick="startEditStaff(${s.id})" class="text-xs text-[color:var(--text-muted)] hover:text-[color:var(--accent-strong)] mr-2">${t('common.edit')}</button>
           <button onclick="toggleStaffStatus(${s.id}, ${!s.is_active})" class="text-xs ${toggleColor} mr-2">${toggleLabel}</button>
-          <button onclick="confirmDeleteStaff(${s.id})" class="text-xs text-red-500 hover:text-red-400">${t('common.delete')}</button>
+          <button onclick="confirmDeleteStaff(${s.id})" class="text-xs text-[color:var(--loss)] hover:opacity-80">${t('common.delete')}</button>
         ` : ''}
       </td>
     </tr>`;

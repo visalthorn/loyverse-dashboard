@@ -45,19 +45,19 @@ function renderUsersTable() {
     const statusBadge = u.is_active
       ? `<span class="badge" style="background:rgba(34,197,94,.12);color:#4ade80">${t('staff.badgeActive')}</span>`
       : `<span class="badge" style="background:rgba(100,116,139,.14);color:#94a3b8">${t('staff.badgeInactive')}</span>`;
-    const toggleColor = u.is_active ? 'text-[color:var(--text-muted)] hover:text-red-400' : 'text-[color:var(--text-muted)] hover:text-emerald-400';
+    const toggleColor = u.is_active ? 'text-[color:var(--text-muted)] hover:text-[color:var(--loss)]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--gain)]';
 
     return `<tr class="border-b border-[color:var(--border)] hover:bg-[color:var(--hover-tint)]">
       <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs">${i + 1}</td>
-      <td class="py-2.5 pr-3 font-mono text-amber-400 text-xs font-semibold">${u.username}</td>
+      <td class="py-2.5 pr-3 num text-[color:var(--accent-strong)] text-xs font-semibold">${u.username}</td>
       <td class="py-2.5 pr-3 text-[color:var(--text-primary)] text-xs">${u.full_name || '—'}</td>
       <td class="py-2.5 pr-3 text-[color:var(--text-muted)] text-xs">${u.email}</td>
       <td class="py-2.5 pr-3 text-xs">${roleBadge}</td>
       <td class="py-2.5 pr-3 text-xs text-center">${statusBadge}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
-        <button onclick="startEditUser(${u.id})" class="text-xs text-[color:var(--text-muted)] hover:text-amber-400 mr-3">${t('common.edit')}</button>
+        <button onclick="startEditUser(${u.id})" class="text-xs text-[color:var(--text-muted)] hover:text-[color:var(--accent-strong)] mr-3">${t('common.edit')}</button>
         <button onclick="toggleUserStatus(${u.id}, ${!u.is_active})" class="text-xs ${toggleColor} mr-3">${u.is_active ? t('staff.toggleDeactivate') : t('staff.toggleActivate')}</button>
-        <button onclick="confirmDeleteUser(${u.id})" class="text-xs text-red-500 hover:text-red-400">${t('common.delete')}</button>
+        <button onclick="confirmDeleteUser(${u.id})" class="text-xs text-[color:var(--loss)] hover:opacity-80">${t('common.delete')}</button>
       </td>
     </tr>`;
   }).join('');
@@ -75,12 +75,12 @@ function renderPermissionsMatrix() {
     const checked = perm?.can_write ? 'checked' : '';
     return `<tr class="border-b border-[color:var(--border)]">
       <td class="py-3 pr-4 text-sm text-[color:var(--text-primary)]">${labels[page]}</td>
-      <td class="py-3 pr-4 text-center text-xs text-emerald-400 font-semibold">${t('users.alwaysWrite')}</td>
+      <td class="py-3 pr-4 text-center text-xs val-gain font-semibold">${t('users.alwaysWrite')}</td>
       <td class="py-3 text-center">
         <label class="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" class="sr-only peer" ${checked}
             onchange="togglePermission('manager','${page}',this.checked)"/>
-          <div class="w-10 h-5 bg-[color:var(--border-strong)] rounded-full peer peer-checked:bg-amber-500 relative
+          <div class="w-10 h-5 bg-[color:var(--border-strong)] rounded-full peer peer-checked:bg-[color:var(--accent)] relative
             after:content-[''] after:absolute after:top-[2px] after:left-[2px]
             after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all
             peer-checked:after:translate-x-5"></div>

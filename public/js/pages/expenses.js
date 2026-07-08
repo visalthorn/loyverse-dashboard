@@ -1,6 +1,6 @@
 import { state } from '../state.js';
 import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
-import { getEl, fmt, fmtRaw, fmtDate, downloadCSV } from '../utils.js';
+import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, downloadCSV } from '../utils.js';
 import { logout } from '../auth.js';
 import { t, getLang } from '../i18n.js';
 import { renderDateFilter } from '../dateFilter.js';
@@ -10,8 +10,8 @@ import { renderDateFilter } from '../dateFilter.js';
 function updateExpenseSummary(count, totalAmount) {
   const summary = getEl('expensesSummary');
   if (!summary) return;
-  const countHtml = `<span class="text-sm text-amber-600 font-bold">${count}</span>`;
-  const total = `<span class="text-sm text-amber-600 font-bold">៛${fmtRaw(totalAmount, 2)}</span>`;
+  const countHtml = `<span class="text-sm text-[color:var(--accent-strong)] font-bold num">${count}</span>`;
+  const total = `<span class="text-sm text-[color:var(--accent-strong)] font-bold num">${fmtKHR(totalAmount, 2)}</span>`;
   const plural = getLang() === 'en' && count !== 1 ? 's' : '';
   summary.innerHTML = t('expenses.summary', { count: countHtml, plural, total });
 }
@@ -49,17 +49,17 @@ export async function loadExpenses() {
     const dayLabel  = fmtDate(e.expense_date, 'weekly');
     const showHeader = dayLabel !== lastDate;
     lastDate = dayLabel;
-    return `${showHeader ? `<div class="mt-3 mb-1 text-xs uppercase tracking-wide text-amber-500 font-bold border-b border-[color:var(--border)] pb-1">${dayLabel}</div>` : ''}
+    return `${showHeader ? `<div class="mt-3 mb-1 text-xs uppercase tracking-wide text-[color:var(--accent-strong)] font-bold border-b border-[color:var(--border)] pb-1">${dayLabel}</div>` : ''}
     <div class="flex items-center justify-between p-2 bg-[color:var(--bg-surface-alt)] rounded ${showHeader ? '' : 'mt-2'}">
       <div>
         <div class="font-medium">${e.expense_by}</div>
         <div class="text-xs text-[color:var(--text-muted)]">${e.remark || ''}</div>
       </div>
       <div class="flex items-center gap-3">
-        <div class="text-amber-400 font-bold">៛${fmt(e.amount)}</div>
+        <div class="val-accent font-bold num">${fmtKHR(e.amount)}</div>
         ${state.userPermissions.expenses?.can_write ? `
-          <button onclick="startEditExpense(${e.id})" class="text-sm text-[color:var(--text-secondary)] hover:text-amber-400">${t('common.edit')}</button>
-          <button onclick="confirmDeleteExpense(${e.id})" class="text-sm text-red-400 hover:text-red-300">${t('common.delete')}</button>` : ''}
+          <button onclick="startEditExpense(${e.id})" class="text-sm text-[color:var(--text-secondary)] hover:text-[color:var(--accent-strong)]">${t('common.edit')}</button>
+          <button onclick="confirmDeleteExpense(${e.id})" class="text-sm text-[color:var(--loss)] hover:opacity-80">${t('common.delete')}</button>` : ''}
       </div>
     </div>`;
   }).join('');
