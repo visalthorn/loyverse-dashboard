@@ -14,8 +14,9 @@ export function setHTML(id, value) {
   return el;
 }
 
+// Today's date (YYYY-MM-DD) in Cambodia time — never the browser's zone.
 export function getTodayDate() {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toLocaleDateString('en-CA', { timeZone: TZ });
 }
 
 export function fmt(n) {
@@ -30,16 +31,25 @@ export function fmtRaw(value, decimals = 0) {
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
+// Currency — the only place ៛/$ prefixes are produced.
+export function fmtKHR(n, decimals = 0) {
+  return '៛' + fmtRaw(n, decimals);
+}
+
+export function fmtUSD(n, decimals = 2) {
+  return '$' + fmtRaw(n, decimals);
+}
+
+// All dates/times render in Cambodia time (UTC+7), regardless of client zone.
 export function fmtDate(iso, period) {
   const d = new Date(iso);
-  if (period === 'monthly') return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-  if (period === 'weekly')  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (period === 'monthly') return d.toLocaleDateString('en-US', { timeZone: TZ, month: 'short', year: '2-digit' });
+  return d.toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric' });
 }
 
 export function fmtDatetime(iso) {
   if (!iso) return '-';
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-US', { timeZone: TZ, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export function downloadCSV(filename, rows) {

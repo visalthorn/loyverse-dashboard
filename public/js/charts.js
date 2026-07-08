@@ -1,12 +1,15 @@
 import { state, COLORS } from './state.js';
-import { fmt } from './utils.js';
+import { fmt, fmtKHR } from './utils.js';
 
 export { COLORS };
 
-function themeColor(varName, fallback) {
+function themeVar(varName, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   return v || fallback;
 }
+
+// Back-compat alias — page modules import this name.
+export const themeColor = themeVar;
 
 function hexToRgb(hex) {
   const clean = hex.replace('#', '');
@@ -16,12 +19,13 @@ function hexToRgb(hex) {
 }
 
 export function heatColor(ratio) {
-  const empty = themeColor('--heatmap-empty', '#1e293b');
+  const empty = themeVar('--heatmap-empty', '#1d2940');
   if (ratio === 0) return empty;
   const { r: r0, g: g0, b: b0 } = hexToRgb(empty);
-  const r = Math.round(r0 + ratio * (245 - r0));
-  const g = Math.round(g0 + ratio * (158 - g0));
-  const b = Math.round(b0 + ratio * (11  - b0));
+  const { r: r1, g: g1, b: b1 } = hexToRgb(themeVar('--accent', '#f59e0b'));
+  const r = Math.round(r0 + ratio * (r1 - r0));
+  const g = Math.round(g0 + ratio * (g1 - g0));
+  const b = Math.round(b0 + ratio * (b1 - b0));
   return `rgb(${r},${g},${b})`;
 }
 
@@ -29,23 +33,53 @@ export function destroyChart(id) {
   if (state.charts[id]) { state.charts[id].destroy(); delete state.charts[id]; }
 }
 
+// ─── Shared Chart.js theme — every chart derives from these tokens ──────────
+
+// Global defaults: sans for chrome, theme ink. Runs once at module load
+// (stylesheets are applied before module scripts execute).
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = themeVar('--font-sans', 'sans-serif');
+  Chart.defaults.color = themeVar('--text-muted', '#8a887c');
+}
+
+// Tick figures are numbers — set them in the tabular mono face.
+function numTicks(extra = {}) {
+  return {
+    color: themeVar('--text-muted', '#8a887c'),
+    font: { family: themeVar('--font-num', 'monospace'), size: 11 },
+    ...extra,
+  };
+}
+
+export function tooltipTheme() {
+  return {
+    backgroundColor: themeVar('--bg-surface-alt', '#101827'),
+    borderColor: themeVar('--border', '#2b3952'),
+    borderWidth: 1,
+    titleColor: themeVar('--text-primary', '#eae6da'),
+    bodyColor: themeVar('--text-secondary', '#a5a396'),
+    bodyFont: { family: themeVar('--font-num', 'monospace'), size: 11 },
+    padding: 10,
+    cornerRadius: 6,
+  };
+}
+
 export function chartOpts(prefix = '') {
-  const gridX = themeColor('--bg-surface', '#1e293b');
-  const gridY = themeColor('--border', '#334155');
-  const tick  = themeColor('--text-muted', '#64748b');
+  const gridX = themeVar('--bg-surface', '#151f33');
+  const gridY = themeVar('--border', '#2b3952');
   return {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    plugins: { legend: { display: false }, tooltip: tooltipTheme() },
     scales: {
-      x: { grid: { color: gridX }, ticks: { color: tick, font: { size: 11 } } },
-      y: { grid: { color: gridY }, ticks: { color: tick, font: { size: 11 }, callback: v => prefix + fmt(v) } },
+      x: { grid: { color: gridX }, ticks: numTicks() },
+      y: { grid: { color: gridY }, ticks: numTicks({ callback: v => prefix + fmt(v) }) },
     },
   };
 }
 
 export function barOpts(prefix = '') {
-  return { ...chartOpts(prefix), plugins: { legend: { display: false } }, indexAxis: 'y' };
+  return { ...chartOpts(prefix), plugins: { legend: { display: false }, tooltip: tooltipTheme() }, indexAxis: 'y' };
 }
 
 export function donutOpts() {
@@ -56,8 +90,9 @@ export function donutOpts() {
     plugins: {
       legend: { display: false },
       tooltip: {
+        ...tooltipTheme(),
         callbacks: {
-          label: c => ` ៛${fmt(c.raw)} (${((c.raw / c.chart.getDatasetMeta(0).total) * 100).toFixed(1)}%)`,
+          label: c => ` ${fmtKHR(c.raw)} (${((c.raw / c.chart.getDatasetMeta(0).total) * 100).toFixed(1)}%)`,
         },
       },
     },
@@ -69,10 +104,11 @@ export function pieOpts(showLegend = true) {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: showLegend, position: 'bottom', labels: { color: themeColor('--text-secondary', '#94a3b8'), boxWidth: 12, font: { size: 11 } } },
+      legend: { display: showLegend, position: 'bottom', labels: { color: themeVar('--text-secondary', '#a5a396'), boxWidth: 12, font: { size: 11 } } },
       tooltip: {
+        ...tooltipTheme(),
         callbacks: {
-          label: c => ` ${c.label}: ៛${fmt(c.raw)} (${((c.raw / c.chart.getDatasetMeta(0).total) * 100).toFixed(1)}%)`,
+          label: c => ` ${c.label}: ${fmtKHR(c.raw)} (${((c.raw / c.chart.getDatasetMeta(0).total) * 100).toFixed(1)}%)`,
         },
       },
     },

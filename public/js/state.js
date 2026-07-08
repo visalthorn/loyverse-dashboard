@@ -9,4 +9,12 @@ export const state = {
   charts:               {},
 };
 
-export const COLORS = ['#f59e0b','#3b82f6','#10b981','#f43f5e','#8b5cf6','#06b6d4','#84cc16','#ec4899'];
+// Categorical chart palette — reads the CVD-validated --chart-N theme tokens.
+// Order is fixed (never cycled); theme changes trigger a full reload, so
+// resolving once at module load is safe. Fallbacks mirror the dark theme.
+const CHART_FALLBACKS = ['#d47d05','#5c8fe6','#2a9a7d','#7f6fe0','#e0685f','#2f9cbd','#8a9847','#c9628f'];
+
+export const COLORS = CHART_FALLBACKS.map((fallback, i) => {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(`--chart-${i + 1}`).trim();
+  return v || fallback;
+});
