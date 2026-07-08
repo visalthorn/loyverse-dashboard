@@ -34,9 +34,9 @@
   .staff-input:focus { border-color: var(--accent-strong); }
   .staff-input::placeholder { color: var(--text-dim); }
 
-  .badge-active   { background: rgba(34,197,94,.12);  color: #4ade80; }
-  .badge-inactive { background: rgba(100,116,139,.14); color: #94a3b8; }
-  .badge-loan     { background: rgba(245,158,11,.12);  color: #fbbf24; }
+  .badge-active   { background: var(--gain-soft); color: var(--gain); }
+  .badge-inactive { background: color-mix(in srgb, var(--text-muted) 14%, transparent); color: var(--text-muted); }
+  .badge-loan     { background: var(--accent-soft); color: var(--accent-strong); }
   .badge { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; }
 
   .staff-row { transition: background .12s; }
@@ -112,8 +112,8 @@
   .sch-future-badge {
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 9999px;
-    background: rgba(99,102,241,0.15); color: #818cf8;
-    border: 1px solid rgba(99,102,241,0.3);
+    background: color-mix(in srgb, var(--chart-4) 15%, transparent); color: var(--chart-4);
+    border: 1px solid color-mix(in srgb, var(--chart-4) 30%, transparent);
   }
 
   /* ── Roster spreadsheet table ── */
