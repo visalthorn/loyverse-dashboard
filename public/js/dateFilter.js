@@ -1,17 +1,16 @@
 import { t } from './i18n.js';
-import { getTodayDate } from './utils.js';
+import { getTodayDate, TZ } from './utils.js';
+
+// Date N days ago as YYYY-MM-DD in Cambodia time — never the browser's zone.
+function daysAgo(n) {
+  return new Date(Date.now() - n * 86400000).toLocaleDateString('en-CA', { timeZone: TZ });
+}
 
 function resolveDates(key) {
   const end = getTodayDate();
-  if (key === 'last10') {
-    const d = new Date();
-    d.setDate(d.getDate() - 10);
-    return { start: d.toISOString().slice(0, 10), end };
-  }
+  if (key === 'last10') return { start: daysAgo(10), end };
   if (key === 'yesterday') {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const yesterday = d.toISOString().slice(0, 10);
+    const yesterday = daysAgo(1);
     return { start: yesterday, end: yesterday };
   }
   return { start: end, end };
@@ -37,7 +36,7 @@ export function renderDateFilter(mountEl, { presets, defaultPreset, onChange }) 
         <div class="date-filter-custom flex flex-wrap items-center gap-2"${showCustom ? '' : ' style="display:none"'}>
           <label class="text-xs text-[color:var(--text-secondary)]"><span>${t('common.from')}</span> <input type="date" class="date-filter-start rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1"></label>
           <label class="text-xs text-[color:var(--text-secondary)]"><span>${t('common.to')}</span> <input type="date" class="date-filter-end rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1"></label>
-          <button type="button" class="date-filter-apply bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded">${t('common.apply')}</button>
+          <button type="button" class="date-filter-apply btn-accent">${t('common.apply')}</button>
         </div>
       </div>`;
 

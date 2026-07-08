@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>POS Receipts</title>
 <script>
   (function() {
@@ -170,6 +170,8 @@
       <h2 class="text-lg font-semibold" data-i18n="receipts.title">Receipts</h2>
       <p class="text-xs text-slate-600 dark:text-slate-400" data-i18n="receipts.subtitle">View and search receipt records</p>
     </div>
+    <div class="flex-1"></div>
+    <button onclick="logout()" class="header-signout" data-i18n-title="common.signOut" aria-label="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </header>
 
   <main class="p-4 md:p-6 space-y-5 w-full max-w-screen-xl mx-auto">

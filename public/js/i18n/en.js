@@ -23,6 +23,14 @@ export const en = {
   'common.errorMissingDates': 'Please choose both a start and end date.',
   'common.errorDateOrder': 'Start date must be before or equal to end date.',
 
+  // ── panel states ────────────────────────────────────────
+  'common.emptyNoData': 'Nothing to show for this range',
+  'common.emptyNoSales': 'No sales recorded for this range yet',
+  'common.emptyHintWiden': 'Try a wider date range.',
+  'common.emptyHintSync': 'Try a wider date range, or sync receipts from Loyverse.',
+  'common.errorPanelTitle': "Couldn't load this panel",
+  'common.errorPanelHint': 'Data for {range} may be incomplete — check the connection and reload.',
+
   // ── nav ─────────────────────────────────────────────────
   'nav.dashboard': 'Dashboard',
   'nav.expenses': 'Expenses',

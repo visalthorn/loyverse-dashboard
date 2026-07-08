@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>POS Analytics Dashboard</title>
 <script>
   (function() {
@@ -40,10 +40,13 @@
       <!-- Period Filters -->
       <div class="flex flex-col md:flex-row items-start md:items-center gap-5">
         <div class="custom-range flex flex-wrap items-center gap-2">
-          <button id="syncBtn" onclick="syncGrossIncome()" class="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded" data-i18n="dashboard.syncButton">Sync Gross Income</button>
+          <button id="syncBtn" onclick="syncGrossIncome()" class="btn-accent" data-i18n="dashboard.syncButton">Sync Gross Income</button>
           <span id="lastSyncChip" class="text-xs text-slate-600 dark:text-slate-400 hidden"></span>
         </div>
-        <div id="dateFilterMount"></div>
+        <div class="flex items-center gap-3">
+          <div id="dateFilterMount"></div>
+          <button onclick="logout()" class="header-signout" data-i18n-title="common.signOut" aria-label="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+        </div>
       </div>
     </div>
   </header>
@@ -56,7 +59,7 @@
         <span class="kpi-section-lbl" data-i18n="dashboard.periodPerformance">Period Performance</span>
         <div class="flex-1 h-px" style="background:var(--border)"></div>
       </div>
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpiPrimary">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpiPrimary">
         <div class="kpi-primary kpi-primary--amber skeleton"><div class="h-28 rounded-lg"></div></div>
         <div class="kpi-primary kpi-primary--emerald skeleton"><div class="h-28 rounded-lg"></div></div>
         <div class="kpi-primary kpi-primary--blue skeleton"><div class="h-28 rounded-lg"></div></div>
@@ -71,7 +74,7 @@
         <span class="text-xs" style="color:var(--text-dim);white-space:nowrap" data-i18n="dashboard.dailyBenchmarksSub">per-day averages for the period</span>
         <div class="flex-1 h-px" style="background:var(--border)"></div>
       </div>
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="kpiAverage">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="kpiAverage">
         <div class="kpi-avg kpi-avg--amber skeleton"><div class="h-20 rounded-lg"></div></div>
         <div class="kpi-avg kpi-avg--red skeleton"><div class="h-20 rounded-lg"></div></div>
         <div class="kpi-avg kpi-avg--emerald skeleton"><div class="h-20 rounded-lg"></div></div>
