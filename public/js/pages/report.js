@@ -1,13 +1,9 @@
 import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtDate } from '../utils.js';
-import { destroyChart, chartOpts, barOpts, pieOpts } from '../charts.js';
+import { destroyChart, chartOpts, barOpts, pieOpts, themeColor, tooltipTheme } from '../charts.js';
 import { t } from '../i18n.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
-
-function themeColor(varName, fallback) {
-  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
-}
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
