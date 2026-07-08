@@ -127,6 +127,7 @@
   padding: 20px;
   border: 1px solid var(--border);
 }
+.card--loss { border-color: color-mix(in srgb, var(--loss) 40%, var(--bg-surface)); }
 
 /* ── KPI Section label ──────────────────────────────────── */
 .kpi-section-lbl {
@@ -373,6 +374,22 @@
 .btn-accent:hover { background: var(--accent-strong); }
 .btn-accent:disabled { opacity: .6; cursor: default; }
 
+.btn-ghost {
+  background: var(--bg-surface-alt);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background-color .15s, color .15s;
+}
+.btn-ghost:hover { background: var(--hover-tint); color: var(--text-primary); }
+
 .header-signout {
   display: inline-flex;
   align-items: center;
@@ -506,7 +523,20 @@ body {
 }
 
 /* ── shared app shell / sidebar layout (was duplicated per-page) ──────── */
-body.app-shell { display: flex; min-height: 100vh; }
+body.app-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+}
+
+.app-header {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
 
 .sidebar {
   width: 17rem;
@@ -514,6 +544,8 @@ body.app-shell { display: flex; min-height: 100vh; }
   display: flex;
   flex-direction: column;
   transition: width .2s ease;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
 }
 .sidebar-collapsed .sidebar { width: 4.5rem; }
 .sidebar-collapsed .sidebar-header {
