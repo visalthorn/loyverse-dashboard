@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css"/>
 <title>POS Dashboard — Sign In</title>
 <script>
@@ -14,14 +14,12 @@
   })();
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   html, body {
     height: 100%;
     background: var(--bg-canvas);
-    font-family: 'DM Sans', 'Noto Sans Khmer', sans-serif;
+    font-family: var(--font-sans);
     color: var(--text-primary);
     overflow: hidden;
   }
@@ -111,8 +109,10 @@
     box-shadow: 0 4px 16px rgba(245,158,11,0.3);
   }
   .logo-text h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 18px;
+    font-family: var(--font-num);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    font-size: 17px;
     color: var(--accent);
     line-height: 1.1;
   }
@@ -125,8 +125,9 @@
   }
 
   .page-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 26px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
     color: var(--text-primary);
     margin-bottom: 6px;
   }
@@ -168,7 +169,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 12px 14px 12px 40px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: inherit;
     font-size: 14px;
     color: var(--text-primary);
     outline: none;
@@ -176,9 +177,9 @@
   }
   input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(245,158,11,0.12);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
-  input::placeholder { color: #374151; }
+  input::placeholder { color: var(--text-dim); }
 
   .toggle-pw {
     position: absolute;
@@ -194,12 +195,12 @@
   /* Error */
   .error-msg {
     display: none;
-    background: rgba(248,113,113,0.08);
-    border: 1px solid rgba(248,113,113,0.25);
+    background: var(--loss-soft);
+    border: 1px solid color-mix(in srgb, var(--loss) 35%, transparent);
     border-radius: 8px;
     padding: 10px 14px;
     font-size: 13px;
-    color: #F87171;
+    color: var(--loss);
     margin-bottom: 18px;
     animation: shake 0.4s ease;
   }
@@ -214,13 +215,13 @@
   .btn-login {
     width: 100%;
     padding: 13px;
-    background: linear-gradient(135deg, var(--accent), #D97706);
+    background: linear-gradient(135deg, var(--accent), #d97706);
     border: none;
     border-radius: 10px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: inherit;
     font-size: 15px;
     font-weight: 600;
-    color: #0B1120;
+    color: var(--accent-contrast);
     cursor: pointer;
     transition: opacity 0.2s, transform 0.15s;
     box-shadow: 0 4px 20px rgba(245,158,11,0.3);
@@ -243,8 +244,8 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .divider {
-    height: 1px;
-    background: var(--border);
+    height: 0;
+    border-top: 1px dashed var(--border-strong);
     margin: 28px 0;
   }
 
@@ -255,36 +256,7 @@
   }
   .footer-note span { color: var(--accent); }
 
-  /* Language switcher */
-  .lang-switch {
-    display: flex;
-    gap: 2px;
-    background: var(--bg-canvas);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 2px;
-  }
-  .lang-btn {
-    border: none;
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 4px;
-    border-radius: 6px;
-    cursor: pointer;
-    opacity: .55;
-    filter: grayscale(35%);
-    transition: opacity .15s, filter .15s, background-color .15s;
-  }
-  .lang-btn svg { width: 22px; height: auto; display: block; border-radius: 2px; }
-  .lang-btn:hover { opacity: .85; }
-  .lang-btn.active {
-    opacity: 1;
-    filter: none;
-    background: rgba(245,158,11,.18);
-    box-shadow: 0 0 0 1px rgba(245,158,11,.5) inset;
-  }
+  /* Language switcher styles come from style.css */
 </style>
 </head>
 <body>
