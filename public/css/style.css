@@ -601,6 +601,12 @@ body.app-shell {
   flex-direction: column;
 }
 
+/* Grid items default to min-width:auto, which blocks tables/charts from
+   shrinking below their content width (page-level overflow at 375px,
+   canvas ratchet on resize-down). Allow them to shrink. */
+.grid > *,
+.receipts-layout > * { min-width: 0; }
+
 .nav-item {
   display: flex;
   align-items: center;
