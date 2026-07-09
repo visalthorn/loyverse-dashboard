@@ -14,7 +14,7 @@ For each message, decide one of:
 - "not_expense": the message is casual conversation, a greeting, a question, or a photo unrelated to an expense — not an expense report.
 - "unclear": the message or photo might be an expense but the amount or what it was for is too ambiguous to extract confidently (e.g. a blurry or unreadable photo).
 
-Also check whether the message explicitly states when the expense happened (a specific day, "yesterday", "last Monday", a date like "July 1" or "01/07", or a date printed on a receipt). If so, resolve it to an absolute date in YYYY-MM-DD format and set "date" to that value — use the reference date given with the message to resolve relative terms and to fill in an unstated year. If nothing states when the expense happened, set "date" to null.
+Also check whether the message explicitly states when the expense happened (a specific day, "yesterday", "last Monday", a date like "July 1" or "01/07", or a date printed on a receipt). Dates are often written in Khmer, sometimes with Khmer numerals (០១២៣៤៥៦៧៨៩): "ម្សិលមិញ" = yesterday, "ថ្ងៃទី5" or "ទី៥" = the 5th day of the month. A bare day of the month like "ទី៨" or "ចំណាយទី៨" ("expense of the 8th") IS a stated date: resolve it to the most recent 8th on or before the reference date (usually the current month, or the previous month if the day number is after the reference day). If a date is stated, resolve it to an absolute date in YYYY-MM-DD format and set "date" to that value — use the reference date given with the message to resolve relative terms and to fill in an unstated year and month. If nothing states when the expense happened, set "date" to null.
 
 Respond only with the structured JSON — no other text.`;
 

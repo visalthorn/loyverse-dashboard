@@ -2,8 +2,8 @@ import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtKHR, fmtDate } from '../utils.js';
 import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML } from '../ui.js';
-import { destroyChart, chartOpts, barOpts, pieOpts, themeColor, tooltipTheme, legendTheme, numTicks, withAlpha } from '../charts.js';
-import { t } from '../i18n.js';
+import { destroyChart, chartOpts, barOpts, pieOpts, heatColor, themeColor, tooltipTheme, legendTheme, numTicks, withAlpha } from '../charts.js';
+import { t, days } from '../i18n.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
@@ -219,6 +219,51 @@ async function loadPaymentMethods() {
   })));
 }
 
+// ─── Section 4: Peak Hours Heatmap ────────────────────────────────────────────
+
+async function loadPeakHours() {
+  const { currentPeriod: p, currentStartDate: s, currentEndDate: e } = state;
+
+  const heatmapLabel = getEl('heatmapRangeLabel');
+  if (heatmapLabel) heatmapLabel.textContent = periodLabel(p, s, e);
+
+  const data = await fetchJSON(`/api/peak-hours?period=${p}${rangeQuery()}`);
+  const box = getEl('heatmap');
+  if (!box) return;
+  if (!data) {
+    box.innerHTML = errorStateHTML({ vars: { range: periodLabel(p, s, e) } });
+    return;
+  }
+  if (!data.length) {
+    box.innerHTML = emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' });
+    return;
+  }
+
+  const matrix = Array.from({ length: 7 }, () => new Array(24).fill(0));
+  let maxVal = 0;
+  data.forEach(r => {
+    const d = parseInt(r.day_of_week), h = parseInt(r.hour);
+    matrix[d][h] = parseFloat(r.revenue);
+    if (matrix[d][h] > maxVal) maxVal = matrix[d][h];
+  });
+
+  let html = '<div class="heatmap-header-row"><div></div>';
+  for (let h = 0; h < 24; h++) html += `<div class="heatmap-hour-label">${h}h</div>`;
+  html += '</div>';
+
+  days().forEach((day, d) => {
+    html += `<div class="heatmap-row"><div class="heatmap-label">${day}</div>`;
+    for (let h = 0; h < 24; h++) {
+      const val   = matrix[d][h];
+      const ratio = maxVal > 0 ? val / maxVal : 0;
+      html += `<div class="heatmap-cell" style="background:${heatColor(ratio)}" title="${day} ${h}:00 — ${fmtKHR(val)}"></div>`;
+    }
+    html += '</div>';
+  });
+
+  box.innerHTML = html;
+}
+
 // ─── Section 3c: Top Product Performance ─────────────────────────────────────
 
 let topProductsLimit    = 5;
@@ -426,6 +471,7 @@ export function loadAll() {
   loadRevenueTrend();
   loadDiningOptions();
   loadPaymentMethods();
+  loadPeakHours();
   loadTopProducts();
   loadExpenseTrend();
   loadDevicePerformance();

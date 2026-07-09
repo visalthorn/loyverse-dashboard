@@ -22,6 +22,8 @@ export const en = {
   'common.to': 'To',
   'common.errorMissingDates': 'Please choose both a start and end date.',
   'common.errorDateOrder': 'Start date must be before or equal to end date.',
+  'common.showing': 'Showing',
+  'common.clearDateFilter': 'Clear date filter',
 
   // ── panel states ────────────────────────────────────────
   'common.emptyNoData': 'Nothing to show for this range',
@@ -80,7 +82,6 @@ export const en = {
   'dashboard.grossIncomeChartSub': 'Period matched to global filter',
   'dashboard.diningTitle': '🍽️ Dining Options',
   'dashboard.paymentTitle': '💳 Payment Methods',
-  'dashboard.heatmapTitle': '🔥 Peak Hours Heatmap',
   'dashboard.topProductsTitle': '🛒 Top Products',
   'dashboard.topProductsSub': 'Top 20 by revenue · green = growing · red = declining',
   'dashboard.categoryAll': 'All',
@@ -319,6 +320,7 @@ export const en = {
   'report.trendTitle': '📈 Revenue Trend & Growth',
   'report.diningTitle': '🍽️ Dining Channel',
   'report.paymentTitle': '💳 Payment Method',
+  'report.heatmapTitle': '🔥 Peak Hours Heatmap',
   'report.topProductsTitle': '🥧 Top Product Performance',
   'report.top5': 'Top 5',
   'report.top10': 'Top 10',

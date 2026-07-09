@@ -26,7 +26,18 @@ export function periodLabel(period, start, end) {
 export function renderDateFilter(mountEl, { presets, defaultPreset, onChange }) {
   if (!mountEl) return;
 
+  // The custom range currently applied to the page (null when a preset is active).
+  // Keeps the from/to inputs filled across re-renders and drives the "Showing" chip.
+  let applied = null;
+
   function render(activeKey, showCustom) {
+    const chip = applied ? `
+        <span class="date-filter-chip inline-flex items-center gap-1.5 rounded-full bg-[color:var(--accent-soft)] text-[color:var(--accent)] text-xs font-medium pl-2.5 pr-1 py-1">
+          <span aria-hidden="true">●</span>
+          <span>${t('common.showing')}: ${applied.start} → ${applied.end}</span>
+          <button type="button" class="date-filter-clear rounded-full w-5 h-5 leading-none hover:bg-[color:var(--hover-tint)]" aria-label="${t('common.clearDateFilter')}">✕</button>
+        </span>` : '';
+
     mountEl.innerHTML = `
       <div class="flex flex-wrap items-center gap-2">
         <div class="period-selector flex gap-1 bg-[color:var(--bg-surface-alt)] rounded-lg p-1">
@@ -34,16 +45,17 @@ export function renderDateFilter(mountEl, { presets, defaultPreset, onChange }) 
           <button type="button" class="period-btn${activeKey === 'range' ? ' active' : ''}" data-key="range">${t('common.custom')}</button>
         </div>
         <div class="date-filter-custom flex flex-wrap items-center gap-2"${showCustom ? '' : ' style="display:none"'}>
-          <label class="text-xs text-[color:var(--text-secondary)]"><span>${t('common.from')}</span> <input type="date" class="date-filter-start rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1"></label>
-          <label class="text-xs text-[color:var(--text-secondary)]"><span>${t('common.to')}</span> <input type="date" class="date-filter-end rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1"></label>
+          <label class="text-xs text-[color:var(--text-secondary)]"><span>${t('common.from')}</span> <input type="date" class="date-filter-start rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1" value="${applied ? applied.start : ''}"></label>
+          <label class="text-xs text-[color:var(--text-secondary)]"><span>${t('common.to')}</span> <input type="date" class="date-filter-end rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1" value="${applied ? applied.end : ''}"></label>
           <button type="button" class="date-filter-apply btn-accent">${t('common.apply')}</button>
-        </div>
+        </div>${chip}
       </div>`;
 
     mountEl.querySelectorAll('.period-selector .period-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const key = btn.dataset.key;
         if (key === 'range') { render(activeKey, true); return; }
+        applied = null;
         render(key, false);
         onChange({ period: key, ...resolveDates(key) });
       });
@@ -54,8 +66,15 @@ export function renderDateFilter(mountEl, { presets, defaultPreset, onChange }) 
       const end   = mountEl.querySelector('.date-filter-end')?.value   || '';
       if (!start || !end) { alert(t('common.errorMissingDates')); return; }
       if (start > end)    { alert(t('common.errorDateOrder')); return; }
+      applied = { start, end };
       render('range', true);
       onChange({ period: 'range', start, end });
+    });
+
+    mountEl.querySelector('.date-filter-clear')?.addEventListener('click', () => {
+      applied = null;
+      render(defaultPreset, false);
+      onChange({ period: defaultPreset, ...resolveDates(defaultPreset) });
     });
   }
 

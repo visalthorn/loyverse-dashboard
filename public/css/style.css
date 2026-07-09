@@ -571,11 +571,14 @@ body.app-shell {
 }
 .sidebar-collapsed .sidebar { width: 4.5rem; }
 .sidebar-collapsed .sidebar-header {
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
+}
+.sidebar-collapsed .sidebar-userrow,
+.sidebar-collapsed .sidebar-prefs {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.5rem;
 }
 .sidebar-collapsed #sidebarUserName,
 .sidebar-collapsed .user-menu-caret,
@@ -755,3 +758,22 @@ body.app-shell {
 .sidebar-collapsed .theme-switch { gap: 3px; padding: 2px; }
 .sidebar-collapsed .theme-btn { padding: 3px; }
 .sidebar-collapsed .theme-btn svg { width: 14px; height: 14px; }
+
+/* currency toggle: text glyphs (៛/$) sized to match the 18px icon buttons */
+.currency-btn {
+  min-width: 26px;
+  height: 26px;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.sidebar-collapsed .currency-btn {
+  min-width: 20px;
+  height: 20px;
+  font-size: .75rem;
+}
+
+/* equalize the three sidebar switch groups so they align on one line
+   (flag svgs are shorter than the 18px icons / 26px currency buttons) */
+.lang-btn { min-height: 26px; }
+.sidebar-collapsed .lang-btn { min-height: 20px; }

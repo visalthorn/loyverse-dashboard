@@ -22,6 +22,8 @@ export const km = {
   'common.to': 'ដល់',
   'common.errorMissingDates': 'សូមជ្រើសរើសទាំងកាលបរិច្ឆេទចាប់ផ្តើម និងបញ្ចប់។',
   'common.errorDateOrder': 'កាលបរិច្ឆេទចាប់ផ្តើមត្រូវតែមុន ឬស្មើកាលបរិច្ឆេទបញ្ចប់។',
+  'common.showing': 'កំពុងបង្ហាញ',
+  'common.clearDateFilter': 'លុបតម្រងកាលបរិច្ឆេទ',
 
   // ── panel states ────────────────────────────────────────
   'common.emptyNoData': 'គ្មានទិន្នន័យសម្រាប់ចន្លោះនេះទេ',
@@ -80,7 +82,6 @@ export const km = {
   'dashboard.grossIncomeChartSub': 'កំឡុងពេលត្រូវគ្នានឹងតម្រងសកល',
   'dashboard.diningTitle': '🍽️ ជម្រើសកន្លែងទទួលទាន',
   'dashboard.paymentTitle': '💳 វិធីទូទាត់',
-  'dashboard.heatmapTitle': '🔥 ម៉ោងមមាញឹកបំផុត',
   'dashboard.topProductsTitle': '🛒 ទំនិញលក់ដាច់បំផុត',
   'dashboard.topProductsSub': 'កំពូល 20 តាមចំណូល · បៃតង = កំពុងកើនឡើង · ក្រហម = កំពុងធ្លាក់ចុះ',
   'dashboard.categoryAll': 'ទាំងអស់',
@@ -319,6 +320,7 @@ export const km = {
   'report.trendTitle': '📈 និន្នាការចំណូល និងកំណើន',
   'report.diningTitle': '🍽️ ប្រភេទកន្លែងទទួលទាន',
   'report.paymentTitle': '💳 វិធីទូទាត់',
+  'report.heatmapTitle': '🔥 ម៉ោងមមាញឹកបំផុត',
   'report.topProductsTitle': '🥧 សមិទ្ធផលទំនិញលក់ដាច់បំផុត',
   'report.top5': 'កំពូល 5',
   'report.top10': 'កំពូល 10',

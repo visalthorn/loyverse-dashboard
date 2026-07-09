@@ -32,10 +32,21 @@ export function fmtRaw(value, decimals = 0) {
 }
 
 // Currency — the only place ៛/$ prefixes are produced.
+// Static display rate; mirrors USD_TO_KHR_RATE on the backend (routes/telegram.js).
+export const USD_RATE = 4000;
+
+export function getCurrency() {
+  return localStorage.getItem('pos_currency') === 'USD' ? 'USD' : 'KHR';
+}
+
+// Formats a KHR-stored amount in the user's display currency: ៛ as-is,
+// or converted to $ at the static rate. Display-only — stored data stays KHR.
 export function fmtKHR(n, decimals = 0) {
+  if (getCurrency() === 'USD') return fmtUSD(Number(n) / USD_RATE);
   return '៛' + fmtRaw(n, decimals);
 }
 
+// Literal dollars (e.g. staff salaries stored in USD) — never re-converted.
 export function fmtUSD(n, decimals = 2) {
   return '$' + fmtRaw(n, decimals);
 }

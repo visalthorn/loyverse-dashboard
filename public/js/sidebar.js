@@ -1,6 +1,7 @@
 import { t, renderLangSwitcher } from './i18n.js';
 import { renderUserMenu } from './userMenu.js';
 import { renderThemeToggle } from './themeToggle.js';
+import { renderCurrencyToggle } from './currencyToggle.js';
 
 const NAV_ITEMS = [
   { page: 'dashboard', href: '/',              icon: '📊', labelKey: 'nav.dashboard' },
@@ -21,15 +22,20 @@ export function renderSidebar(sidebarEl, activePage) {
     </a>`).join('');
 
   sidebarEl.innerHTML = `
-    <div class="sidebar-header px-5 py-4 border-b border-[color:var(--border)] flex items-center flex-wrap justify-between gap-y-2.5 gap-x-3" style="position:relative;">
-      <button id="userMenuTrigger" type="button" class="flex items-center gap-2" style="background:none;border:none;cursor:pointer;padding:0;text-align:left;">
-        <div id="sidebarAvatar" class="w-9 h-9 rounded-full flex items-center justify-center font-bold flex-shrink-0" style="background:linear-gradient(135deg,var(--accent),var(--accent-strong));color:var(--accent-contrast);">U</div>
-        <span id="sidebarUserName" class="text-base font-bold text-[color:var(--accent-strong)] truncate">User</span>
-        <span class="user-menu-caret text-[color:var(--text-muted)] flex-shrink-0">▾</span>
-      </button>
-      <div id="sidebarLangSwitcher" class="flex-shrink-0"></div>
-      <div id="sidebarThemeToggle" class="flex-shrink-0"></div>
-      <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)] flex-shrink-0" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
+    <div class="sidebar-header px-5 py-4 border-b border-[color:var(--border)] space-y-2.5" style="position:relative;">
+      <div class="sidebar-userrow flex items-center justify-between gap-2">
+        <button id="userMenuTrigger" type="button" class="flex items-center gap-2 min-w-0" style="background:none;border:none;cursor:pointer;padding:0;text-align:left;">
+          <div id="sidebarAvatar" class="w-9 h-9 rounded-full flex items-center justify-center font-bold flex-shrink-0" style="background:linear-gradient(135deg,var(--accent),var(--accent-strong));color:var(--accent-contrast);">U</div>
+          <span id="sidebarUserName" class="text-base font-bold text-[color:var(--accent-strong)] truncate">User</span>
+          <span class="user-menu-caret text-[color:var(--text-muted)] flex-shrink-0">▾</span>
+        </button>
+        <button onclick="toggleSidebarCollapse()" class="hidden md:inline-flex text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)] flex-shrink-0" data-i18n-title="common.collapseSidebar" aria-label="Collapse sidebar">⇔</button>
+      </div>
+      <div class="sidebar-prefs flex items-center justify-between gap-2">
+        <div id="sidebarLangSwitcher" class="flex-shrink-0"></div>
+        <div id="sidebarCurrencyToggle" class="flex-shrink-0"></div>
+        <div id="sidebarThemeToggle" class="flex-shrink-0"></div>
+      </div>
       <div id="userMenuMount"></div>
     </div>
 
@@ -41,5 +47,6 @@ export function renderSidebar(sidebarEl, activePage) {
 
   renderUserMenu(sidebarEl.querySelector('#userMenuMount'));
   renderLangSwitcher(sidebarEl.querySelector('#sidebarLangSwitcher'));
+  renderCurrencyToggle(sidebarEl.querySelector('#sidebarCurrencyToggle'));
   renderThemeToggle(sidebarEl.querySelector('#sidebarThemeToggle'));
 }
