@@ -7,6 +7,11 @@ dayjs.extend(timezone);
 
 const TZ = 'Asia/Phnom_Penh';
 
+// "Today" on the Cambodia calendar, independent of the DB server's timezone.
+// Supabase (PROD) runs at UTC, so bare CURRENT_DATE is a day behind Cambodia
+// between 00:00 and 07:00 local — every period preset must use this instead.
+const KH_TODAY = `(NOW() AT TIME ZONE '${TZ}')::date`;
+
 function toCambodiaTime(date) {
   if (!date) return null;
   return dayjs.utc(date).tz(TZ).format('YYYY-MM-DD HH:mm:ss');
@@ -24,13 +29,13 @@ function buildPeriodFilter(period, startDate, endDate, alias = 'r', firstParam =
     return { clause: `DATE(${col}) <= $${firstParam}`, params: [endDate] };
   }
   switch (period) {
-    case 'today':     return { clause: `DATE(${col}) = CURRENT_DATE`, params: [] };
-    case 'yesterday': return { clause: `DATE(${col}) = CURRENT_DATE - INTERVAL '1 day'`, params: [] };
-    case 'week':   return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE`, params: [] };
-    case 'last10': return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '10 days' AND CURRENT_DATE`, params: [] };
-    case 'month':  return { clause: `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`, params: [] };
-    case 'year':   return { clause: `DATE_TRUNC('year', ${col}) = DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year')`, params: [] };
-    default:       return { clause: `DATE(${col}) = CURRENT_DATE`, params: [] };
+    case 'today':     return { clause: `DATE(${col}) = ${KH_TODAY}`, params: [] };
+    case 'yesterday': return { clause: `DATE(${col}) = ${KH_TODAY} - INTERVAL '1 day'`, params: [] };
+    case 'week':   return { clause: `DATE(${col}) BETWEEN ${KH_TODAY} - INTERVAL '7 days' AND ${KH_TODAY}`, params: [] };
+    case 'last10': return { clause: `DATE(${col}) BETWEEN ${KH_TODAY} - INTERVAL '10 days' AND ${KH_TODAY}`, params: [] };
+    case 'month':  return { clause: `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', ${KH_TODAY} - INTERVAL '1 month')`, params: [] };
+    case 'year':   return { clause: `DATE_TRUNC('year', ${col}) = DATE_TRUNC('year', ${KH_TODAY} - INTERVAL '1 year')`, params: [] };
+    default:       return { clause: `DATE(${col}) = ${KH_TODAY}`, params: [] };
   }
 }
 
@@ -50,15 +55,15 @@ function getPrevPeriodSQL(period, startDate, endDate, alias = 'r', colName = 're
   const col = `${alias}.${colName}`;
   switch (period) {
     case 'yesterday':
-      return { clause: `DATE(${col}) = CURRENT_DATE - INTERVAL '2 day'`, params: [] };
+      return { clause: `DATE(${col}) = ${KH_TODAY} - INTERVAL '2 day'`, params: [] };
     case 'week':
-      return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '13 days' AND CURRENT_DATE - INTERVAL '7 days'`, params: [] };
+      return { clause: `DATE(${col}) BETWEEN ${KH_TODAY} - INTERVAL '13 days' AND ${KH_TODAY} - INTERVAL '7 days'`, params: [] };
     case 'last10':
-      return { clause: `DATE(${col}) BETWEEN CURRENT_DATE - INTERVAL '20 days' AND CURRENT_DATE - INTERVAL '10 days'`, params: [] };
+      return { clause: `DATE(${col}) BETWEEN ${KH_TODAY} - INTERVAL '20 days' AND ${KH_TODAY} - INTERVAL '10 days'`, params: [] };
     case 'month':
-      return { clause: `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '2 months')`, params: [] };
+      return { clause: `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', ${KH_TODAY} - INTERVAL '2 months')`, params: [] };
     case 'year':
-      return { clause: `DATE_TRUNC('year', ${col}) = DATE_TRUNC('year', CURRENT_DATE - INTERVAL '2 years')`, params: [] };
+      return { clause: `DATE_TRUNC('year', ${col}) = DATE_TRUNC('year', ${KH_TODAY} - INTERVAL '2 years')`, params: [] };
     case 'range':
       if (startDate && endDate) {
         const start     = dayjs(startDate).startOf('day');
@@ -71,9 +76,9 @@ function getPrevPeriodSQL(period, startDate, endDate, alias = 'r', colName = 're
           params: [prevStart.format('YYYY-MM-DD'), prevEnd.format('YYYY-MM-DD')],
         };
       }
-      return { clause: `DATE(${col}) = CURRENT_DATE - INTERVAL '2 day'`, params: [] };
+      return { clause: `DATE(${col}) = ${KH_TODAY} - INTERVAL '2 day'`, params: [] };
     default:
-      return { clause: `DATE(${col}) = CURRENT_DATE - INTERVAL '2 day'`, params: [] };
+      return { clause: `DATE(${col}) = ${KH_TODAY} - INTERVAL '2 day'`, params: [] };
   }
 }
 
