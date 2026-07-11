@@ -238,7 +238,7 @@ router.get('/device-performance', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/cancelled-orders', async (req, res) => {
+router.get('/cancelled-orders', requireAuth, async (req, res) => {
   const { period = 'today', start, end } = req.query;
   const filter = buildPeriodFilter(period, start, end);
   try {
@@ -394,7 +394,7 @@ router.get('/refund-analysis', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/debug', async (req, res) => {
+router.get('/debug', requireAuth, async (req, res) => {
   try {
     const [dateRange, sample, payments, items] = await Promise.all([
       pool.query(`

@@ -46,14 +46,12 @@ async function loadKPIs() {
   if (!data) {
     const html = `<div class="col-span-full card">${errorStateHTML({ vars: { range: currentRangeLabel() } })}</div>`;
     const p = getEl('kpiPrimary'); if (p) p.innerHTML = html;
-    const a = getEl('kpiAverage'); if (a) a.innerHTML = html;
     return;
   }
 
   const grossVal  = parseFloat(data.gross_income.value);
   const netVal    = parseFloat(data.net_revenue);
   const expVal    = parseFloat(data.expenses.value);
-  const avgNetVal = parseFloat(data.net_per_order?.value ?? 0);
 
   const netPositive  = netVal >= 0;
   const netAccent    = netPositive ? 'emerald' : 'red';
@@ -61,10 +59,6 @@ async function loadKPIs() {
   const netIcon      = netPositive ? '📈' : '📉';
   const margin       = grossVal > 0 ? Math.round((netVal / grossVal) * 100) : 0;
   const expPct       = grossVal > 0 ? Math.round((expVal / grossVal) * 100) : 0;
-
-  const avgNetPositive = avgNetVal >= 0;
-  const avgNetAccent   = avgNetPositive ? 'emerald' : 'red';
-  const avgNetClass    = avgNetPositive ? 'val-gain' : 'val-loss';
 
   // ── Section 1: Period totals ────────────────────────────────────────────────
   const primary = [
@@ -107,51 +101,6 @@ async function loadKPIs() {
       <div class="kpi-primary-val ${c.valClass}">${c.val}</div>
       <div class="kpi-primary-lbl">${c.label}</div>
       ${c.sub ? `<div class="kpi-primary-sub">${c.sub}</div>` : ''}
-    </div>
-  `).join('');
-
-  // ── Section 2: Daily benchmarks (same order & terms as Section 1) ───────────
-  const averages = [
-    {
-      accent: 'amber', label: t('dashboard.kpi.grossIncome'),
-      val: fmtKHR(data.avg_gross_income?.value ?? 0),
-      valClass: 'val-accent',
-      growth: data.avg_gross_income?.growth,
-      sub: t('dashboard.perDayAvg'),
-    },
-    {
-      accent: avgNetAccent, label: t('dashboard.kpi.netProfit'),
-      val: (avgNetPositive ? '' : '-') + fmtKHR(Math.abs(avgNetVal)),
-      valClass: avgNetClass,
-      growth: data.net_per_order?.growth,
-      sub: t('dashboard.perDayAvg'),
-      highlight: true,
-    },
-    {
-      accent: 'violet', label: t('dashboard.kpi.orders'),
-      val: fmtKHR(data.aov?.value ?? 0),
-      valClass: 'val-violet',
-      growth: data.aov?.growth,
-      sub: t('dashboard.avgValuePerOrder'),
-    },
-    {
-      accent: 'red', label: t('dashboard.kpi.expenses'),
-      val: '-' + fmtKHR(data.avg_expense?.value ?? 0),
-      valClass: 'val-loss',
-      growth: data.avg_expense?.growth,
-      sub: t('dashboard.perDayAvg'),
-    },
-  ];
-
-  const avgEl = getEl('kpiAverage');
-  if (avgEl) avgEl.innerHTML = averages.map(c => `
-    <div class="kpi-avg kpi-avg--${c.accent}${c.highlight ? ' kpi-avg--highlight' : ''}">
-      <div class="flex items-start justify-between gap-1 mb-1">
-        <div class="kpi-avg-lbl">${c.label}</div>
-        ${growthBadge(c.growth)}
-      </div>
-      <div class="kpi-avg-val ${c.valClass}">${c.val}</div>
-      <div class="kpi-avg-sub">${c.sub}</div>
     </div>
   `).join('');
 }
