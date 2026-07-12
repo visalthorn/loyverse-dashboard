@@ -29,7 +29,7 @@ export const en = {
   'common.emptyNoData': 'Nothing to show for this range',
   'common.emptyNoSales': 'No sales recorded for this range yet',
   'common.emptyHintWiden': 'Try a wider date range.',
-  'common.emptyHintSync': 'Try a wider date range, or sync receipts from Loyverse.',
+  'common.emptyHintSync': 'Try a wider date range, or sync receipts from the Sync page.',
   'common.errorPanelTitle': "Couldn't load this panel",
   'common.errorPanelHint': 'Data for {range} may be incomplete — check the connection and reload.',
 
@@ -40,6 +40,8 @@ export const en = {
   'nav.receipts': 'Receipts',
   'nav.staff': 'Staff',
   'nav.users': 'Users',
+  'nav.items': 'Items',
+  'nav.sync': 'Sync',
 
   // ── login ───────────────────────────────────────────────
   'login.title': 'POS Analytics',
@@ -63,8 +65,6 @@ export const en = {
 
   // ── dashboard ───────────────────────────────────────────
   'dashboard.title': 'Dashboard',
-  'dashboard.syncButton': 'Sync Gross Income',
-  'dashboard.syncing': 'Syncing…',
   'dashboard.periodPerformance': 'Period Performance',
   'dashboard.dailyBenchmarks': 'Daily Benchmarks',
   'dashboard.dailyBenchmarksSub': 'per-day averages for the period',
@@ -104,13 +104,6 @@ export const en = {
   'dashboard.cancelledLost': 'Lost: {amount}',
   'dashboard.noCancellations': 'No cancellations in this period ✅',
   'dashboard.unknown': 'Unknown',
-  'dashboard.syncSkipped': 'Already synced for yesterday',
-  'dashboard.syncSuccess': 'Synced {count} receipt(s)',
-  'dashboard.syncFailed': 'Sync failed',
-  'dashboard.syncFailedConnection': 'Sync failed — check connection',
-  'dashboard.lastSync': '{icon} Last sync: {date} ({by})',
-  'dashboard.syncAuto': 'auto',
-  'dashboard.syncManual': 'manual',
   'dashboard.lastUpdated': 'Updated: {time}',
 
   // ── expenses ────────────────────────────────────────────
@@ -394,4 +387,33 @@ export const en = {
   'users.actionDisable': 'disable',
   'users.confirmTogglePermission': 'Are you sure you want to {action} write permission for "{role}" on "{page}"?',
   'users.permissionUpdateFailed': 'Failed to update permission.',
+
+  // ── sync page ───────────────────────────────────────────
+  'sync.title': 'Loyverse Sync',
+  'sync.subtitle': 'All Loyverse data syncs in one place',
+  'sync.receiptsCard': '🧾 Gross Income (Receipts)',
+  'sync.receiptsCardSub': "Pulls yesterday's receipts from Loyverse",
+  'sync.itemsCard': '🏷️ Items & Categories',
+  'sync.itemsCardSub': 'Pulls the full item catalog from Loyverse',
+  'sync.syncNow': 'Sync Now',
+  'sync.syncing': 'Syncing…',
+  'sync.never': 'Never synced',
+  'sync.lastSync': '{icon} Last sync: {date} ({by})',
+  'sync.auto': 'auto',
+  'sync.manual': 'manual',
+  'sync.skipped': 'Already synced for yesterday',
+  'sync.receiptsSuccess': 'Synced {count} receipt(s)',
+  'sync.itemsSuccess': 'Synced {count} item(s)',
+  'sync.failed': 'Sync failed',
+  'sync.failedConnection': 'Sync failed — check connection',
+  'sync.historyTitle': '🕘 Sync History',
+  'sync.thType': 'Type',
+  'sync.thDate': 'Date',
+  'sync.thStatus': 'Status',
+  'sync.thRecords': 'Records',
+  'sync.thBy': 'Triggered by',
+  'sync.thError': 'Error',
+  'sync.typeReceipts': 'Gross Income',
+  'sync.typeItems': 'Items & Categories',
+  'sync.noLogs': 'No syncs yet',
 };

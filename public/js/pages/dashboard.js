@@ -1,7 +1,6 @@
 import { state, COLORS } from '../state.js';
 import { t } from '../i18n.js';
 import { fetchJSON } from '../api.js';
-import { apiPost } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, fmtDatetime, TZ } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, donutOpts, themeColor, withAlpha, legendTheme } from '../charts.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
@@ -377,64 +376,6 @@ export function applyDateFilter({ period, start, end }) {
   loadAll();
 }
 
-export async function syncGrossIncome() {
-  const btn = getEl('syncBtn');
-  if (btn) { btn.disabled = true; btn.textContent = t('dashboard.syncing'); }
-  try {
-    const res = await apiPost('/api/receipts/sync', {});
-    const data = res.data || {};
-    if (res.ok) {
-      const msg = data.status === 'skipped'
-        ? t('dashboard.syncSkipped')
-        : t('dashboard.syncSuccess', { count: data.inserted ?? 0 });
-      showSyncToast(msg, 'success');
-      loadGrossIncomeTrend();
-      loadLastSync();
-    } else {
-      showSyncToast(data.error || t('dashboard.syncFailed'), 'error');
-    }
-  } catch (err) {
-    showSyncToast(t('dashboard.syncFailedConnection'), 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = t('dashboard.syncButton'); }
-  }
-}
-
-function showSyncToast(message, type) {
-  let toast = getEl('syncToast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'syncToast';
-    toast.setAttribute('role', 'status');
-    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lift);transition:opacity .3s;background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border)';
-    document.body.appendChild(toast);
-  }
-  toast.textContent = message;
-  toast.style.borderLeft = `3px solid ${type === 'error' ? 'var(--loss)' : 'var(--gain)'}`;
-  toast.style.opacity = '1';
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, type === 'error' ? 8000 : 3500);
-}
-
-export async function loadLastSync() {
-  const chip = getEl('lastSyncChip');
-  if (!chip) return;
-  try {
-    const rows = await fetchJSON('/api/sync-logs/latest?limit=1');
-    if (!rows || !rows.length) return;
-    const row = rows[0];
-    const icon = row.status === 'success' ? '✅' : row.status === 'skipped' ? '⏭' : '❌';
-    const date = new Date(row.created_at).toLocaleString('en-US', {
-      timeZone: TZ, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
-    const by = row.triggered_by === 'auto' ? t('dashboard.syncAuto') : t('dashboard.syncManual');
-    chip.textContent = t('dashboard.lastSync', { icon, date, by });
-    chip.classList.remove('hidden');
-  } catch {
-    // non-critical
-  }
-}
-
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 export async function init() {
@@ -448,6 +389,5 @@ export async function init() {
     defaultPreset: 'yesterday',
     onChange: applyDateFilter,
   });
-  loadLastSync();
   setInterval(loadAll, 5 * 60 * 1000);
 }

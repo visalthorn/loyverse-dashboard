@@ -9,7 +9,9 @@ const NAV_ITEMS = [
   { page: 'report',    href: '/report.html',    icon: '📋', labelKey: 'nav.reports'   },
   { page: 'receipts',  href: '/receipts.html',  icon: '🧾', labelKey: 'nav.receipts'  },
   { page: 'staff',     href: '/staff.html',     icon: '👥', labelKey: 'nav.staff'     },
+  { page: 'items',     href: '/items.html',     icon: '🏷️', labelKey: 'nav.items'     },
   { page: 'users',     href: '/users.html',     icon: '⚙️', labelKey: 'nav.users', id: 'navUsers', adminOnly: true },
+  { page: 'sync',      href: '/sync.html',      icon: '🔄', labelKey: 'nav.sync'      },
 ];
 
 export function renderSidebar(sidebarEl, activePage) {

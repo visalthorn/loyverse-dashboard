@@ -12,6 +12,7 @@ import * as Staff     from './pages/staff.js';
 import * as Schedule  from './pages/schedule.js';
 import * as Users     from './pages/users.js';
 import * as Report    from './pages/report.js';
+import * as Sync      from './pages/sync.js';
 
 // ─── Shared UI ───────────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ function detectPage() {
   if (document.getElementById('staffTableBody'))    return 'staff';
   if (document.getElementById('usersTableBody'))    return 'users';
   if (document.getElementById('report-page'))       return 'report';
+  if (document.getElementById('syncCards'))         return 'sync';
   return null;
 }
 
@@ -77,9 +79,12 @@ function detectPage() {
 window.logout = logout;
 
 // Dashboard
-window.syncGrossIncome               = Dashboard.syncGrossIncome;
 window.dashboardToggleSlowMovers     = Dashboard.toggleSlowMovers;
 window.dashboardSetTopProductsCategory = Dashboard.setTopProductsCategory;
+
+// Sync
+window.syncReceipts = Sync.syncReceipts;
+window.syncItemsNow = Sync.syncItems;
 
 // Expenses
 window.submitExpense        = Expenses.submitExpense;
@@ -182,4 +187,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (page === 'staff')     Staff.init();
   if (page === 'users')     Users.init();
   if (page === 'report')    Report.init();
+  if (page === 'sync')      Sync.init();
 });
