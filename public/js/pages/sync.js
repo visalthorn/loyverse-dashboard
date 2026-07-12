@@ -5,6 +5,8 @@ import { showToast } from '../toast.js';
 
 let logs = [];
 
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 function statusIcon(status) {
   return status === 'success' ? '✅' : status === 'skipped' ? '⏭' : '❌';
 }
@@ -32,7 +34,7 @@ function renderHistory() {
       <td class="py-2 pr-3">${statusIcon(l.status)} ${l.status}</td>
       <td class="py-2 pr-3 text-right">${l.inserted ?? 0}</td>
       <td class="py-2 pr-3">${l.triggered_by === 'auto' ? t('sync.auto') : t('sync.manual')}</td>
-      <td class="py-2 text-xs text-[color:var(--loss)]">${l.error_message || ''}</td>
+      <td class="py-2 text-xs text-[color:var(--loss)]">${esc(l.error_message || '')}</td>
     </tr>`).join('');
 }
 
