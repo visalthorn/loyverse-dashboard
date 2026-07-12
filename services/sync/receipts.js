@@ -1,10 +1,11 @@
 const dayjs  = require('dayjs');
 const utc    = require('dayjs/plugin/utc');
 const tzPlug = require('dayjs/plugin/timezone');
-const pool   = require('../db');
-const { fetchReceipts } = require('./loyverse');
-const { toCambodiaTime } = require('../utils/date');
-const { tz } = require('../config');
+const pool   = require('../../db');
+const { fetchReceipts } = require('../loyverse');
+const { toCambodiaTime } = require('../../utils/date');
+const { tz } = require('../../config');
+const { writeSyncLog } = require('./log');
 
 dayjs.extend(utc);
 dayjs.extend(tzPlug);
@@ -24,7 +25,7 @@ async function syncYesterdayReceipts(triggeredBy = 'auto') {
 
   if (exists.rowCount > 0) {
     console.log(`⏭  [sync] Skipping — receipt already exists for ${syncDate}`);
-    await writeSyncLog({ syncDate, status: 'skipped', triggeredBy, inserted: 0 });
+    await writeSyncLog({ syncType: 'receipts', syncDate, status: 'skipped', triggeredBy, inserted: 0 });
     return { status: 'skipped', inserted: 0 };
   }
 
@@ -33,13 +34,13 @@ async function syncYesterdayReceipts(triggeredBy = 'auto') {
     receipts = await fetchReceipts(start, end);
   } catch (err) {
     console.error(`❌ [sync] Loyverse fetch failed:`, err.message);
-    await writeSyncLog({ syncDate, status: 'failed', triggeredBy, inserted: 0, error: err.message });
+    await writeSyncLog({ syncType: 'receipts', syncDate, status: 'failed', triggeredBy, inserted: 0, error: err.message });
     return { status: 'failed', inserted: 0, error: err.message };
   }
 
   if (receipts.length === 0) {
     console.log(`⚠️  [sync] No receipts from Loyverse for ${syncDate}`);
-    await writeSyncLog({ syncDate, status: 'skipped', triggeredBy, inserted: 0 });
+    await writeSyncLog({ syncType: 'receipts', syncDate, status: 'skipped', triggeredBy, inserted: 0 });
     return { status: 'skipped', inserted: 0 };
   }
 
@@ -78,25 +79,13 @@ async function syncYesterdayReceipts(triggeredBy = 'auto') {
 
     await pool.query('COMMIT');
     console.log(`✅ [sync] Complete — ${inserted} receipts inserted for ${syncDate}`);
-    await writeSyncLog({ syncDate, status: 'success', triggeredBy, inserted });
+    await writeSyncLog({ syncType: 'receipts', syncDate, status: 'success', triggeredBy, inserted });
     return { status: 'success', inserted };
   } catch (err) {
     await pool.query('ROLLBACK');
     console.error(`❌ [sync] DB insert failed:`, err.message);
-    await writeSyncLog({ syncDate, status: 'failed', triggeredBy, inserted: 0, error: err.message });
+    await writeSyncLog({ syncType: 'receipts', syncDate, status: 'failed', triggeredBy, inserted: 0, error: err.message });
     return { status: 'failed', inserted: 0, error: err.message };
-  }
-}
-
-async function writeSyncLog({ syncDate, status, triggeredBy, inserted, error }) {
-  try {
-    await pool.query(
-      `INSERT INTO sync_logs (sync_date, status, triggered_by, inserted, error_message)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [syncDate, status, triggeredBy, inserted, error || null]
-    );
-  } catch (err) {
-    console.error('[sync] Failed to write sync_log:', err.message);
   }
 }
 
