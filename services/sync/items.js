@@ -11,15 +11,32 @@ dayjs.extend(tzPlug);
 
 // Rebuild the legacy sku -> category-name mapping used by routes/analytics.js.
 // Accepts a client so it can join an open transaction; defaults to the pool.
+//
+// NOTE: a naive `WITH del AS (DELETE FROM item_categories) INSERT INTO item_categories ...`
+// is NOT safe here — per the Postgres docs, sibling data-modifying CTEs "cannot see one
+// another's effects" and execute in unpredictable order, so the DELETE is not guaranteed
+// to precede the INSERT's uniqueness check. Verified this deterministically raises
+// "duplicate key value violates unique constraint item_categories_pkey" on every rebuild
+// after the first (i.e. any time a sku being reinserted already exists). Instead we
+// compute the new mapping once, delete only the rows that are now stale (sku no longer
+// present), and upsert the rest via ON CONFLICT — atomic, race-free, and never empties
+// the table for readers.
 async function rebuildItemCategories(db = pool) {
-  await db.query('DELETE FROM item_categories');
   await db.query(`
+    WITH new_data AS (
+      SELECT DISTINCT ON (i.sku) i.sku, COALESCE(c.custom_name, c.name) AS category
+      FROM items i
+      JOIN categories c ON c.id = COALESCE(i.custom_category_id, i.category_id)
+      WHERE i.sku IS NOT NULL AND i.deleted_at IS NULL
+      ORDER BY i.sku
+    ),
+    del AS (
+      DELETE FROM item_categories
+      WHERE sku NOT IN (SELECT sku FROM new_data)
+    )
     INSERT INTO item_categories (sku, category)
-    SELECT DISTINCT ON (i.sku) i.sku, COALESCE(c.custom_name, c.name)
-    FROM items i
-    JOIN categories c ON c.id = COALESCE(i.custom_category_id, i.category_id)
-    WHERE i.sku IS NOT NULL AND i.deleted_at IS NULL
-    ORDER BY i.sku
+    SELECT sku, category FROM new_data
+    ON CONFLICT (sku) DO UPDATE SET category = EXCLUDED.category
   `);
 }
 

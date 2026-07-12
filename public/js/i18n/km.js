@@ -85,8 +85,6 @@ export const km = {
   'dashboard.topProductsTitle': '🛒 ទំនិញលក់ដាច់បំផុត',
   'dashboard.topProductsSub': 'កំពូល 20 តាមចំណូល · បៃតង = កំពុងកើនឡើង · ក្រហម = កំពុងធ្លាក់ចុះ',
   'dashboard.categoryAll': 'ទាំងអស់',
-  'dashboard.categoryFood': 'អាហារ',
-  'dashboard.categoryBeverage': 'ភេសជ្ជៈ',
   'dashboard.table.rank': '#',
   'dashboard.table.item': 'ទំនិញ',
   'dashboard.table.qty': 'ចំនួន',

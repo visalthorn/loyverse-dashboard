@@ -371,6 +371,16 @@ router.get('/item-comparison', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/categories', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT DISTINCT category FROM item_categories ORDER BY category`);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/refund-analysis', requireAuth, async (req, res) => {
   const { period = 'month', start, end } = req.query;
   const filter = buildPeriodFilter(period, start, end, 'r', 2);

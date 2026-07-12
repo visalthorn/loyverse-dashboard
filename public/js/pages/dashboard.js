@@ -249,15 +249,27 @@ function renderProductRows(rows, tbodyId, startRank = 1) {
 let topProductsCategory = '';
 
 async function loadTopItems() {
-  const categoryQuery = topProductsCategory ? `&category=${topProductsCategory}` : '';
+  const categoryQuery = topProductsCategory ? `&category=${encodeURIComponent(topProductsCategory)}` : '';
   const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=20${categoryQuery}`);
   renderProductRows(data, 'productTableBody');
 }
 
 async function loadSlowMovers() {
-  const categoryQuery = topProductsCategory ? `&category=${topProductsCategory}` : '';
+  const categoryQuery = topProductsCategory ? `&category=${encodeURIComponent(topProductsCategory)}` : '';
   const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=asc&limit=10${categoryQuery}`);
   renderProductRows(data, 'slowMoversBody', 1);
+}
+
+async function loadTopProductsCategories() {
+  const sel = getEl('topProductsCategory');
+  if (!sel) return;
+  const data = await fetchJSON('/api/categories') || [];
+  data.forEach(row => {
+    const opt = document.createElement('option');
+    opt.value = row.category;
+    opt.textContent = row.category;
+    sel.appendChild(opt);
+  });
 }
 
 export function setTopProductsCategory(val) {
@@ -381,6 +393,7 @@ export function applyDateFilter({ period, start, end }) {
 export async function init() {
   const slowMoversBtn = getEl('slowMoversBtn');
   if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">▶</span> ${t('dashboard.showSlowMovers')}`;
+  loadTopProductsCategories();
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [
       { key: 'yesterday', labelKey: 'common.yesterday' },

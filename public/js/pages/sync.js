@@ -31,7 +31,7 @@ function renderHistory() {
     <tr class="border-b border-[color:var(--border-subtle)]">
       <td class="py-2 pr-3">${l.sync_type === 'items' ? t('sync.typeItems') : t('sync.typeReceipts')}</td>
       <td class="py-2 pr-3">${fmtDatetime(l.created_at)}</td>
-      <td class="py-2 pr-3">${statusIcon(l.status)} ${l.status}</td>
+      <td class="py-2 pr-3">${statusIcon(l.status)} ${esc(l.status)}</td>
       <td class="py-2 pr-3 text-right">${l.inserted ?? 0}</td>
       <td class="py-2 pr-3">${l.triggered_by === 'auto' ? t('sync.auto') : t('sync.manual')}</td>
       <td class="py-2 text-xs text-[color:var(--loss)]">${esc(l.error_message || '')}</td>

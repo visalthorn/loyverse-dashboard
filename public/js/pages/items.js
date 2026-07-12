@@ -1,6 +1,6 @@
 import { fetchJSON, apiPut } from '../api.js';
 import { getEl } from '../utils.js';
-import { t, applyTranslations } from '../i18n.js';
+import { t } from '../i18n.js';
 import { showToast } from '../toast.js';
 import { state } from '../state.js';
 

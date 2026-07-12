@@ -85,8 +85,6 @@ export const en = {
   'dashboard.topProductsTitle': '🛒 Top Products',
   'dashboard.topProductsSub': 'Top 20 by revenue · green = growing · red = declining',
   'dashboard.categoryAll': 'All',
-  'dashboard.categoryFood': 'Food',
-  'dashboard.categoryBeverage': 'Beverage',
   'dashboard.table.rank': '#',
   'dashboard.table.item': 'Item',
   'dashboard.table.qty': 'Qty',

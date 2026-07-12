@@ -320,15 +320,13 @@ let topProductsLimit    = 5;
 let topProductsCategory = '';
 
 async function loadTopProducts() {
-  const categoryQuery = topProductsCategory ? `&category=${topProductsCategory}` : '';
+  const categoryQuery = topProductsCategory ? `&category=${encodeURIComponent(topProductsCategory)}` : '';
   const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=${topProductsLimit}${categoryQuery}`);
   const legend = getEl('topProductsLegend');
 
   destroyChart('topProductsChart');
   if (!data?.length) {
-    const categoryLabel = topProductsCategory === 'food' ? t('dashboard.categoryFood')
-      : topProductsCategory === 'beverage' ? t('dashboard.categoryBeverage')
-      : '';
+    const categoryLabel = topProductsCategory || '';
     const message = !data
       ? errorStateHTML({ vars: { range: periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate) } })
       : categoryLabel
@@ -367,6 +365,18 @@ export function setTopProductsLimit(val) {
 export function setTopProductsCategory(val) {
   topProductsCategory = val;
   loadTopProducts();
+}
+
+async function loadTopProductsCategories() {
+  const sel = getEl('topProductsCategory');
+  if (!sel) return;
+  const data = await fetchJSON('/api/categories') || [];
+  data.forEach(row => {
+    const opt = document.createElement('option');
+    opt.value = row.category;
+    opt.textContent = row.category;
+    sel.appendChild(opt);
+  });
 }
 
 // ─── Section 5: Expense Trend ─────────────────────────────────────────────────
@@ -539,6 +549,7 @@ export function applyDateFilter({ period, start, end }) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 export function init() {
+  loadTopProductsCategories();
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [
       { key: 'yesterday', labelKey: 'common.yesterday' },
