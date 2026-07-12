@@ -38,7 +38,7 @@ router.post('/login', async (req, res) => {
 
 router.get('/verify', requireAuth, async (req, res) => {
   try {
-    const pages = ['expenses', 'staff', 'receipts'];
+    const pages = ['expenses', 'staff', 'receipts', 'items'];
     const permissions = {};
 
     if (req.user.role === 'admin') {

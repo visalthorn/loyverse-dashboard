@@ -383,6 +383,7 @@ export const km = {
   'users.pageExpenses': '💸 ចំណាយ',
   'users.pageStaff': '👥 បុគ្គលិក',
   'users.pageReceipts': '🧾 បង្កាន់ដៃ',
+  'users.pageItems': '🏷️ ទំនិញ',
   'users.actionEnable': 'បើក',
   'users.actionDisable': 'បិទ',
   'users.confirmTogglePermission': 'តើអ្នកប្រាកដថាចង់{action}សិទ្ធិកែប្រែសម្រាប់ "{role}" លើ "{page}" មែនទេ?',

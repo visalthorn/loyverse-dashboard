@@ -67,8 +67,8 @@ function renderPermissionsMatrix() {
   const tbody = getEl('permissionsMatrixBody');
   if (!tbody) return;
 
-  const pages  = ['expenses', 'staff', 'receipts'];
-  const labels = { expenses: t('users.pageExpenses'), staff: t('users.pageStaff'), receipts: t('users.pageReceipts') };
+  const pages  = ['expenses', 'staff', 'receipts', 'items'];
+  const labels = { expenses: t('users.pageExpenses'), staff: t('users.pageStaff'), receipts: t('users.pageReceipts'), items: t('users.pageItems') };
 
   tbody.innerHTML = pages.map(page => {
     const perm    = permissionsList.find(p => p.role === 'manager' && p.page === page);

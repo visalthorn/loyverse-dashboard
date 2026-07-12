@@ -383,6 +383,7 @@ export const en = {
   'users.pageExpenses': '💸 Expenses',
   'users.pageStaff': '👥 Staff',
   'users.pageReceipts': '🧾 Receipts',
+  'users.pageItems': '🏷️ Items',
   'users.actionEnable': 'enable',
   'users.actionDisable': 'disable',
   'users.confirmTogglePermission': 'Are you sure you want to {action} write permission for "{role}" on "{page}"?',

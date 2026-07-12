@@ -108,14 +108,12 @@ function renderCategoriesPanel() {
 // ── data ─────────────────────────────────────────────────────────────────────
 
 async function loadAll() {
-  try {
-    [items, categories] = await Promise.all([
-      fetchJSON('/api/items'),
-      fetchJSON('/api/items/categories'),
-    ]);
-  } catch {
-    items = []; categories = [];
-  }
+  const [itemsRes, categoriesRes] = await Promise.all([
+    fetchJSON('/api/items'),
+    fetchJSON('/api/items/categories'),
+  ]);
+  items      = itemsRes      || [];
+  categories = categoriesRes || [];
   renderCategoryFilter();
   renderItems();
   renderCategoriesPanel();
