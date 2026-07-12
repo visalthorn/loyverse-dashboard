@@ -28,8 +28,8 @@ async function rebuildItemCategories(db = pool) {
 async function upsertCatalog({ categories, items }, triggeredBy = 'manual') {
   const syncDate = dayjs().tz(tz).format('YYYY-MM-DD');
 
-  if (!items.length) {
-    console.log('⚠️  [items-sync] Empty catalog from Loyverse — skipping');
+  if (!items.length || !categories.length) {
+    console.log('⚠️  [items-sync] Empty items or categories from Loyverse — skipping');
     await writeSyncLog({ syncType: 'items', syncDate, status: 'skipped', triggeredBy, inserted: 0 });
     return { status: 'skipped', inserted: 0 };
   }
