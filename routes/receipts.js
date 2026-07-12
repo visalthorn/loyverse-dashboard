@@ -1,7 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db');
-const { requireAuth, requireWrite } = require('../middleware/auth');
-const { syncYesterdayReceipts } = require('../services/sync');
+const { requireAuth } = require('../middleware/auth');
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -44,17 +43,6 @@ router.get('/', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Receipts GET error:', err);
     res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/sync', requireAuth, requireWrite('receipts'), async (req, res) => {
-  try {
-    const result = await syncYesterdayReceipts('manual');
-    const status = result.status === 'failed' ? 500 : 200;
-    res.status(status).json(result);
-  } catch (err) {
-    console.error('❌ Sync route error:', err.message);
-    res.status(500).json({ status: 'failed', error: err.message });
   }
 });
 
