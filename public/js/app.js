@@ -13,6 +13,7 @@ import * as Schedule  from './pages/schedule.js';
 import * as Users     from './pages/users.js';
 import * as Report    from './pages/report.js';
 import * as Sync      from './pages/sync.js';
+import * as Items     from './pages/items.js';
 
 // ─── Shared UI ───────────────────────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ function detectPage() {
   if (document.getElementById('usersTableBody'))    return 'users';
   if (document.getElementById('report-page'))       return 'report';
   if (document.getElementById('syncCards'))         return 'sync';
+  if (document.getElementById('itemsTableBody'))    return 'items';
   return null;
 }
 
@@ -157,6 +159,16 @@ window.toggleUserStatus   = Users.toggleUserStatus;
 window.confirmDeleteUser  = Users.confirmDeleteUser;
 window.togglePermission   = Users.togglePermission;
 
+// Items
+window.onItemSearch          = Items.onItemSearch;
+window.onItemFilterChange    = Items.onItemFilterChange;
+window.changeItemCategory    = Items.changeItemCategory;
+window.openRename            = Items.openRename;
+window.submitRename          = Items.submitRename;
+window.closeRename           = Items.closeRename;
+window.resetItemName         = Items.resetItemName;
+window.toggleCategoriesPanel = Items.toggleCategoriesPanel;
+
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -188,4 +200,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (page === 'users')     Users.init();
   if (page === 'report')    Report.init();
   if (page === 'sync')      Sync.init();
+  if (page === 'items')     Items.init();
 });
