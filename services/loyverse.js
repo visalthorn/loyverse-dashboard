@@ -28,4 +28,21 @@ async function fetchReceipts(startDate, endDate) {
   return all;
 }
 
-module.exports = { fetchReceipts };
+async function fetchAllPages(path, key) {
+  let all    = [];
+  let cursor = null;
+
+  do {
+    const res = await client.get(path, { params: { limit: 250, cursor } });
+    all.push(...(res.data[key] || []));
+    cursor = res.data.cursor;
+  } while (cursor);
+
+  console.log(`📊 Total ${key} fetched: ${all.length}`);
+  return all;
+}
+
+function fetchItems()      { return fetchAllPages('/items', 'items'); }
+function fetchCategories() { return fetchAllPages('/categories', 'categories'); }
+
+module.exports = { fetchReceipts, fetchItems, fetchCategories };
