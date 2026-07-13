@@ -1,6 +1,6 @@
 import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
-import { getEl, fmt, fmtRaw, fmtKHR, fmtDate } from '../utils.js';
+import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, getTodayDate } from '../utils.js';
 import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML } from '../ui.js';
 import { destroyChart, chartOpts, barOpts, pieOpts, heatColor, themeColor, tooltipTheme, legendTheme, numTicks, withAlpha } from '../charts.js';
 import { t, days } from '../i18n.js';
@@ -23,6 +23,52 @@ function trendGranularity() {
     return 'monthly';
   }
   return 'daily';
+}
+
+// ─── Month view: start date + three 10-day blocks ────────────────────────────
+
+let monthStart = '';
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// Most recent 9th of a month whose 30-day window ends on or before yesterday
+// (the owner's reports anchor on the 9th — PROD data starts 2026-06-09).
+function defaultMonthStart() {
+  const today = getTodayDate();
+  let candidate = today.slice(0, 8) + '09';
+  while (addDays(candidate, 29) >= today) {
+    const d = new Date(candidate + 'T00:00:00Z');
+    d.setUTCMonth(d.getUTCMonth() - 1);
+    candidate = d.toISOString().slice(0, 10);
+  }
+  return candidate;
+}
+
+function blockRange(block) {
+  if (block === 'b1') return { start: monthStart,              end: addDays(monthStart, 9) };
+  if (block === 'b2') return { start: addDays(monthStart, 10), end: addDays(monthStart, 19) };
+  if (block === 'b3') return { start: addDays(monthStart, 20), end: addDays(monthStart, 29) };
+  return { start: monthStart, end: addDays(monthStart, 29) };
+}
+
+export function setMonthStart(value) {
+  if (!value) return;
+  monthStart = value;
+  const active = document.querySelector('#blockTabs .period-btn.active');
+  if (active) selectBlock(active.dataset.block);
+}
+
+export function selectBlock(block) {
+  const r = blockRange(block);
+  applyDateFilter({ period: 'range', start: r.start, end: r.end });
+  document.querySelectorAll('#blockTabs .period-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.block === block));
+  const label = getEl('blockRangeLabel');
+  if (label) label.textContent = `${r.start} → ${r.end}`;
 }
 
 function growthBadge(g) {
@@ -529,6 +575,11 @@ export function loadAll() {
 // ─── Period Controls ──────────────────────────────────────────────────────────
 
 export function applyDateFilter({ period, start, end }) {
+  // Any date-filter pick deactivates the block tabs; selectBlock re-activates
+  // its own tab (and sets the label) right after calling this.
+  document.querySelectorAll('#blockTabs .period-btn').forEach(b => b.classList.remove('active'));
+  const label = getEl('blockRangeLabel');
+  if (label) label.textContent = '';
   state.currentPeriod    = period;
   state.currentStartDate = start;
   state.currentEndDate   = end;
@@ -539,6 +590,9 @@ export function applyDateFilter({ period, start, end }) {
 
 export function init() {
   loadTopProductsCategories();
+  monthStart = defaultMonthStart();
+  const monthInput = getEl('monthStartInput');
+  if (monthInput) monthInput.value = monthStart;
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [
       { key: 'yesterday', labelKey: 'common.yesterday' },

@@ -307,6 +307,11 @@ export const km = {
 
   // ── report ──────────────────────────────────────────────
   'report.title': 'របាយការណ៍សង្ខេប',
+  'report.monthStart': 'ថ្ងៃចាប់ផ្តើមខែ',
+  'report.blockFull': '30ថ្ងៃពេញ',
+  'report.block1': 'ថ្ងៃ 1–10',
+  'report.block2': 'ថ្ងៃ 11–20',
+  'report.block3': 'ថ្ងៃ 21–30',
   'report.summaryLabel': 'សង្ខេប',
   'report.trendTitle': '📈 និន្នាការចំណូល និងកំណើន',
   'report.diningTitle': '🍽️ ប្រភេទកន្លែងទទួលទាន',

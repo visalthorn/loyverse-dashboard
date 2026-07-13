@@ -307,6 +307,11 @@ export const en = {
 
   // ── report ──────────────────────────────────────────────
   'report.title': 'Summary Report',
+  'report.monthStart': 'Month start',
+  'report.blockFull': 'Full 30 days',
+  'report.block1': 'Days 1–10',
+  'report.block2': 'Days 11–20',
+  'report.block3': 'Days 21–30',
   'report.summaryLabel': 'Summary',
   'report.trendTitle': '📈 Revenue Trend & Growth',
   'report.diningTitle': '🍽️ Dining Channel',

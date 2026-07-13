@@ -46,6 +46,24 @@
 
   <main id="report-page" class="p-4 md:p-6 space-y-6 max-w-screen-2xl mx-auto w-full">
 
+    <!-- Month view: start date + 10-day block tabs -->
+    <section class="card" id="monthBlocksBar">
+      <div class="flex flex-wrap items-center gap-3">
+        <label class="text-xs font-semibold" style="color:var(--text-secondary)">
+          <span data-i18n="report.monthStart">Month start</span>
+          <input type="date" id="monthStartInput" class="filter-select ml-2"
+                 onchange="summaryReportSetMonthStart(this.value)">
+        </label>
+        <div class="period-selector flex gap-1 bg-[color:var(--bg-surface-alt)] rounded-lg p-1" id="blockTabs">
+          <button type="button" class="period-btn" data-block="full" onclick="summaryReportSelectBlock('full')" data-i18n="report.blockFull">Full 30 days</button>
+          <button type="button" class="period-btn" data-block="b1" onclick="summaryReportSelectBlock('b1')" data-i18n="report.block1">Days 1–10</button>
+          <button type="button" class="period-btn" data-block="b2" onclick="summaryReportSelectBlock('b2')" data-i18n="report.block2">Days 11–20</button>
+          <button type="button" class="period-btn" data-block="b3" onclick="summaryReportSelectBlock('b3')" data-i18n="report.block3">Days 21–30</button>
+        </div>
+        <span id="blockRangeLabel" class="period-badge"></span>
+      </div>
+    </section>
+
     <!-- Section 1: KPI Summary -->
     <section>
       <div class="flex items-center gap-3 mb-3">

@@ -150,6 +150,8 @@ window.viewInSchedule = async function(staffId) {
 // Report
 window.reportSetTopProductsLimit    = Report.setTopProductsLimit;
 window.reportSetTopProductsCategory = Report.setTopProductsCategory;
+window.summaryReportSetMonthStart   = Report.setMonthStart;
+window.summaryReportSelectBlock     = Report.selectBlock;
 
 // Users
 window.submitUser         = Users.submitUser;
