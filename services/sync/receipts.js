@@ -6,6 +6,7 @@ const { fetchReceipts } = require('../loyverse');
 const { toCambodiaTime } = require('../../utils/date');
 const { tz } = require('../../config');
 const { writeSyncLog } = require('./log');
+const { rebuildSummaries } = require('./summaries');
 
 dayjs.extend(utc);
 dayjs.extend(tzPlug);
@@ -80,6 +81,15 @@ async function syncYesterdayReceipts(triggeredBy = 'auto') {
     await pool.query('COMMIT');
     console.log(`✅ [sync] Complete — ${inserted} receipts inserted for ${syncDate}`);
     await writeSyncLog({ syncType: 'receipts', syncDate, status: 'success', triggeredBy, inserted });
+
+    // Keep the permanent summary tables current. A summary failure must not
+    // fail the receipts sync — it is logged separately by rebuildSummaries.
+    try {
+      await rebuildSummaries(syncDate, syncDate, triggeredBy);
+    } catch (err) {
+      console.error('❌ [sync] Summary rebuild failed:', err.message);
+    }
+
     return { status: 'success', inserted };
   } catch (err) {
     await pool.query('ROLLBACK');
