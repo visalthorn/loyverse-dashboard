@@ -1,6 +1,6 @@
 import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
-import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, getTodayDate } from '../utils.js';
+import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, getTodayDate, TZ } from '../utils.js';
 import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML } from '../ui.js';
 import { destroyChart, chartOpts, barOpts, pieOpts, heatColor, themeColor, tooltipTheme, legendTheme, numTicks, withAlpha } from '../charts.js';
 import { t, days } from '../i18n.js';
@@ -592,7 +592,16 @@ export function init() {
   loadTopProductsCategories();
   monthStart = defaultMonthStart();
   const monthInput = getEl('monthStartInput');
-  if (monthInput) monthInput.value = monthStart;
+  if (monthInput) {
+    monthInput.value = monthStart;
+    // Bound the picker to the days the summary tables actually cover.
+    fetchJSON('/api/reports/coverage').then(cov => {
+      if (!cov) return;
+      const toKH = d => new Date(d).toLocaleDateString('en-CA', { timeZone: TZ });
+      if (cov.min_day) monthInput.min = toKH(cov.min_day);
+      if (cov.max_day) monthInput.max = toKH(cov.max_day);
+    });
+  }
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [
       { key: 'yesterday', labelKey: 'common.yesterday' },

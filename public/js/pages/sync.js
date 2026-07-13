@@ -1,5 +1,5 @@
 import { apiPost, fetchJSON } from '../api.js';
-import { getEl, fmtDatetime } from '../utils.js';
+import { getEl, fmtDatetime, TZ } from '../utils.js';
 import { t } from '../i18n.js';
 import { showToast } from '../toast.js';
 import { state } from '../state.js';
@@ -77,8 +77,11 @@ export function syncItems()    { return runSync('/api/sync/items',    'syncItems
 
 // ─── Archive (admin only) ─────────────────────────────────────────────────────
 
+// Dates arrive as UTC ISO timestamps; render them on the Cambodia calendar.
+const toKHDay = d => new Date(d).toLocaleDateString('en-CA', { timeZone: TZ });
+
 function fmtRangeLine(labelKey, s) {
-  const range = s.min_day ? ` (${String(s.min_day).slice(0, 10)} → ${String(s.max_day).slice(0, 10)})` : '';
+  const range = s.min_day ? ` (${toKHDay(s.min_day)} → ${toKHDay(s.max_day)})` : '';
   return `<div>${t(labelKey, { count: s.count })}${range}</div>`;
 }
 
