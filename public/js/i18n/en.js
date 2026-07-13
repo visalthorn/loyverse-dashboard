@@ -36,7 +36,7 @@ export const en = {
   // ── nav ─────────────────────────────────────────────────
   'nav.dashboard': 'Dashboard',
   'nav.expenses': 'Expenses',
-  'nav.reports': 'Reports',
+  'nav.reports': 'Summary Report',
   'nav.receipts': 'Receipts',
   'nav.staff': 'Staff',
   'nav.users': 'Users',
@@ -306,7 +306,7 @@ export const en = {
   'schedule.rosterUpdateFailed': 'Failed to apply roster.',
 
   // ── report ──────────────────────────────────────────────
-  'report.title': 'Sales & Marketing Report',
+  'report.title': 'Summary Report',
   'report.summaryLabel': 'Summary',
   'report.trendTitle': '📈 Revenue Trend & Growth',
   'report.diningTitle': '🍽️ Dining Channel',

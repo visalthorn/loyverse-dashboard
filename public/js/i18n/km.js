@@ -36,7 +36,7 @@ export const km = {
   // ── nav ─────────────────────────────────────────────────
   'nav.dashboard': 'ផ្ទាំងគ្រប់គ្រង',
   'nav.expenses': 'ចំណាយ',
-  'nav.reports': 'របាយការណ៍',
+  'nav.reports': 'របាយការណ៍សង្ខេប',
   'nav.receipts': 'បង្កាន់ដៃ',
   'nav.staff': 'បុគ្គលិក',
   'nav.users': 'អ្នកប្រើប្រាស់',
@@ -306,7 +306,7 @@ export const km = {
   'schedule.rosterUpdateFailed': 'បរាជ័យក្នុងការអនុវត្តកាលវិភាគ។',
 
   // ── report ──────────────────────────────────────────────
-  'report.title': 'របាយការណ៍លក់ និងទីផ្សារ',
+  'report.title': 'របាយការណ៍សង្ខេប',
   'report.summaryLabel': 'សង្ខេប',
   'report.trendTitle': '📈 និន្នាការចំណូល និងកំណើន',
   'report.diningTitle': '🍽️ ប្រភេទកន្លែងទទួលទាន',

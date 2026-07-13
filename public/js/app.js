@@ -11,7 +11,7 @@ import * as Receipts  from './pages/receipts.js';
 import * as Staff     from './pages/staff.js';
 import * as Schedule  from './pages/schedule.js';
 import * as Users     from './pages/users.js';
-import * as Report    from './pages/report.js';
+import * as Report    from './pages/summary-report.js';
 import * as Sync      from './pages/sync.js';
 import * as Items     from './pages/items.js';
 
