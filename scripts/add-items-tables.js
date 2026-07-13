@@ -40,6 +40,14 @@ async function migrate() {
       category TEXT NOT NULL
     )
   `);
+  // Upgrade a pre-existing hand-maintained table (PROD had category limited to
+  // food/beverage by a check constraint, plus a legacy item_name column).
+  await pool.query(`
+    ALTER TABLE item_categories DROP CONSTRAINT IF EXISTS item_categories_category_check
+  `);
+  await pool.query(`
+    ALTER TABLE item_categories DROP COLUMN IF EXISTS item_name
+  `);
   console.log('✅ item_categories table present');
 
   await pool.query(`

@@ -36,6 +36,11 @@ CREATE TABLE IF NOT EXISTS item_categories (
   category TEXT NOT NULL
 );
 
+-- Upgrade a pre-existing hand-maintained table (PROD had category limited to
+-- food/beverage by a check constraint, plus a legacy item_name column).
+ALTER TABLE item_categories DROP CONSTRAINT IF EXISTS item_categories_category_check;
+ALTER TABLE item_categories DROP COLUMN IF EXISTS item_name;
+
 ALTER TABLE sync_logs
   ADD COLUMN IF NOT EXISTS sync_type VARCHAR(20) NOT NULL DEFAULT 'receipts';
 
