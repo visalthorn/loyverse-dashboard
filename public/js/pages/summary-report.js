@@ -9,9 +9,7 @@ import { renderDateFilter, periodLabel } from '../dateFilter.js';
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
 function rangeQuery() {
-  return state.currentPeriod === 'range' && state.currentStartDate && state.currentEndDate
-    ? `&start=${state.currentStartDate}&end=${state.currentEndDate}`
-    : '';
+  return `start=${state.currentStartDate}&end=${state.currentEndDate}`;
 }
 
 function trendGranularity() {
@@ -38,7 +36,7 @@ function growthBadge(g) {
 // ─── Section 1: KPI Summary ───────────────────────────────────────────────────
 
 async function loadReportKPIs() {
-  const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/reports/summary?${rangeQuery()}`);
   const el = getEl('reportKpis');
   if (!el) return;
   if (!data) {
@@ -144,7 +142,7 @@ async function loadRevenueTrend() {
   const { currentPeriod: p, currentStartDate: s, currentEndDate: e } = state;
   if (label) label.textContent = periodLabel(p, s, e);
 
-  const data = await fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/reports/trend?${rangeQuery()}`);
   destroyChart('revTrendChart');
   if (!data) {
     chartStateShow('revTrendChart', errorStateHTML({ vars: { range: periodLabel(p, s, e) } }));
@@ -208,7 +206,7 @@ async function loadRevenueTrend() {
 // ─── Section 3a: Dining Channel ──────────────────────────────────────────────
 
 async function loadDiningOptions() {
-  const data = await fetchJSON(`/api/dining-options?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/reports/dining?${rangeQuery()}`);
   const legend = getEl('diningLegend');
   destroyChart('diningChart');
   if (!data?.length) {
@@ -239,7 +237,7 @@ async function loadDiningOptions() {
 // ─── Section 3b: Payment Method ──────────────────────────────────────────────
 
 async function loadPaymentMethods() {
-  const data = await fetchJSON(`/api/payment-methods?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/reports/payments?${rangeQuery()}`);
   const legend = getEl('paymentLegend');
   destroyChart('paymentChart');
   if (!data?.length) {
@@ -277,7 +275,7 @@ async function loadPeakHours() {
   const heatmapLabel = getEl('heatmapRangeLabel');
   if (heatmapLabel) heatmapLabel.textContent = periodLabel(p, s, e);
 
-  const data = await fetchJSON(`/api/peak-hours?period=${p}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/reports/peak-hours?${rangeQuery()}`);
   const box = getEl('heatmap');
   if (!box) return;
   if (!data) {
@@ -321,7 +319,7 @@ let topProductsCategory = '';
 
 async function loadTopProducts() {
   const categoryQuery = topProductsCategory ? `&category=${encodeURIComponent(topProductsCategory)}` : '';
-  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=${topProductsLimit}${categoryQuery}`);
+  const data = await fetchJSON(`/api/reports/top-items?${rangeQuery()}&limit=${topProductsLimit}${categoryQuery}`);
   const legend = getEl('topProductsLegend');
 
   destroyChart('topProductsChart');
@@ -385,31 +383,22 @@ async function loadExpenseTrend() {
   const gran = trendGranularity();
   const { currentPeriod: p } = state;
 
-  const [expData, incData] = await Promise.all([
-    fetchJSON(`/api/expenses-trend?period=${p}${rangeQuery()}`),
-    fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`),
-  ]);
+  const data = await fetchJSON(`/api/reports/revenue-expenses?${rangeQuery()}`);
   destroyChart('expenseTrendChart');
-  if (!expData) {
+  if (!data) {
     chartStateShow('expenseTrendChart', errorStateHTML({ vars: { range: periodLabel(p, state.currentStartDate, state.currentEndDate) } }));
     return;
   }
-  if (!expData.length) {
+  if (!data.length) {
     chartStateShow('expenseTrendChart', emptyStateHTML({}));
     return;
   }
   chartStateClear('expenseTrendChart');
 
-  // Normalise both to Cambodia local date string so they align as map keys
-  const toKey = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
-
-  const incomeMap = {};
-  if (incData?.length) incData.forEach(r => { incomeMap[toKey(r.period)] = parseFloat(r.gross_income); });
-
-  const labels   = expData.map(r => fmtDate(r.period, gran));
-  const expenses = expData.map(r => parseFloat(r.total_expense));
-  const revenue  = expData.map(r => incomeMap[toKey(r.period)] || 0);
-  const expPct   = expData.map((r, i) => {
+  const labels   = data.map(r => fmtDate(r.period, gran));
+  const expenses = data.map(r => parseFloat(r.total_expense));
+  const revenue  = data.map(r => parseFloat(r.gross_income));
+  const expPct   = data.map((r, i) => {
     const rev = revenue[i];
     return rev > 0 ? parseFloat((expenses[i] / rev * 100).toFixed(1)) : 0;
   });
@@ -486,7 +475,7 @@ async function loadExpenseTrend() {
 // ─── Section 6: POS Device Performance ───────────────────────────────────────
 
 async function loadDevicePerformance() {
-  const data = await fetchJSON(`/api/device-performance?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/reports/device?${rangeQuery()}`);
   destroyChart('devicePerfChart');
   if (!data?.length) {
     chartStateShow('devicePerfChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate) } }));
@@ -541,8 +530,8 @@ export function loadAll() {
 
 export function applyDateFilter({ period, start, end }) {
   state.currentPeriod    = period;
-  state.currentStartDate = period === 'range' ? start : '';
-  state.currentEndDate   = period === 'range' ? end   : '';
+  state.currentStartDate = start;
+  state.currentEndDate   = end;
   loadAll();
 }
 
