@@ -85,8 +85,9 @@ window.dashboardToggleSlowMovers     = Dashboard.toggleSlowMovers;
 window.dashboardSetTopProductsCategory = Dashboard.setTopProductsCategory;
 
 // Sync
-window.syncReceipts = Sync.syncReceipts;
-window.syncItemsNow = Sync.syncItems;
+window.syncReceipts    = Sync.syncReceipts;
+window.syncItemsNow    = Sync.syncItems;
+window.archiveReceipts = Sync.archiveReceipts;
 
 // Expenses
 window.submitExpense        = Expenses.submitExpense;

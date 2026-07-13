@@ -2,6 +2,7 @@ import { apiPost, fetchJSON } from '../api.js';
 import { getEl, fmtDatetime } from '../utils.js';
 import { t } from '../i18n.js';
 import { showToast } from '../toast.js';
+import { state } from '../state.js';
 
 let logs = [];
 
@@ -74,6 +75,55 @@ async function runSync(url, btnId, successKey) {
 export function syncReceipts() { return runSync('/api/sync/receipts', 'syncReceiptsBtn', 'sync.receiptsSuccess'); }
 export function syncItems()    { return runSync('/api/sync/items',    'syncItemsBtn',    'sync.itemsSuccess'); }
 
+// ─── Archive (admin only) ─────────────────────────────────────────────────────
+
+function fmtRangeLine(labelKey, s) {
+  const range = s.min_day ? ` (${String(s.min_day).slice(0, 10)} → ${String(s.max_day).slice(0, 10)})` : '';
+  return `<div>${t(labelKey, { count: s.count })}${range}</div>`;
+}
+
+async function loadArchiveStatus() {
+  const el = getEl('archiveStatus');
+  if (!el) return;
+  const data = await fetchJSON('/api/archive/status');
+  if (!data) { el.textContent = t('sync.failed'); return; }
+  el.innerHTML =
+    fmtRangeLine('sync.archiveStatusLive', data.live) +
+    fmtRangeLine('sync.archiveStatusArchive', data.archive);
+}
+
+export async function archiveReceipts() {
+  const cutoff = getEl('archiveCutoff')?.value;
+  if (!cutoff) { showToast(t('sync.archiveNoCutoff'), 'error'); return; }
+
+  const preview = await fetchJSON(`/api/archive/status?cutoff=${cutoff}`);
+  if (!preview) { showToast(t('sync.failed'), 'error'); return; }
+  if (!preview.affected) { showToast(t('sync.archiveNothing'), 'success'); return; }
+  if (!confirm(t('sync.archiveConfirm', { count: preview.affected, cutoff }))) return;
+
+  const btn = getEl('archiveBtn');
+  if (btn) { btn.disabled = true; }
+  try {
+    const res = await apiPost('/api/archive', { cutoff });
+    const data = res.data || {};
+    if (res.ok && data.status === 'success') {
+      showToast(t('sync.archiveSuccess', { count: data.moved.receipts }), 'success');
+    } else {
+      showToast(data.error || t('sync.failed'), 'error');
+    }
+  } catch {
+    showToast(t('sync.failedConnection'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; }
+    loadArchiveStatus();
+  }
+}
+
 export function init() {
   loadLogs();
+  if (state.currentUserRole === 'admin') {
+    const card = getEl('archiveCard');
+    if (card) card.style.display = '';
+    loadArchiveStatus();
+  }
 }
