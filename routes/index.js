@@ -10,6 +10,7 @@ const scheduleRouter    = require('./schedule');
 const usersRouter       = require('./users');
 const permissionsRouter = require('./permissions');
 const syncRouter        = require('./sync');
+const reportsRouter     = require('./reports');
 const telegramRouter    = require('./telegram');
 const itemsRouter       = require('./items');
 
@@ -22,6 +23,7 @@ router.use('/api/schedule',    scheduleRouter);
 router.use('/api/users',       usersRouter);
 router.use('/api/permissions', permissionsRouter);
 router.use('/api/sync',        syncRouter);
+router.use('/api/reports',     reportsRouter);
 router.use('/api/telegram',    telegramRouter);
 router.use('/api/items',       itemsRouter);
 
