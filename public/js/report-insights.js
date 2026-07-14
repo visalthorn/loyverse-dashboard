@@ -3,10 +3,11 @@
 
 export function splitPct(rows, getLabel, getValue, minPct = 1) {
   if (!rows?.length) return [];
-  const total = rows.reduce((sum, r) => sum + getValue(r), 0);
+  const val = r => Number(getValue(r)) || 0;
+  const total = rows.reduce((sum, r) => sum + val(r), 0);
   if (total <= 0) return [];
   return rows
-    .map(r => ({ label: getLabel(r), pct: Math.round(getValue(r) / total * 100) }))
+    .map(r => ({ label: getLabel(r), pct: Math.round(val(r) / total * 100) }))
     .filter(p => p.pct >= minPct);
 }
 
