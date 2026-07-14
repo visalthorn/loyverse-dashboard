@@ -86,6 +86,18 @@ export function createHighlights() {
     if (list) list.innerHTML = bullets().map(b => `<li>${b}</li>`).join('');
     const label = getEl('highlightsRangeLabel');
     if (label) label.textContent = periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate);
+
+    const strips = {
+      bulletDining:      diningBullet(),
+      bulletPayment:     paymentBullet(),
+      bulletTopProducts: itemsSoldBullet(),
+      bulletHeatmap:     peakHoursBullet(),
+      bulletExpense:     ratioBullet(),
+    };
+    Object.entries(strips).forEach(([id, text]) => {
+      const el = getEl(id);
+      if (el) el.textContent = text === LOADING ? '' : text;
+    });
   }
 
   function onData(key, value) {
