@@ -88,6 +88,7 @@ export function createHighlights() {
     if (label) label.textContent = periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate);
 
     const strips = {
+      bulletTrend:       perDayBullet(),
       bulletDining:      diningBullet(),
       bulletPayment:     paymentBullet(),
       bulletTopProducts: itemsSoldBullet(),
