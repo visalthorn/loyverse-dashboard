@@ -51,11 +51,16 @@ const DAILY_AVG_SQL = `
     ) e ON e.day = gs.day::date
   ) d`;
 
+const ITEMS_SOLD_SQL = `
+  SELECT COALESCE(SUM(qty), 0) AS items_sold
+  FROM daily_item_summary WHERE day BETWEEN $1 AND $2`;
+
 async function periodTotals(start, end) {
-  const [tot, exp, avg] = await Promise.all([
+  const [tot, exp, avg, items] = await Promise.all([
     pool.query(TOTALS_SQL, [start, end]),
     pool.query(EXPENSES_SQL, [start, end]),
     pool.query(DAILY_AVG_SQL, [start, end]),
+    pool.query(ITEMS_SOLD_SQL, [start, end]),
   ]);
   const gross  = parseFloat(tot.rows[0].gross_income);
   const orders = parseInt(tot.rows[0].orders);
@@ -67,6 +72,7 @@ async function periodTotals(start, end) {
     avgGross:   parseFloat(avg.rows[0].avg_gross),
     avgExpense: parseFloat(avg.rows[0].avg_expense),
     avgNet:     parseFloat(avg.rows[0].avg_net),
+    itemsSold:  parseInt(items.rows[0].items_sold),
   };
 }
 
@@ -89,6 +95,7 @@ router.get('/summary', requireAuth, async (req, res) => {
       avg_gross_income: { value: c.avgGross.toFixed(2),   growth: growth(c.avgGross, p.avgGross) },
       avg_expense:      { value: c.avgExpense.toFixed(2), growth: hasNoExpense ? 0 : growth(c.avgExpense, p.avgExpense) },
       net_per_order:    { value: c.avgNet.toFixed(2),     growth: growth(c.avgNet, p.avgNet) },
+      items_sold:       { value: c.itemsSold,             growth: growth(c.itemsSold, p.itemsSold) },
     });
   } catch (err) {
     console.error(err);
