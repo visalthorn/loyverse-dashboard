@@ -36,7 +36,8 @@ export const km = {
   // ── nav ─────────────────────────────────────────────────
   'nav.dashboard': 'ផ្ទាំងគ្រប់គ្រង',
   'nav.expenses': 'ចំណាយ',
-  'nav.reports': 'របាយការណ៍សង្ខេប',
+  'nav.reports': 'របាយការណ៍',
+  'nav.summaryReport': 'របាយការណ៍សង្ខេប',
   'nav.receipts': 'បង្កាន់ដៃ',
   'nav.staff': 'បុគ្គលិក',
   'nav.users': 'អ្នកប្រើប្រាស់',
@@ -306,7 +307,16 @@ export const km = {
   'schedule.rosterUpdateFailed': 'បរាជ័យក្នុងការអនុវត្តកាលវិភាគ។',
 
   // ── report ──────────────────────────────────────────────
-  'report.title': 'របាយការណ៍សង្ខេប',
+  'report.title': 'របាយការណ៍លក់ និងទីផ្សារ',
+  'summary.title': 'របាយការណ៍សង្ខេប',
+  'summary.highlightsTitle': '📋 ចំណុចសំខាន់ៗ',
+  'summary.copy': 'ចម្លង',
+  'summary.copied': 'បានចម្លង ✓',
+  'summary.hl.totals': 'ចំណូលសរុប {rev} · ចំណាយសរុប -{exp} · ចំណេញដុល {net}',
+  'summary.hl.perDay': 'ប្រចាំថ្ងៃ៖ ចំណូល {rev} · ចំណាយ {exp} · ចំណេញ {net}',
+  'summary.hl.itemsSold': 'លក់ចេញចំនួន {n} ឯកតា',
+  'summary.hl.ratio': 'ចំណាយ {exp}% នៃចំណូល · កម្រៃសុទ្ធ {net}%',
+  'summary.hl.peakHours': 'ម៉ោងមមាញឹក៖ {hours}',
   'report.monthStart': 'ថ្ងៃចាប់ផ្តើមខែ',
   'report.blockFull': '30ថ្ងៃពេញ',
   'report.block1': 'ថ្ងៃ 1–10',

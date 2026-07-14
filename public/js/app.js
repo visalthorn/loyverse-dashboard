@@ -11,7 +11,8 @@ import * as Receipts  from './pages/receipts.js';
 import * as Staff     from './pages/staff.js';
 import * as Schedule  from './pages/schedule.js';
 import * as Users     from './pages/users.js';
-import * as Report    from './pages/summary-report.js';
+import * as Report        from './pages/report.js';
+import * as SummaryReport from './pages/summary-report.js';
 import * as Sync      from './pages/sync.js';
 import * as Items     from './pages/items.js';
 
@@ -70,6 +71,7 @@ function detectPage() {
   if (document.getElementById('receiptsTbody'))     return 'receipts';
   if (document.getElementById('staffTableBody'))    return 'staff';
   if (document.getElementById('usersTableBody'))    return 'users';
+  if (document.getElementById('summary-report-page')) return 'summary-report';
   if (document.getElementById('report-page'))       return 'report';
   if (document.getElementById('syncCards'))         return 'sync';
   if (document.getElementById('itemsTableBody'))    return 'items';
@@ -148,11 +150,16 @@ window.viewInSchedule = async function(staffId) {
   setTimeout(() => row.classList.remove('rst-row--highlight'), 2500);
 };
 
-// Report
+// Report (Sales & Marketing, live data)
 window.reportSetTopProductsLimit    = Report.setTopProductsLimit;
 window.reportSetTopProductsCategory = Report.setTopProductsCategory;
-window.summaryReportSetMonthStart   = Report.setMonthStart;
-window.summaryReportSelectBlock     = Report.selectBlock;
+
+// Summary Report (permanent summary data)
+window.summaryReportSetTopProductsLimit    = SummaryReport.setTopProductsLimit;
+window.summaryReportSetTopProductsCategory = SummaryReport.setTopProductsCategory;
+window.summaryReportSetMonthStart          = SummaryReport.setMonthStart;
+window.summaryReportSelectBlock            = SummaryReport.selectBlock;
+window.summaryReportCopyHighlights         = SummaryReport.copyHighlights;
 
 // Users
 window.submitUser         = Users.submitUser;
@@ -202,6 +209,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (page === 'staff')     Staff.init();
   if (page === 'users')     Users.init();
   if (page === 'report')    Report.init();
+  if (page === 'summary-report') SummaryReport.init();
   if (page === 'sync')      Sync.init();
   if (page === 'items')     Items.init();
 });

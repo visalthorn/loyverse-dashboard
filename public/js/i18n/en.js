@@ -36,7 +36,8 @@ export const en = {
   // ── nav ─────────────────────────────────────────────────
   'nav.dashboard': 'Dashboard',
   'nav.expenses': 'Expenses',
-  'nav.reports': 'Summary Report',
+  'nav.reports': 'Reports',
+  'nav.summaryReport': 'Summary Report',
   'nav.receipts': 'Receipts',
   'nav.staff': 'Staff',
   'nav.users': 'Users',
@@ -306,7 +307,16 @@ export const en = {
   'schedule.rosterUpdateFailed': 'Failed to apply roster.',
 
   // ── report ──────────────────────────────────────────────
-  'report.title': 'Summary Report',
+  'report.title': 'Sales & Marketing Report',
+  'summary.title': 'Summary Report',
+  'summary.highlightsTitle': '📋 Highlights',
+  'summary.copy': 'Copy',
+  'summary.copied': 'Copied ✓',
+  'summary.hl.totals': 'Revenue {rev} · Expenses -{exp} · Net {net}',
+  'summary.hl.perDay': 'Per day: revenue {rev} · expenses {exp} · profit {net}',
+  'summary.hl.itemsSold': 'Items sold: {n} units',
+  'summary.hl.ratio': 'Expenses {exp}% of revenue · Net margin {net}%',
+  'summary.hl.peakHours': 'Peak hours: {hours}',
   'report.monthStart': 'Month start',
   'report.blockFull': 'Full 30 days',
   'report.block1': 'Days 1–10',

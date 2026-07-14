@@ -34,7 +34,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
-        <h2 class="text-lg font-semibold" data-i18n="report.title">Summary Report</h2>
+        <h2 class="text-lg font-semibold" data-i18n="summary.title">Summary Report</h2>
       </div>
 
       <div class="flex items-center gap-3">
@@ -44,7 +44,7 @@
     </div>
   </header>
 
-  <main id="report-page" class="p-4 md:p-6 space-y-6 max-w-screen-2xl mx-auto w-full">
+  <main id="summary-report-page" class="p-4 md:p-6 space-y-6 max-w-screen-2xl mx-auto w-full">
 
     <!-- Month view: start date + 10-day block tabs -->
     <section class="card" id="monthBlocksBar">
@@ -62,6 +62,15 @@
         </div>
         <span id="blockRangeLabel" class="period-badge"></span>
       </div>
+    </section>
+
+    <!-- Highlights: the deck bullets, auto-computed for the selected range -->
+    <section class="card" id="reportHighlights">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h2 class="section-title"><span data-i18n="summary.highlightsTitle">📋 Highlights</span> <span id="highlightsRangeLabel" class="period-badge"></span></h2>
+        <button type="button" id="copyHighlightsBtn" class="period-btn" onclick="summaryReportCopyHighlights()" data-i18n="summary.copy">Copy</button>
+      </div>
+      <ul id="highlightsList" class="highlights-list"></ul>
     </section>
 
     <!-- Section 1: KPI Summary -->
@@ -121,10 +130,10 @@
       <div class="flex items-center justify-between mb-4">
         <h2 class="section-title" data-i18n="report.topProductsTitle">🥧 Top Product Performance</h2>
         <div class="flex items-center gap-2">
-          <select id="topProductsCategory" class="filter-select" onchange="reportSetTopProductsCategory(this.value)">
+          <select id="topProductsCategory" class="filter-select" onchange="summaryReportSetTopProductsCategory(this.value)">
             <option value="" selected data-i18n="dashboard.categoryAll">All</option>
           </select>
-          <select id="topProductsLimit" class="filter-select" onchange="reportSetTopProductsLimit(this.value)">
+          <select id="topProductsLimit" class="filter-select" onchange="summaryReportSetTopProductsLimit(this.value)">
             <option value="5" selected data-i18n="report.top5">Top 5</option>
             <option value="10" data-i18n="report.top10">Top 10</option>
             <option value="15" data-i18n="report.top15">Top 15</option>

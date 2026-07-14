@@ -3,6 +3,7 @@ import { fetchJSON } from '../api.js';
 import { getEl, getTodayDate, TZ } from '../utils.js';
 import { renderDateFilter } from '../dateFilter.js';
 import { createReportSections } from './report-sections.js';
+import { createHighlights } from './report-highlights.js';
 
 // Summary Report: reads the permanent /api/reports/* summary tables with
 // explicit start/end ranges. Chart rendering lives in report-sections.js.
@@ -20,9 +21,12 @@ const api = {
   revenueExpenses: () => fetchJSON(`/api/reports/revenue-expenses?${rq()}`),
 };
 
+const highlights = createHighlights();
+
 // The monthly deck has no POS-device slide, so this page omits that section.
 const SECTIONS_OPTS = {
   sections: ['kpis', 'trend', 'dining', 'payments', 'peakHours', 'topProducts', 'expenseTrend'],
+  onData: (key, value) => highlights.onData(key, value),
 };
 
 const sections = createReportSections(api, SECTIONS_OPTS);
@@ -30,6 +34,7 @@ const sections = createReportSections(api, SECTIONS_OPTS);
 export const setTopProductsLimit    = sections.setTopProductsLimit;
 export const setTopProductsCategory = sections.setTopProductsCategory;
 export const loadAll                = sections.loadAll;
+export const copyHighlights = () => highlights.copy();
 
 // ─── Month view: start date + three 10-day blocks ────────────────────────────
 
@@ -88,6 +93,7 @@ export function applyDateFilter({ period, start, end }) {
   state.currentPeriod    = period;
   state.currentStartDate = start;
   state.currentEndDate   = end;
+  highlights.reset();
   sections.loadAll();
 }
 
