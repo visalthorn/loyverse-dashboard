@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Sales & Marketing Report</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+    document.documentElement.classList.toggle('dark', t === 'dark');
+  })();
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body class="app-shell min-h-screen">
+
+<!-- Sidebar -->
+<aside id="sidebar" class="sidebar"></aside>
+
+<!-- Mobile overlay -->
+<div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Main content -->
+<div class="main-wrapper">
+
+  <!-- Top bar -->
+  <header class="app-header px-4 md:px-6 py-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+        <h2 class="text-lg font-semibold" data-i18n="report.title">Sales &amp; Marketing Report</h2>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div id="dateFilterMount"></div>
+        <button onclick="logout()" class="header-signout" data-i18n-title="common.signOut" aria-label="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <main id="report-page" class="p-4 md:p-6 space-y-6 max-w-screen-2xl mx-auto w-full">
+
+    <!-- Section 1: KPI Summary -->
+    <section>
+      <div class="flex items-center gap-3 mb-3">
+        <span class="kpi-section-lbl" data-i18n="report.summaryLabel">Summary</span>
+        <div class="flex-1 h-px" style="background:var(--border)"></div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="reportKpis">
+        <div class="kpi-primary kpi-primary--amber skeleton"><div class="h-28 rounded-lg"></div></div>
+        <div class="kpi-primary kpi-primary--red skeleton"><div class="h-28 rounded-lg"></div></div>
+        <div class="kpi-primary kpi-primary--violet skeleton"><div class="h-28 rounded-lg"></div></div>
+        <div class="kpi-primary kpi-primary--emerald skeleton"><div class="h-28 rounded-lg"></div></div>
+      </div>
+    </section>
+
+    <!-- Section 1b: Daily Benchmarks -->
+    <section>
+      <div class="flex items-center gap-3 mb-3">
+        <span class="kpi-section-lbl" data-i18n="dashboard.dailyBenchmarks">Daily Benchmarks</span>
+        <span class="text-xs" style="color:var(--text-dim);white-space:nowrap" data-i18n="dashboard.dailyBenchmarksSub">per-day averages for the period</span>
+        <div class="flex-1 h-px" style="background:var(--border)"></div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="kpiAverage">
+        <div class="kpi-avg kpi-avg--amber skeleton"><div class="h-20 rounded-lg"></div></div>
+        <div class="kpi-avg kpi-avg--red skeleton"><div class="h-20 rounded-lg"></div></div>
+        <div class="kpi-avg kpi-avg--emerald skeleton"><div class="h-20 rounded-lg"></div></div>
+        <div class="kpi-avg kpi-avg--violet skeleton"><div class="h-20 rounded-lg"></div></div>
+      </div>
+    </section>
+
+    <!-- Section 2: Revenue Trend with Growth % -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title" data-i18n="report.trendTitle">📈 Revenue Trend &amp; Growth</h2>
+        <span id="revTrendLabel" class="period-badge"></span>
+      </div>
+      <div class="chart-container"><canvas id="revTrendChart"></canvas></div>
+    </section>
+
+    <!-- Section 3: Channel Mix -->
+    <section class="grid md:grid-cols-2 gap-4">
+      <div class="card">
+        <h2 class="section-title mb-4" data-i18n="report.diningTitle">🍽️ Dining Channel</h2>
+        <div class="chart-container-sm"><canvas id="diningChart"></canvas></div>
+        <div id="diningLegend" class="mt-3 space-y-1"></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title mb-4" data-i18n="report.paymentTitle">💳 Payment Method</h2>
+        <div class="chart-container-sm"><canvas id="paymentChart"></canvas></div>
+        <div id="paymentLegend" class="mt-3 space-y-1"></div>
+      </div>
+    </section>
+
+    <!-- Section 3b: Top Product Performance -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title" data-i18n="report.topProductsTitle">🥧 Top Product Performance</h2>
+        <div class="flex items-center gap-2">
+          <select id="topProductsCategory" class="filter-select" onchange="reportSetTopProductsCategory(this.value)">
+            <option value="" selected data-i18n="dashboard.categoryAll">All</option>
+          </select>
+          <select id="topProductsLimit" class="filter-select" onchange="reportSetTopProductsLimit(this.value)">
+            <option value="5" selected data-i18n="report.top5">Top 5</option>
+            <option value="10" data-i18n="report.top10">Top 10</option>
+            <option value="15" data-i18n="report.top15">Top 15</option>
+            <option value="20" data-i18n="report.top20">Top 20</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6 items-center">
+        <div id="topProductsLegend" class="space-y-3"></div>
+        <div class="chart-container"><canvas id="topProductsChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Section 4: Peak Hours Heatmap -->
+    <section class="card">
+      <h2 class="section-title mb-4"><span data-i18n="report.heatmapTitle">🔥 Peak Hours Heatmap</span> <span id="heatmapRangeLabel" class="period-badge"></span></h2>
+      <div class="overflow-x-auto">
+        <div id="heatmap" class="heatmap-grid"></div>
+      </div>
+    </section>
+
+    <!-- Section 5: Expense Trend -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title" data-i18n="report.expensesVsRevenueTitle">💸 Revenue vs Expenses</h2>
+        <div id="expenseSummaryChip" class="text-xs text-[color:var(--text-secondary)]"></div>
+      </div>
+      <div class="chart-container"><canvas id="expenseTrendChart"></canvas></div>
+    </section>
+
+    <!-- Section 6: POS Device Performance -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title" data-i18n="report.deviceTitle">🖥️ POS Device Performance</h2>
+        <span class="text-xs text-[color:var(--text-secondary)]" data-i18n="report.deviceSub">Revenue · Orders per device · amber = top device</span>
+      </div>
+      <div class="chart-container"><canvas id="devicePerfChart"></canvas></div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('sidebar-open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function toggleSidebarCollapse() {
+    document.body.classList.toggle('sidebar-collapsed');
+  }
+</script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

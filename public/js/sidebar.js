@@ -6,7 +6,8 @@ import { renderCurrencyToggle } from './currencyToggle.js';
 const NAV_ITEMS = [
   { page: 'dashboard', href: '/',              icon: '📊', labelKey: 'nav.dashboard' },
   { page: 'expenses',  href: '/expenses.html',  icon: '💸', labelKey: 'nav.expenses'  },
-  { page: 'report',    href: '/summary-report.html', icon: '📋', labelKey: 'nav.reports' },
+  { page: 'report',    href: '/report.html',    icon: '📋', labelKey: 'nav.reports'   },
+  { page: 'summary-report', href: '/summary-report.html', icon: '📑', labelKey: 'nav.summaryReport' },
   { page: 'receipts',  href: '/receipts.html',  icon: '🧾', labelKey: 'nav.receipts'  },
   { page: 'staff',     href: '/staff.html',     icon: '👥', labelKey: 'nav.staff'     },
   { page: 'items',     href: '/items.html',     icon: '🏷️', labelKey: 'nav.items'     },

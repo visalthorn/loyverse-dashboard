@@ -32,7 +32,7 @@ router.use('/api/items',       itemsRouter);
 router.get('/login',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
 router.get('/',            (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 router.get('/users',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'users.html')));
+router.get('/report.html',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'report.html')));
 router.get('/summary-report.html', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'summary-report.html')));
-router.get('/report.html',         (req, res) => res.redirect(301, '/summary-report.html'));
 
 module.exports = router;
