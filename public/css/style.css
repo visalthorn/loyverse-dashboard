@@ -788,3 +788,12 @@ body.app-shell {
 
 /* Block tabs disabled when their slice falls outside the applied range */
 .period-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Summary Report sticky period bar — pins below the sticky .app-header.
+   --sticky-top is set from the header's measured height at page init. */
+.sticky-bar {
+  position: sticky;
+  top: var(--sticky-top, 56px);
+  z-index: 30;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, .35);
+}

@@ -135,4 +135,11 @@ export function init() {
   });
   updateBlockTabs();
   selectBlock('full');
+  // Pin the sticky bar right below the (sticky) app header, whatever its height.
+  const setStickyTop = () => {
+    const h = document.querySelector('.app-header')?.offsetHeight ?? 56;
+    document.documentElement.style.setProperty('--sticky-top', h + 'px');
+  };
+  setStickyTop();
+  window.addEventListener('resize', setStickyTop);
 }
