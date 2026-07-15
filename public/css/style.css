@@ -797,3 +797,89 @@ body.app-shell {
   z-index: 30;
   box-shadow: 0 6px 16px -8px rgba(0, 0, 0, .35);
 }
+
+/* Highlights card: margin bar */
+.hl-margin-bar {
+  display: flex;
+  height: 22px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 14px 0;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+}
+.hl-margin-bar-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-contrast);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.hl-margin-bar-seg--expense { background: var(--loss); }
+.hl-margin-bar-seg--net     { background: var(--gain); }
+.hl-margin-bar-empty {
+  padding: 0 12px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+}
+
+/* Highlights card: detail chips */
+.hl-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+.hl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* Highlights card: analyst notes */
+.hl-insights { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hl-insights li {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding-left: 1.1em;
+  position: relative;
+}
+.hl-insights li::before { content: '▸ '; color: var(--accent); position: absolute; left: 0; }
+
+/* Highlights card: data-quality notice */
+.hl-data-quality-notice {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* Print: only the Highlights card, everything else on Summary Report hidden */
+@media print {
+  @page { margin: 10mm; }
+  .sidebar, .sidebar-overlay, header, #monthBlocksBar { display: none !important; }
+  #summary-report-page > section:not(#reportHighlights) { display: none !important; }
+  body { background: #fff !important; }
+  .main-wrapper { display: block !important; }
+  main { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+  #reportHighlights { border: none !important; box-shadow: none !important; padding: 0 !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
