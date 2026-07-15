@@ -103,6 +103,115 @@ router.get('/summary', requireAuth, async (req, res) => {
   }
 });
 
+const DATA_QUALITY_SQL = `
+  SELECT COUNT(*) FILTER (WHERE e.daily_expense IS NULL) AS zero_expense_days,
+         COUNT(*) AS total_days
+  FROM generate_series($1::date, $2::date, '1 day'::interval) AS gs(day)
+  LEFT JOIN (
+    SELECT DATE(expense_date) AS day, SUM(amount) AS daily_expense
+    FROM expenses WHERE DATE(expense_date) BETWEEN $1 AND $2 GROUP BY 1
+  ) e ON e.day = gs.day::date`;
+
+const pct1 = x => Math.round(x * 10) / 10;
+const safeRatio = (num, den) => (den > 0 ? pct1((num / den) * 100) : 0);
+
+// Top-2-by-revenue + "Other" bucket. Percentages sum to exactly 100.0 by
+// giving the last bucket the rounding remainder instead of its own rounded share.
+async function splitTop2(table, labelCol, start, end, revenueCol = 'revenue') {
+  const result = await pool.query(`
+    SELECT ${labelCol} AS label, COALESCE(SUM(${revenueCol}), 0) AS revenue
+    FROM ${table} WHERE day BETWEEN $1 AND $2
+    GROUP BY 1 ORDER BY SUM(${revenueCol}) DESC
+  `, [start, end]);
+  const rows  = result.rows.map(r => ({ label: r.label, revenue: parseFloat(r.revenue) }));
+  const total = rows.reduce((s, r) => s + r.revenue, 0);
+  if (total <= 0) return [];
+
+  const parts = rows.slice(0, 2).map(r => ({ label: r.label, revenue: r.revenue }));
+  const rest  = rows.slice(2).reduce((s, r) => s + r.revenue, 0);
+  if (rest > 0) parts.push({ label: 'Other', revenue: rest });
+
+  let running = 0;
+  return parts.map((p, i) => {
+    if (i === parts.length - 1) return { label: p.label, pct: pct1(100 - running) };
+    const pct = pct1((p.revenue / total) * 100);
+    running += pct;
+    return { label: p.label, pct };
+  });
+}
+
+async function hourlyRevenue(start, end) {
+  const result = await pool.query(`
+    SELECT EXTRACT(HOUR FROM receipt_date)::smallint AS hour,
+           COALESCE(SUM(total_money) FILTER (WHERE receipt_type='SALE' AND cancelled_at IS NULL), 0) +
+           COALESCE(SUM(total_money) FILTER (WHERE receipt_type='REFUND' AND cancelled_at IS NOT NULL), 0) AS revenue
+    FROM receipts
+    WHERE DATE(receipt_date) BETWEEN $1 AND $2
+    GROUP BY EXTRACT(HOUR FROM receipt_date)::smallint
+    ORDER BY hour
+  `, [start, end]);
+  const byHour = new Array(24).fill(0);
+  result.rows.forEach(r => { byHour[r.hour] = parseFloat(r.revenue); });
+  return byHour.map((revenue, hour) => ({ hour, revenue }));
+}
+
+async function periodShape(start, end) {
+  const t   = await periodTotals(start, end);
+  const net = t.gross - t.expenses;
+  return {
+    totals:   { revenue: t.gross, expenses: t.expenses, net, itemsSold: t.itemsSold, orders: t.orders, aov: pct1(t.aov) },
+    dailyAvg: { revenue: t.avgGross, expenses: t.avgExpense, net: t.avgNet },
+    expenseRatioPct: safeRatio(t.expenses, t.gross),
+    netMarginPct:    safeRatio(net, t.gross),
+  };
+}
+
+router.get('/highlights', requireAuth, async (req, res) => {
+  const range = parseRange(req, res);
+  if (!range) return;
+  const prev = prevRange(range.start, range.end);
+  try {
+    const [current, previous, dq, channelSplit, paymentSplit, hourly] = await Promise.all([
+      periodShape(range.start, range.end),
+      periodShape(prev.start, prev.end),
+      pool.query(DATA_QUALITY_SQL, [range.start, range.end]),
+      splitTop2('daily_dining_summary', 'dining_option', range.start, range.end),
+      splitTop2('daily_payment_summary', 'payment_name', range.start, range.end, 'total'),
+      hourlyRevenue(range.start, range.end),
+    ]);
+
+    const days = dayjs(range.end).diff(dayjs(range.start), 'day') + 1;
+
+    res.json({
+      period: { start: range.start, end: range.end, days },
+      totals: current.totals,
+      dailyAvg: current.dailyAvg,
+      channelSplit, paymentSplit,
+      expenseRatioPct: current.expenseRatioPct,
+      netMarginPct: current.netMarginPct,
+      hourly,
+      comparison: {
+        totals: previous.totals,
+        dailyAvg: previous.dailyAvg,
+        expenseRatioPct: previous.expenseRatioPct,
+        netMarginPct: previous.netMarginPct,
+        deltas: {
+          revenuePct:  growth(current.totals.revenue,  previous.totals.revenue),
+          expensesPct: growth(current.totals.expenses, previous.totals.expenses),
+          netPct:      growth(current.totals.net,      previous.totals.net),
+        },
+      },
+      dataQuality: {
+        zeroExpenseDays: parseInt(dq.rows[0].zero_expense_days),
+        totalDays:       parseInt(dq.rows[0].total_days),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/trend', requireAuth, async (req, res) => {
   const range = parseRange(req, res);
   if (!range) return;
