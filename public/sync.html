@@ -55,6 +55,14 @@
 
   <main class="p-4 md:p-6 space-y-6 w-full max-w-screen-xl mx-auto">
 
+    <!-- Scheduler status (rendered by pages/sync.js) -->
+    <div class="card">
+      <h2 class="section-title mb-2" data-i18n="sync.schedulerTitle">⏰ Auto-Sync Scheduler</h2>
+      <div id="schedulerStatus" class="text-sm space-y-1">
+        <div class="text-xs text-[color:var(--text-secondary)]" data-i18n="common.loading">Loading...</div>
+      </div>
+    </div>
+
     <div id="syncCards" class="grid md:grid-cols-2 gap-4">
       <!-- Gross Income card -->
       <div class="card">

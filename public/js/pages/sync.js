@@ -34,9 +34,49 @@ function renderHistory() {
       <td class="py-2 pr-3">${fmtDatetime(l.created_at)}</td>
       <td class="py-2 pr-3">${statusIcon(l.status)} ${esc(l.status)}</td>
       <td class="py-2 pr-3 text-right">${l.inserted ?? 0}</td>
-      <td class="py-2 pr-3">${l.triggered_by === 'auto' ? t('sync.auto') : t('sync.manual')}</td>
+      <td class="py-2 pr-3">${l.triggered_by === 'auto' ? t('sync.auto') : l.triggered_by === 'catchup' ? t('sync.catchup') : t('sync.manual')}</td>
       <td class="py-2 text-xs text-[color:var(--loss)]">${esc(l.error_message || '')}</td>
     </tr>`).join('');
+}
+
+// ─── Scheduler status card ────────────────────────────────────────────────────
+
+function fmtCountdown(iso) {
+  const ms = new Date(iso) - Date.now();
+  if (ms <= 0) return '0m';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.round((ms % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+async function loadSchedulerStatus() {
+  const el = getEl('schedulerStatus');
+  if (!el) return;
+  const s = await fetchJSON('/api/sync/status');
+  if (!s) {
+    el.innerHTML = `<div class="text-xs" style="color:var(--loss)">${t('sync.failed')}</div>`;
+    return;
+  }
+
+  const dot = color => `<span style="color:${color}">●</span>`;
+  const schedLine = s.schedulerActive
+    ? `${dot('var(--gain)')} ${t('sync.schedRunning', { countdown: fmtCountdown(s.nextRunAt) })}`
+    : `${dot('var(--loss)')} ${t('sync.schedStopped')}`;
+  const upSince = `<span class="text-xs text-[color:var(--text-secondary)]">· ${t('sync.schedUpSince', { time: fmtDatetime(s.serverStartedAt) })}</span>`;
+
+  const y = s.yesterday;
+  let coverLine;
+  if (s.yesterdayCoveredBy === 'auto' || s.yesterdayCoveredBy === 'catchup') {
+    coverLine = `${dot('var(--gain)')} ${t('sync.schedYAuto', { date: y })}`;
+  } else if (s.yesterdayCoveredBy === 'manual') {
+    coverLine = `${dot('var(--accent)')} ${t('sync.schedYManual', { date: y })}`;
+  } else if (s.yesterdayCovered) {
+    coverLine = `${dot('var(--accent)')} ${t('sync.schedYNoLog', { date: y })}`;
+  } else {
+    coverLine = `${dot('var(--loss)')} ${t('sync.schedYMissing', { date: y })}`;
+  }
+
+  el.innerHTML = `<div>${schedLine} ${upSince}</div><div>${coverLine}</div>`;
 }
 
 async function loadLogs() {
@@ -69,6 +109,7 @@ async function runSync(url, btnId, successKey) {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = t('sync.syncNow'); }
     loadLogs();
+    loadSchedulerStatus();
   }
 }
 
@@ -124,6 +165,7 @@ export async function archiveReceipts() {
 
 export function init() {
   loadLogs();
+  loadSchedulerStatus();
   if (state.currentUserRole === 'admin') {
     const card = getEl('archiveCard');
     if (card) card.style.display = '';
