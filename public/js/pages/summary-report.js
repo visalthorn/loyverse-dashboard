@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, getTodayDate, TZ } from '../utils.js';
-import { renderDateFilter } from '../dateFilter.js';
+import { t } from '../i18n.js';
 import { createReportSections } from './report-sections.js';
 import { createHighlights } from './report-highlights.js';
 
@@ -36,9 +36,11 @@ export const setTopProductsCategory = sections.setTopProductsCategory;
 export const loadAll                = sections.loadAll;
 export const copyHighlights = () => highlights.copy();
 
-// ─── Month view: start date + three 10-day blocks ────────────────────────────
+// ─── Anchor range + block tabs ───────────────────────────────────────────────
+// One anchor range {start, end} drives the page. Block tabs are 10-day slices
+// of the anchor clamped to its end; Custom replaces the anchor outright.
 
-let monthStart = '';
+let anchor = { start: '', end: '' };
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -60,21 +62,24 @@ function defaultMonthStart() {
 }
 
 function blockRange(block) {
-  if (block === 'b1') return { start: monthStart,              end: addDays(monthStart, 9) };
-  if (block === 'b2') return { start: addDays(monthStart, 10), end: addDays(monthStart, 19) };
-  if (block === 'b3') return { start: addDays(monthStart, 20), end: addDays(monthStart, 29) };
-  return { start: monthStart, end: addDays(monthStart, 29) };
+  const { start, end } = anchor;
+  const clamp = d => (d > end ? end : d);
+  if (block === 'b1') return { start,                     end: clamp(addDays(start, 9))  };
+  if (block === 'b2') return { start: addDays(start, 10), end: clamp(addDays(start, 19)) };
+  if (block === 'b3') return { start: addDays(start, 20), end: clamp(addDays(start, 29)) };
+  return { start, end };
 }
 
-export function setMonthStart(value) {
-  if (!value) return;
-  monthStart = value;
-  const active = document.querySelector('#blockTabs .period-btn.active');
-  if (active) selectBlock(active.dataset.block);
+// Disable tabs whose slice starts past the anchor end (short custom ranges).
+function updateBlockTabs() {
+  document.querySelectorAll('#blockTabs .period-btn[data-block]').forEach(b => {
+    b.disabled = b.dataset.block !== 'full' && blockRange(b.dataset.block).start > anchor.end;
+  });
 }
 
 export function selectBlock(block) {
   const r = blockRange(block);
+  if (r.start > r.end) return;
   applyDateFilter({ period: 'range', start: r.start, end: r.end });
   document.querySelectorAll('#blockTabs .period-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.block === block));
@@ -82,14 +87,28 @@ export function selectBlock(block) {
   if (label) label.textContent = `${r.start} → ${r.end}`;
 }
 
+export function toggleCustom() {
+  const box = getEl('customRangeInputs');
+  const btn = getEl('customRangeBtn');
+  if (!box) return;
+  const show = box.style.display === 'none';
+  box.style.display = show ? '' : 'none';
+  if (btn) btn.classList.toggle('active', show);
+}
+
+export function applyCustom() {
+  const start = getEl('customStart')?.value || '';
+  const end   = getEl('customEnd')?.value   || '';
+  if (!start || !end) { alert(t('common.errorMissingDates')); return; }
+  if (start > end)    { alert(t('common.errorDateOrder')); return; }
+  anchor = { start, end };
+  updateBlockTabs();
+  selectBlock('full');
+}
+
 // ─── Period Controls ──────────────────────────────────────────────────────────
 
 export function applyDateFilter({ period, start, end }) {
-  // Any date-filter pick deactivates the block tabs; selectBlock re-activates
-  // its own tab (and sets the label) right after calling this.
-  document.querySelectorAll('#blockTabs .period-btn').forEach(b => b.classList.remove('active'));
-  const label = getEl('blockRangeLabel');
-  if (label) label.textContent = '';
   state.currentPeriod    = period;
   state.currentStartDate = start;
   state.currentEndDate   = end;
@@ -101,24 +120,19 @@ export function applyDateFilter({ period, start, end }) {
 
 export function init() {
   sections.loadTopProductsCategories();
-  monthStart = defaultMonthStart();
-  const monthInput = getEl('monthStartInput');
-  if (monthInput) {
-    monthInput.value = monthStart;
-    // Bound the picker to the days the summary tables actually cover.
-    fetchJSON('/api/reports/coverage').then(cov => {
-      if (!cov) return;
-      const toKH = d => new Date(d).toLocaleDateString('en-CA', { timeZone: TZ });
-      if (cov.min_day) monthInput.min = toKH(cov.min_day);
-      if (cov.max_day) monthInput.max = toKH(cov.max_day);
+  const start = defaultMonthStart();
+  anchor = { start, end: addDays(start, 29) };
+  // Bound the custom pickers to the days the summary tables actually cover.
+  fetchJSON('/api/reports/coverage').then(cov => {
+    if (!cov) return;
+    const toKH = d => new Date(d).toLocaleDateString('en-CA', { timeZone: TZ });
+    ['customStart', 'customEnd'].forEach(id => {
+      const inp = getEl(id);
+      if (!inp) return;
+      if (cov.min_day) inp.min = toKH(cov.min_day);
+      if (cov.max_day) inp.max = toKH(cov.max_day);
     });
-  }
-  renderDateFilter(getEl('dateFilterMount'), {
-    presets: [
-      { key: 'yesterday', labelKey: 'common.yesterday' },
-      { key: 'last10', labelKey: 'common.last10Days' },
-    ],
-    defaultPreset: 'yesterday',
-    onChange: applyDateFilter,
   });
+  updateBlockTabs();
+  selectBlock('full');
 }

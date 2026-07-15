@@ -157,7 +157,8 @@ window.reportSetTopProductsCategory = Report.setTopProductsCategory;
 // Summary Report (permanent summary data)
 window.summaryReportSetTopProductsLimit    = SummaryReport.setTopProductsLimit;
 window.summaryReportSetTopProductsCategory = SummaryReport.setTopProductsCategory;
-window.summaryReportSetMonthStart          = SummaryReport.setMonthStart;
+window.summaryReportToggleCustom           = SummaryReport.toggleCustom;
+window.summaryReportApplyCustom            = SummaryReport.applyCustom;
 window.summaryReportSelectBlock            = SummaryReport.selectBlock;
 window.summaryReportCopyHighlights         = SummaryReport.copyHighlights;
 

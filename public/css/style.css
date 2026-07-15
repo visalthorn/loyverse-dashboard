@@ -785,3 +785,6 @@ body.app-shell {
 .section-bullet { margin-top: .75rem; font-size: .85rem; color: var(--text-secondary); }
 .section-bullet::before { content: '▸ '; color: var(--accent); }
 .section-bullet:empty { display: none; }
+
+/* Block tabs disabled when their slice falls outside the applied range */
+.period-btn:disabled { opacity: .4; cursor: not-allowed; }
