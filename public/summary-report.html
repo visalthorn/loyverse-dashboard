@@ -64,13 +64,26 @@
       </div>
     </section>
 
-    <!-- Highlights: the deck bullets, auto-computed for the selected range -->
+    <!-- Highlights: KPI cards, margin bar, chips, peak-hour chart, analyst notes -->
     <section class="card" id="reportHighlights">
       <div class="flex items-center justify-between gap-3 mb-3">
         <h2 class="section-title"><span data-i18n="summary.highlightsTitle">📋 Highlights</span> <span id="highlightsRangeLabel" class="period-badge"></span></h2>
         <button type="button" id="copyHighlightsBtn" class="period-btn" onclick="summaryReportCopyHighlights()" data-i18n="summary.copy">Copy</button>
       </div>
-      <ul id="highlightsList" class="highlights-list"></ul>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="highlightsKpis"></div>
+
+      <div id="highlightsMarginBar"></div>
+
+      <div class="hl-chip-row" id="highlightsChips"></div>
+
+      <div class="chart-container" style="position:relative; height:160px;">
+        <canvas id="highlightsHourChart"></canvas>
+      </div>
+
+      <ul class="hl-insights" id="highlightsInsights"></ul>
+
+      <div class="hl-data-quality-notice" id="highlightsDataQuality" style="display:none"></div>
     </section>
 
     <!-- Section 1: KPI Summary -->
