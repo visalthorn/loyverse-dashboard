@@ -18,7 +18,7 @@ function resolveDates(key) {
 
 export function periodLabel(period, start, end) {
   if (period === 'range') return `${start} → ${end}`;
-  if (period === 'last10') return t('common.last10Days');
+  if (period === 'last10') return `${t('common.last10Days')} (${start} → ${end})`;
   if (period === 'yesterday') return t('common.yesterday');
   return t('common.today');
 }

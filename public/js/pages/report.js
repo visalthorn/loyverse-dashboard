@@ -45,8 +45,10 @@ export const loadAll                = sections.loadAll;
 
 export function applyDateFilter({ period, start, end }) {
   state.currentPeriod    = period;
-  state.currentStartDate = period === 'range' ? start : '';
-  state.currentEndDate   = period === 'range' ? end   : '';
+  // Always keep the resolved dates for display (periodLabel); q() above
+  // only uses them when period === 'range'.
+  state.currentStartDate = start;
+  state.currentEndDate   = end;
   sections.loadAll();
 }
 
