@@ -43,6 +43,14 @@ export function joinSplit(parts) {
   return parts.map(p => `${p.label} ${p.pct}%`).join(' ~ ');
 }
 
+// Category labels are stored bilingually as "ខ្មែរ | English". Pick the side
+// matching the active language; labels without a separator pass through.
+export function localizedCategoryLabel(label, lang) {
+  const parts = String(label).split('|').map(s => s.trim()).filter(Boolean);
+  if (parts.length < 2) return String(label).trim();
+  return lang === 'km' ? parts[0] : parts[parts.length - 1];
+}
+
 // Thresholds for the auto-generated analyst notes. One object so every rule's
 // sensitivity is tunable from a single place.
 export const INSIGHT_RULES = {
