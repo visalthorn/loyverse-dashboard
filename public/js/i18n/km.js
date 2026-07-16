@@ -58,7 +58,7 @@ export const km = {
   'login.errorDefault': 'ឈ្មោះអ្នកប្រើប្រាស់ ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ។',
   'login.errorMissingFields': 'សូមបញ្ចូលទាំងឈ្មោះអ្នកប្រើប្រាស់ និងពាក្យសម្ងាត់។',
   'login.errorConnection': 'មិនអាចភ្ជាប់ទៅម៉ាស៊ីនមេបានទេ។ សូមព្យាយាមម្តងទៀត។',
-  'login.footer': 'POS Analytics © ២០២៥',
+  'login.footer': 'POS Analytics © {year}',
 
   // ── common: day names ───────────────────────────────────
   'common.day.0': 'អា', 'common.day.1': 'ច័ន្ទ', 'common.day.2': 'អង្គារ',

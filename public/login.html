@@ -312,10 +312,16 @@
 </div>
 
 <script type="module">
-  import { applyTranslations, renderLangSwitcher, t } from '/js/i18n.js';
+  import { applyTranslations, renderLangSwitcher, t, getLang } from '/js/i18n.js';
   window.t = t;
   applyTranslations();
   renderLangSwitcher(document.getElementById('langSwitcher'));
+
+  // Footer copyright year: always current, Khmer numerals in Khmer.
+  const year = String(new Date().getFullYear());
+  const kmYear = year.replace(/\d/g, d => '០១២៣៤៥៦៧៨៩'[d]);
+  const footer = document.querySelector('[data-i18n="login.footer"]');
+  if (footer) footer.textContent = t('login.footer', { year: getLang() === 'km' ? kmYear : year });
 </script>
 
 <script>

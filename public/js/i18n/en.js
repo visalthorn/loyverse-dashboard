@@ -58,7 +58,7 @@ export const en = {
   'login.errorDefault': 'Invalid username or password.',
   'login.errorMissingFields': 'Please enter both username and password.',
   'login.errorConnection': 'Cannot connect to server. Please try again.',
-  'login.footer': 'POS Analytics © 2025',
+  'login.footer': 'POS Analytics © {year}',
 
   // ── common: day names ───────────────────────────────────
   'common.day.0': 'Sun', 'common.day.1': 'Mon', 'common.day.2': 'Tue',
