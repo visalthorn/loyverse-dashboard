@@ -49,7 +49,7 @@ export function createHighlights() {
         ${colHTML('exp', 'summary.hl.colExpenses', '-' + fmtKHR(data.totals.expenses))}
         ${colHTML(totNet, 'summary.hl.colNet', signedKHR(data.totals.net))}
       </div>
-      <div class="hl-cols">
+      <div class="hl-cols hl-cols--day">
         ${colHTML('rev', 'summary.hl.colRevenueDay', fmtKHR(data.dailyAvg.revenue))}
         ${colHTML('exp', 'summary.hl.colExpensesDay', fmtKHR(data.dailyAvg.expenses))}
         ${colHTML(avgNet, 'summary.hl.colNetDay', signedKHR(data.dailyAvg.net))}
@@ -77,7 +77,7 @@ export function createHighlights() {
     const bars = [];
     if (data.channelSplit.length) bars.push(mixBarHTML(data.channelSplit, ['blue', 'slate', 'yellow']));
     if (data.paymentSplit.length) bars.push(mixBarHTML(data.paymentSplit, ['teal', 'slate', 'yellow']));
-    el.innerHTML = bars.join('');
+    el.innerHTML = bars.length ? `<div class="hl-bar-row">${bars.join('')}</div>` : '';
   }
 
   // {label, units, pct} → {accent, lbl, units, pct} with localized labels.

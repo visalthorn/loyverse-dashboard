@@ -832,9 +832,20 @@ body.app-shell {
 .hl-col--rev { background: #f6c453; }
 .hl-col--exp { background: #ef8a80; }
 .hl-col--net { background: #8fd8a8; }
+/* Per-day row: lighter tints of the totals palette */
+.hl-cols--day .hl-col--rev { background: #fbe3a9; }
+.hl-cols--day .hl-col--exp { background: #f8c9c3; }
+.hl-cols--day .hl-col--net { background: #c9ecd5; }
 @media (max-width: 480px) {
   .hl-cols { flex-direction: column; }
   .hl-col { display: flex; justify-content: space-between; align-items: center; text-align: left; }
+}
+
+/* Side-by-side split bars (channel + payment on one row) */
+.hl-bar-row { display: flex; gap: 8px; }
+.hl-bar-row .hl-bar { flex: 1; min-width: 0; }
+@media (max-width: 640px) {
+  .hl-bar-row { flex-direction: column; gap: 0; }
 }
 
 .hl-bar {
