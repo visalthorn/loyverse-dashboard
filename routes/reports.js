@@ -155,6 +155,36 @@ async function hourlyRevenue(start, end) {
   return byHour.map((revenue, hour) => ({ hour, revenue }));
 }
 
+// Units sold per item category: top 4 named categories + an aggregated
+// "Other" bucket (unmapped SKUs land there too). Percentages sum to exactly
+// 100.0 via the same last-bucket-takes-remainder rule as splitTop2.
+async function categorySplit(start, end) {
+  const result = await pool.query(`
+    SELECT COALESCE(ic.category, 'Other') AS label, SUM(dis.qty) AS units
+    FROM daily_item_summary dis
+    LEFT JOIN item_categories ic ON ic.sku = dis.sku
+    WHERE dis.day BETWEEN $1 AND $2
+    GROUP BY 1 ORDER BY SUM(dis.qty) DESC
+  `, [start, end]);
+  const rows  = result.rows.map(r => ({ label: r.label, units: parseInt(r.units) }));
+  const total = rows.reduce((s, r) => s + r.units, 0);
+  if (total <= 0) return [];
+
+  const named = rows.filter(r => r.label !== 'Other');
+  const parts = named.slice(0, 4).map(r => ({ label: r.label, units: r.units }));
+  const rest  = named.slice(4).reduce((s, r) => s + r.units, 0)
+              + rows.filter(r => r.label === 'Other').reduce((s, r) => s + r.units, 0);
+  if (rest > 0) parts.push({ label: 'Other', units: rest });
+
+  let running = 0;
+  return parts.map((p, i) => {
+    if (i === parts.length - 1) return { ...p, pct: pct1(100 - running) };
+    const pct = pct1((p.units / total) * 100);
+    running += pct;
+    return { ...p, pct };
+  });
+}
+
 async function periodShape(start, end) {
   const t   = await periodTotals(start, end);
   const net = t.gross - t.expenses;
@@ -171,13 +201,14 @@ router.get('/highlights', requireAuth, async (req, res) => {
   if (!range) return;
   const prev = prevRange(range.start, range.end);
   try {
-    const [current, previous, dq, channelSplit, paymentSplit, hourly] = await Promise.all([
+    const [current, previous, dq, channelSplit, paymentSplit, hourly, catSplit] = await Promise.all([
       periodShape(range.start, range.end),
       periodShape(prev.start, prev.end),
       pool.query(DATA_QUALITY_SQL, [range.start, range.end]),
       splitTop2('daily_dining_summary', 'dining_option', range.start, range.end),
       splitTop2('daily_payment_summary', 'payment_name', range.start, range.end, 'total'),
       hourlyRevenue(range.start, range.end),
+      categorySplit(range.start, range.end),
     ]);
 
     const days = dayjs(range.end).diff(dayjs(range.start), 'day') + 1;
@@ -187,6 +218,7 @@ router.get('/highlights', requireAuth, async (req, res) => {
       totals: current.totals,
       dailyAvg: current.dailyAvg,
       channelSplit, paymentSplit,
+      categorySplit: catSplit,
       expenseRatioPct: current.expenseRatioPct,
       netMarginPct: current.netMarginPct,
       hourly,
