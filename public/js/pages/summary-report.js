@@ -26,7 +26,6 @@ const highlights = createHighlights();
 // The monthly deck has no POS-device slide, so this page omits that section.
 const SECTIONS_OPTS = {
   sections: ['kpis', 'trend', 'dining', 'payments', 'peakHours', 'topProducts', 'expenseTrend'],
-  onData: (key, value) => highlights.onData(key, value),
 };
 
 const sections = createReportSections(api, SECTIONS_OPTS);
@@ -112,7 +111,7 @@ export function applyDateFilter({ period, start, end }) {
   state.currentPeriod    = period;
   state.currentStartDate = start;
   state.currentEndDate   = end;
-  highlights.reset();
+  highlights.load();
   sections.loadAll();
 }
 

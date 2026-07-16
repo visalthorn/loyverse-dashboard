@@ -74,3 +74,12 @@ export function chartStateClear(canvasId) {
   box.querySelector('.panel-state-mount')?.remove();
   canvas.style.display = '';
 }
+
+// ▲/▼/— delta chip for a period-over-period growth percentage. null = no
+// comparison available (renders nothing).
+export function growthBadge(g) {
+  if (g == null) return '';
+  if (g > 0) return `<span class="badge-up">▲ ${g > 100 ? '>100' : g}%</span>`;
+  if (g < 0) return `<span class="badge-down">▼ ${Math.abs(g) > 100 ? '>100' : Math.abs(g)}%</span>`;
+  return `<span class="badge-flat">— 0%</span>`;
+}

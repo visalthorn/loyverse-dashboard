@@ -4,7 +4,7 @@ import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, fmtDatetime, TZ } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, donutOpts, themeColor, withAlpha, legendTheme } from '../charts.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
-import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML } from '../ui.js';
+import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML, growthBadge } from '../ui.js';
 
 function currentRangeLabel() {
   return periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate);
@@ -32,13 +32,6 @@ function getGrossIncomeTrendGranularity() {
 }
 
 // ─── KPIs ────────────────────────────────────────────────────────────────────
-
-function growthBadge(g) {
-  if (g == null) return '';
-  if (g > 0) return `<span class="badge-up">▲ ${g > 100 ? '>100' : g}%</span>`;
-  if (g < 0) return `<span class="badge-down">▼ ${Math.abs(g) > 100 ? '>100' : Math.abs(g)}%</span>`;
-  return `<span class="badge-flat">— 0%</span>`;
-}
 
 async function loadKPIs() {
   const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}`);
