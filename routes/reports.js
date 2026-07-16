@@ -92,6 +92,7 @@ router.get('/summary', requireAuth, async (req, res) => {
       aov:              { value: c.aov.toFixed(2),   growth: growth(c.aov, p.aov) },
       expenses:         { value: c.expenses,         growth: hasNoExpense ? 0 : growth(c.expenses, p.expenses) },
       net_revenue:      parseFloat((c.gross - c.expenses).toFixed(2)),
+      net_growth:       growth(c.gross - c.expenses, p.gross - p.expenses),
       avg_gross_income: { value: c.avgGross.toFixed(2),   growth: growth(c.avgGross, p.avgGross) },
       avg_expense:      { value: c.avgExpense.toFixed(2), growth: hasNoExpense ? 0 : growth(c.avgExpense, p.avgExpense) },
       net_per_order:    { value: c.avgNet.toFixed(2),     growth: growth(c.avgNet, p.avgNet) },

@@ -58,7 +58,6 @@ export function createReportSections(api, opts = {}) {
     const expVal   = parseFloat(data.expenses.value);
     const netVal   = parseFloat(data.net_revenue);
     const margin   = grossVal > 0 ? (netVal / grossVal * 100).toFixed(1) : '0';
-    const aov      = parseFloat(data.aov.value);
     const expPct   = grossVal > 0 ? (expVal / grossVal * 100).toFixed(1) : '0';
 
     el.innerHTML = [
@@ -73,9 +72,11 @@ export function createReportSections(api, opts = {}) {
         sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.pctOfRevenue', { pct: expPct })} · </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.expenses.growth)}</span>`,
       },
       {
-        accent: 'violet', icon: '🧾', label: t('report.kpi.avgOrderValue'),
-        val: fmtKHR(aov), valClass: 'val-violet',
-        sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.vsPrev')} </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.aov.growth)}</span>`,
+        accent: netVal >= 0 ? 'emerald' : 'red', icon: netVal >= 0 ? '📈' : '📉',
+        label: t('dashboard.kpi.netProfit'),
+        val: (netVal < 0 ? '-' : '') + fmtKHR(Math.abs(netVal)),
+        valClass: netVal >= 0 ? 'val-gain' : 'val-loss',
+        sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.vsPrev')} </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.net_growth)}</span>`,
       },
       {
         accent: 'emerald', icon: '📊', label: t('report.kpi.netMargin'),
