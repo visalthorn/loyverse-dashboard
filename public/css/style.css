@@ -859,6 +859,9 @@ body.app-shell {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
 }
+@media (max-width: 480px) {
+  .hl-seg { font-size: 0.6875rem; padding: 0 4px; }
+}
 .hl-seg--exp    { background: #ef8a80; }
 .hl-seg--net    { background: #8fd8a8; }
 .hl-seg--blue   { background: #93b8f0; }

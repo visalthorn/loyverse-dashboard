@@ -31,8 +31,10 @@ export function createHighlights() {
     </div>`;
   }
 
-  // Inline labels disappear below minPct so narrow segments stay clean.
+  // Inline labels disappear below minPct so narrow segments stay clean;
+  // zero-share segments are skipped entirely (padding would leave a sliver).
   function segHTML(accent, pct, label, minPct = 12) {
+    if (pct <= 0) return '';
     return `<div class="hl-seg hl-seg--${accent}" style="width:${pct}%">${pct >= minPct ? label : ''}</div>`;
   }
 
