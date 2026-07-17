@@ -2,8 +2,8 @@ import { state, COLORS } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtKHR, fmtDate } from '../utils.js';
 import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML } from '../ui.js';
-import { destroyChart, pieOpts, heatColor, themeColor, tooltipTheme, legendTheme, numTicks, withAlpha } from '../charts.js';
-import { t, days } from '../i18n.js';
+import { destroyChart, pieOpts, themeColor, tooltipTheme, legendTheme, numTicks, withAlpha } from '../charts.js';
+import { t } from '../i18n.js';
 import { periodLabel } from '../dateFilter.js';
 
 // Shared section renderers for the live Reports page and the Summary Report
@@ -30,7 +30,7 @@ function growthBadge(g) {
   return '<span class="growth-nil">0%</span>';
 }
 
-const ALL_SECTIONS = ['kpis', 'trend', 'dining', 'payments', 'peakHours', 'topProducts', 'expenseTrend', 'device'];
+const ALL_SECTIONS = ['kpis', 'trend', 'dining', 'payments', 'topProducts', 'expenseTrend', 'device'];
 
 export function createReportSections(api, opts = {}) {
   const sections = opts.sections || ALL_SECTIONS;
@@ -273,49 +273,6 @@ export function createReportSections(api, opts = {}) {
     })));
   }
 
-  // ── Section 4: Peak Hours Heatmap ─────────────────────────────────────────
-  async function loadPeakHours() {
-    const heatmapLabel = getEl('heatmapRangeLabel');
-    if (heatmapLabel) heatmapLabel.textContent = rangeLabel();
-
-    const data = await api.peakHours();
-    onData('peakHours', data);
-    const box = getEl('heatmap');
-    if (!box) return;
-    if (!data) {
-      box.innerHTML = errorStateHTML({ vars: { range: rangeLabel() } });
-      return;
-    }
-    if (!data.length) {
-      box.innerHTML = emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' });
-      return;
-    }
-
-    const matrix = Array.from({ length: 7 }, () => new Array(24).fill(0));
-    let maxVal = 0;
-    data.forEach(r => {
-      const d = parseInt(r.day_of_week), h = parseInt(r.hour);
-      matrix[d][h] = parseFloat(r.revenue);
-      if (matrix[d][h] > maxVal) maxVal = matrix[d][h];
-    });
-
-    let html = '<div class="heatmap-header-row"><div></div>';
-    for (let h = 0; h < 24; h++) html += `<div class="heatmap-hour-label">${h}h</div>`;
-    html += '</div>';
-
-    days().forEach((day, d) => {
-      html += `<div class="heatmap-row"><div class="heatmap-label">${day}</div>`;
-      for (let h = 0; h < 24; h++) {
-        const val   = matrix[d][h];
-        const ratio = maxVal > 0 ? val / maxVal : 0;
-        html += `<div class="heatmap-cell" style="background:${heatColor(ratio)}" title="${day} ${h}:00 — ${fmtKHR(val)}"></div>`;
-      }
-      html += '</div>';
-    });
-
-    box.innerHTML = html;
-  }
-
   // ── Section 3c: Top Product Performance ───────────────────────────────────
   async function loadTopProducts() {
     const data = await api.topItems(topProductsLimit, topProductsCategory);
@@ -504,7 +461,6 @@ export function createReportSections(api, opts = {}) {
     trend:        loadRevenueTrend,
     dining:       loadDiningOptions,
     payments:     loadPaymentMethods,
-    peakHours:    loadPeakHours,
     topProducts:  loadTopProducts,
     expenseTrend: loadExpenseTrend,
     device:       loadDevicePerformance,

@@ -141,21 +141,6 @@ async function splitTop2(table, labelCol, start, end, revenueCol = 'revenue') {
   });
 }
 
-async function hourlyRevenue(start, end) {
-  const result = await pool.query(`
-    SELECT EXTRACT(HOUR FROM receipt_date)::smallint AS hour,
-           COALESCE(SUM(total_money) FILTER (WHERE receipt_type='SALE' AND cancelled_at IS NULL), 0) +
-           COALESCE(SUM(total_money) FILTER (WHERE receipt_type='REFUND' AND cancelled_at IS NOT NULL), 0) AS revenue
-    FROM receipts
-    WHERE DATE(receipt_date) BETWEEN $1 AND $2
-    GROUP BY EXTRACT(HOUR FROM receipt_date)::smallint
-    ORDER BY hour
-  `, [start, end]);
-  const byHour = new Array(24).fill(0);
-  result.rows.forEach(r => { byHour[r.hour] = parseFloat(r.revenue); });
-  return byHour.map((revenue, hour) => ({ hour, revenue }));
-}
-
 // Units sold per item category: top 4 named categories + an aggregated
 // "Other" bucket (unmapped SKUs land there too). Percentages sum to exactly
 // 100.0 via the same last-bucket-takes-remainder rule as splitTop2.
@@ -202,13 +187,12 @@ router.get('/highlights', requireAuth, async (req, res) => {
   if (!range) return;
   const prev = prevRange(range.start, range.end);
   try {
-    const [current, previous, dq, channelSplit, paymentSplit, hourly, catSplit] = await Promise.all([
+    const [current, previous, dq, channelSplit, paymentSplit, catSplit] = await Promise.all([
       periodShape(range.start, range.end),
       periodShape(prev.start, prev.end),
       pool.query(DATA_QUALITY_SQL, [range.start, range.end]),
       splitTop2('daily_dining_summary', 'dining_option', range.start, range.end),
       splitTop2('daily_payment_summary', 'payment_name', range.start, range.end, 'total'),
-      hourlyRevenue(range.start, range.end),
       categorySplit(range.start, range.end),
     ]);
 
@@ -222,7 +206,6 @@ router.get('/highlights', requireAuth, async (req, res) => {
       categorySplit: catSplit,
       expenseRatioPct: current.expenseRatioPct,
       netMarginPct: current.netMarginPct,
-      hourly,
       comparison: {
         totals: previous.totals,
         dailyAvg: previous.dailyAvg,
@@ -338,23 +321,6 @@ router.get('/top-items', requireAuth, async (req, res) => {
       WHERE dis.day BETWEEN $1 AND $2 ${categoryClause}
       GROUP BY dis.sku ORDER BY revenue DESC LIMIT ${limit}
     `, params);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/peak-hours', requireAuth, async (req, res) => {
-  const range = parseRange(req, res);
-  if (!range) return;
-  try {
-    const result = await pool.query(`
-      SELECT EXTRACT(DOW FROM day) AS day_of_week, hour,
-             SUM(orders) AS orders, COALESCE(SUM(revenue), 0) AS revenue
-      FROM daily_hour_summary WHERE day BETWEEN $1 AND $2
-      GROUP BY 1, 2 ORDER BY 1, 2
-    `, [range.start, range.end]);
     res.json(result.rows);
   } catch (err) {
     console.error(err);

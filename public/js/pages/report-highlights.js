@@ -3,14 +3,14 @@ import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtKHR } from '../utils.js';
 import { t, getLang } from '../i18n.js';
 import { periodLabel } from '../dateFilter.js';
-import { joinSplit, peakHourList, formatHours, buildInsights, localizedCategoryLabel } from '../report-insights.js';
+import { joinSplit, buildInsights, localizedCategoryLabel } from '../report-insights.js';
 import { emptyStateHTML, errorStateHTML } from '../ui.js';
 
 // Highlights card for the Summary Report: grouped money columns, proportional
 // ratio/mix bars (incl. items sold by category), rules-based analyst notes,
 // and a data-quality banner — all from one GET /api/reports/highlights fetch.
-// Also fills six .section-bullet strips elsewhere on the page (bulletTrend/
-// bulletDining/bulletPayment/bulletTopProducts/bulletHeatmap/bulletExpense).
+// Also fills five .section-bullet strips elsewhere on the page (bulletTrend/
+// bulletDining/bulletPayment/bulletTopProducts/bulletExpense).
 
 // Palette order for the category bar; "Other" always renders slate.
 const CAT_PALETTE = ['teal', 'orange', 'blue', 'yellow', 'slate'];
@@ -101,7 +101,7 @@ export function createHighlights() {
     }
     const parts = categoryParts();
     el.innerHTML = title
-      + `<div class="hl-bar">${parts.map(p => segHTML(p.accent, p.pct, `${p.lbl} ${p.pct}%`, 15)).join('')}</div>`
+      + `<div class="hl-bar">${parts.map(p => segHTML(p.accent, p.pct, `${p.lbl} ${p.pct}%`, 0)).join('')}</div>`
       + `<div class="hl-legend">${parts.map(p =>
           `<span class="hl-legend-item"><span class="hl-legend-dot hl-seg--${p.accent}"></span>${p.lbl} ${fmt(p.units)}</span>`).join('')}</div>`;
   }
@@ -125,9 +125,8 @@ export function createHighlights() {
     }
   }
 
-  // The six mini-bullet strips embedded under the other Summary Report sections.
+  // The five mini-bullet strips embedded under the other Summary Report sections.
   function renderSectionStrips() {
-    const hours = peakHourList(data.hourly);
     const strips = {
       bulletTrend: t('summary.hl.perDay', {
         rev: fmtKHR(data.dailyAvg.revenue), exp: fmtKHR(data.dailyAvg.expenses),
@@ -136,7 +135,6 @@ export function createHighlights() {
       bulletDining:      data.channelSplit.length ? joinSplit(data.channelSplit) : '',
       bulletPayment:     data.paymentSplit.length ? joinSplit(data.paymentSplit) : '',
       bulletTopProducts: t('summary.hl.itemsSold', { n: fmt(data.totals.itemsSold) }),
-      bulletHeatmap:     hours.length ? t('summary.hl.peakHours', { hours: formatHours(hours) }) : '',
       bulletExpense:     t('summary.hl.ratio', { exp: data.expenseRatioPct, net: data.netMarginPct }),
     };
     Object.entries(strips).forEach(([id, text]) => { const e = getEl(id); if (e) e.textContent = text; });
@@ -171,7 +169,6 @@ export function createHighlights() {
     renderRatioBar();
     renderMixBars();
     renderItemsCategory();
-    renderNotes();
     renderDataQuality();
     renderSectionStrips();
   }

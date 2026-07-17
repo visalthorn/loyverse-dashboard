@@ -15,7 +15,6 @@ const api = {
   trend:     () => fetchJSON(`/api/reports/trend?${rq()}`),
   dining:    () => fetchJSON(`/api/reports/dining?${rq()}`),
   payments:  () => fetchJSON(`/api/reports/payments?${rq()}`),
-  peakHours: () => fetchJSON(`/api/reports/peak-hours?${rq()}`),
   topItems:  (limit, category) =>
     fetchJSON(`/api/reports/top-items?${rq()}&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
   revenueExpenses: () => fetchJSON(`/api/reports/revenue-expenses?${rq()}`),
@@ -25,7 +24,7 @@ const highlights = createHighlights();
 
 // The monthly deck has no POS-device slide, so this page omits that section.
 const SECTIONS_OPTS = {
-  sections: ['kpis', 'trend', 'dining', 'payments', 'peakHours', 'topProducts', 'expenseTrend'],
+  sections: ['kpis', 'trend', 'dining', 'payments', 'topProducts', 'expenseTrend'],
 };
 
 const sections = createReportSections(api, SECTIONS_OPTS);

@@ -18,17 +18,6 @@ function hexToRgb(hex) {
   return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
 }
 
-export function heatColor(ratio) {
-  const empty = themeVar('--heatmap-empty', '#1d2940');
-  if (ratio === 0) return empty;
-  const { r: r0, g: g0, b: b0 } = hexToRgb(empty);
-  const { r: r1, g: g1, b: b1 } = hexToRgb(themeVar('--accent', '#f59e0b'));
-  const r = Math.round(r0 + ratio * (r1 - r0));
-  const g = Math.round(g0 + ratio * (g1 - g0));
-  const b = Math.round(b0 + ratio * (b1 - b0));
-  return `rgb(${r},${g},${b})`;
-}
-
 export function destroyChart(id) {
   if (state.charts[id]) { state.charts[id].destroy(); delete state.charts[id]; }
 }

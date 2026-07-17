@@ -186,22 +186,6 @@ router.get('/payment-methods', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/peak-hours', requireAuth, async (req, res) => {
-  const { period = 'month', start, end } = req.query;
-  const filter = buildPeriodFilter(period, start, end);
-  try {
-    const result = await pool.query(`
-      SELECT EXTRACT(DOW FROM receipt_date) AS day_of_week, EXTRACT(HOUR FROM receipt_date) AS hour,
-             COUNT(*) AS orders, COALESCE(SUM(total_money),0) AS revenue
-      FROM receipts r WHERE ${filter.clause} AND cancelled_at IS NULL GROUP BY 1,2 ORDER BY 1,2
-    `, filter.params);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 router.get('/employee-performance', requireAuth, async (req, res) => {
   const { period = 'month', start, end } = req.query;
   const filter = buildPeriodFilter(period, start, end);

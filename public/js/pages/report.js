@@ -19,7 +19,6 @@ const api = {
   trend:     () => fetchJSON(`/api/gross-income?${q()}`),
   dining:    () => fetchJSON(`/api/dining-options?${q()}`),
   payments:  () => fetchJSON(`/api/payment-methods?${q()}`),
-  peakHours: () => fetchJSON(`/api/peak-hours?${q()}`),
   topItems:  (limit, category) =>
     fetchJSON(`/api/item-comparison?${q()}&order=desc&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
   device:    () => fetchJSON(`/api/device-performance?${q()}`),

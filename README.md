@@ -69,7 +69,6 @@ All accept `?period=today|week|month|year`
 | GET /api/revenue-trend | Line chart |
 | GET /api/dining-options | Doughnut chart |
 | GET /api/payment-methods | Payment breakdown |
-| GET /api/peak-hours | Heatmap 7×24 |
 | GET /api/top-items | Top 10 products |
 | GET /api/employee-performance | Staff bar chart |
 | GET /api/device-performance | Device bar chart |
