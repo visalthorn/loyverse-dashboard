@@ -141,6 +141,17 @@
       </div>
     </section>
 
+    <!-- Stock Watch (live estimate — not driven by the period filter) -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title" data-i18n="dashboard.stockWatchTitle">🥬 Stock Watch</h2>
+        <span class="text-xs text-[color:var(--text-secondary)] cursor-help" data-i18n="dashboard.stockWatchSub" data-i18n-title="dashboard.stockWatchTooltip" title="Live estimate based on restocks + linked-item sales. Not affected by the date filter above.">Live estimate ⓘ</span>
+      </div>
+      <div id="stockWatchList" class="space-y-2">
+        <p class="text-sm text-[color:var(--text-muted)]" data-i18n="common.loading">Loading...</p>
+      </div>
+    </section>
+
     <!-- Employee + Device -->
     <section class="grid md:grid-cols-2 gap-4">
       <div class="card">

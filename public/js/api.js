@@ -37,6 +37,18 @@ export async function apiPut(url, body) {
   return { ok: r.ok, status: r.status, data };
 }
 
+export async function apiPatch(url, body = {}) {
+  const token = getToken();
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: token ? 'Bearer ' + token : '' },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 401) { logout(); return { ok: false, status: 401, data: {} }; }
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
 export async function apiDelete(url) {
   const token = getToken();
   const r = await fetch(url, {

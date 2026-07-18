@@ -14,6 +14,7 @@ const reportsRouter     = require('./reports');
 const archiveRouter     = require('./archive');
 const telegramRouter    = require('./telegram');
 const itemsRouter       = require('./items');
+const inventoryRouter   = require('./inventory');
 
 router.use('/api/auth',        authRouter);
 router.use('/api',             analyticsRouter);
@@ -28,10 +29,12 @@ router.use('/api/reports',     reportsRouter);
 router.use('/api/archive',     archiveRouter);
 router.use('/api/telegram',    telegramRouter);
 router.use('/api/items',       itemsRouter);
+router.use('/api/inventory',   inventoryRouter);
 
 router.get('/login',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
 router.get('/',            (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 router.get('/users',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'users.html')));
+router.get('/inventory',   (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'inventory.html')));
 router.get('/report.html',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'report.html')));
 router.get('/summary-report.html', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'summary-report.html')));
 

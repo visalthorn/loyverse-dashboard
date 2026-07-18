@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { page: 'receipts',  href: '/receipts.html',  icon: '🧾', labelKey: 'nav.receipts'  },
   { page: 'staff',     href: '/staff.html',     icon: '👥', labelKey: 'nav.staff'     },
   { page: 'items',     href: '/items.html',     icon: '🏷️', labelKey: 'nav.items'     },
+  { page: 'inventory', href: '/inventory',      icon: '🧂', labelKey: 'nav.inventory' },
   { page: 'users',     href: '/users.html',     icon: '⚙️', labelKey: 'nav.users', id: 'navUsers', adminOnly: true },
   { page: 'sync',      href: '/sync.html',      icon: '🔄', labelKey: 'nav.sync'      },
 ];

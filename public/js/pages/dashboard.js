@@ -327,6 +327,48 @@ async function loadDevicePerformance() {
   });
 }
 
+// ─── Stock Watch ─────────────────────────────────────────────────────────────
+
+// "Now"-based: driven by restock history + linked-item sales since the last
+// restock, so the global period filter deliberately does not reload it.
+async function loadStockWatch() {
+  const box = getEl('stockWatchList');
+  if (!box) return;
+
+  const data = await fetchJSON('/api/inventory/analysis');
+  if (!data) {
+    box.innerHTML = `<p class="text-sm text-[color:var(--text-muted)]">${t('dashboard.stockWatchLoadFailed')}</p>`;
+    return;
+  }
+
+  const alerts = data.filter(r => r.status === 'inspect' || r.status === 'soon');
+  if (!alerts.length) {
+    box.innerHTML = `<p class="text-sm" style="color:var(--gain)">${t('dashboard.stockWatchAllOk')}</p>`;
+    return;
+  }
+
+  box.innerHTML = alerts.map(r => {
+    const color = r.status === 'inspect' ? 'var(--loss)' : 'var(--accent-strong)';
+    const days  = r.days_until_empty != null
+      ? `<span class="num text-xl font-bold" style="color:${color}">${r.days_until_empty}</span> <span class="text-xs text-[color:var(--text-muted)]">${t('dashboard.stockWatchDays')}</span>`
+      : `<span class="text-xs text-[color:var(--text-muted)]">—</span>`;
+    return `
+    <div class="flex items-center justify-between gap-3 p-2 rounded bg-[color:var(--bg-surface-alt)]">
+      <div class="min-w-0">
+        <div class="font-medium truncate">${r.name}${r.name_kh ? ` <span class="text-sm text-[color:var(--text-secondary)]">${r.name_kh}</span>` : ''}</div>
+        <div class="text-xs text-[color:var(--text-muted)]">
+          <span class="num font-semibold" style="color:${color}">~${r.estimated_remaining} ${r.unit}</span>
+          · ${t('dashboard.stockWatchLastRestock', { date: r.last_restock_date ? fmtDate(r.last_restock_date) : '—' })}
+        </div>
+      </div>
+      <div class="flex items-center gap-4 flex-shrink-0">
+        <div class="text-right">${days}</div>
+        <a href="/inventory" class="text-xs text-[color:var(--accent-strong)] hover:underline whitespace-nowrap">${t('dashboard.stockWatchRestockNow')}</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // ─── Cancelled Orders ────────────────────────────────────────────────────────
 
 async function loadCancelledOrders() {
@@ -397,5 +439,7 @@ export async function init() {
     defaultPreset: 'yesterday',
     onChange: applyDateFilter,
   });
+  loadStockWatch();
   setInterval(loadAll, 5 * 60 * 1000);
+  setInterval(loadStockWatch, 5 * 60 * 1000);
 }

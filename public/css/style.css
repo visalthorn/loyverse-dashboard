@@ -472,6 +472,14 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Khmer glyphs (stacked Coeng subscripts, diacritics) read smaller than
+   Latin at the same font-size. Nearly all type in this app is sized in
+   rem, so a small root bump when the UI language is Khmer cascades
+   consistently without touching individual components. */
+html[lang="km"] {
+  font-size: 106%;
+}
+
 /* ── i18n: language switcher ─────────────────────────────── */
 .lang-switch {
   display: flex;

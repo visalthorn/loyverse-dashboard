@@ -4,6 +4,7 @@ const app  = require('./app');
 const config = require('./config');
 const { port, env } = config;
 const { startScheduler } = require('./services/sync');
+const { startStockAlertScheduler } = require('./services/stockAlert');
 const { warnIfTelegramConfigMissing } = require('./utils/startupChecks');
 
 warnIfTelegramConfigMissing(config);
@@ -17,4 +18,5 @@ app.listen(port, () => {
   console.log(`╚════════════════════════════════════════╝\n`);
 
   startScheduler();
+  startStockAlertScheduler();
 });

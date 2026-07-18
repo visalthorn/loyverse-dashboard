@@ -24,6 +24,7 @@ export function t(key, vars = {}) {
 }
 
 export function applyTranslations(root = document) {
+  document.documentElement.lang = getLang();
   root.querySelectorAll('[data-i18n]').forEach(el => {
     el.textContent = t(el.dataset.i18n);
   });

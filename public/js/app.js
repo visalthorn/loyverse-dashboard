@@ -15,6 +15,7 @@ import * as Report        from './pages/report.js';
 import * as SummaryReport from './pages/summary-report.js';
 import * as Sync      from './pages/sync.js';
 import * as Items     from './pages/items.js';
+import * as Inventory from './pages/inventory.js';
 
 // ─── Shared UI ───────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ function detectPage() {
   if (document.getElementById('report-page'))       return 'report';
   if (document.getElementById('syncCards'))         return 'sync';
   if (document.getElementById('itemsTableBody'))    return 'items';
+  if (document.getElementById('ingredientsGrid'))   return 'inventory';
   return null;
 }
 
@@ -180,6 +182,29 @@ window.closeRename           = Items.closeRename;
 window.resetItemName         = Items.resetItemName;
 window.toggleCategoriesPanel = Items.toggleCategoriesPanel;
 
+// Inventory
+window.invOnShowInactiveChange   = Inventory.invOnShowInactiveChange;
+window.invOnUnitSelectChange     = Inventory.invOnUnitSelectChange;
+window.invOpenAddIngredient      = Inventory.invOpenAddIngredient;
+window.invOpenEditIngredient     = Inventory.invOpenEditIngredient;
+window.invCloseIngredientModal   = Inventory.invCloseIngredientModal;
+window.invSubmitIngredient       = Inventory.invSubmitIngredient;
+window.invToggleActive           = Inventory.invToggleActive;
+window.invOpenRestock            = Inventory.invOpenRestock;
+window.invCloseRestock           = Inventory.invCloseRestock;
+window.invUpdateRestockPreview   = Inventory.invUpdateRestockPreview;
+window.invSubmitRestock          = Inventory.invSubmitRestock;
+window.invOpenLinks              = Inventory.invOpenLinks;
+window.invCloseLinks             = Inventory.invCloseLinks;
+window.invOnLinkSearch           = Inventory.invOnLinkSearch;
+window.invAddLink                = Inventory.invAddLink;
+window.invRemoveLink             = Inventory.invRemoveLink;
+window.invOpenHistory            = Inventory.invOpenHistory;
+window.invCloseHistory           = Inventory.invCloseHistory;
+window.invDeleteRestock          = Inventory.invDeleteRestock;
+window.invOpenAnalysis           = Inventory.invOpenAnalysis;
+window.invCloseAnalysis          = Inventory.invCloseAnalysis;
+
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -213,4 +238,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (page === 'summary-report') SummaryReport.init();
   if (page === 'sync')      Sync.init();
   if (page === 'items')     Items.init();
+  if (page === 'inventory') Inventory.init();
 });
