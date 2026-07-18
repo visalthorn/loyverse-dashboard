@@ -3,6 +3,7 @@ const pool   = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { insertExpense } = require('../services/expenses');
 const { analyzeIngredient, analyzeAllActive } = require('../services/inventoryAnalysis');
+const { runAiAnalysis, getLatestAnalyses, AiAnalysisError } = require('../services/inventoryAI');
 
 // The unit field accepts the frontend's predefined list (kg, g, l, ml, pc,
 // bag) or any custom value the user types — validated shape only, no whitelist.
@@ -269,6 +270,27 @@ router.get('/analysis/:id', requireAuth, async (req, res) => {
     res.json(await analyzeIngredient(ing.rows[0]));
   } catch (err) {
     console.error('Inventory analysis:id GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── AI analysis (batched, change-detected — see services/inventoryAI.js) ───
+
+router.post('/ai-analyze', requireAuth, async (req, res) => {
+  try {
+    res.json(await runAiAnalysis({ username: req.user.username }));
+  } catch (err) {
+    if (err instanceof AiAnalysisError) return res.status(err.status).json({ message: err.message });
+    console.error('Inventory ai-analyze POST error:', err);
+    res.status(500).json({ message: 'AI analysis failed — cached results are unaffected.' });
+  }
+});
+
+router.get('/ai-analyze/latest', requireAuth, async (req, res) => {
+  try {
+    res.json(await getLatestAnalyses());
+  } catch (err) {
+    console.error('Inventory ai-analyze/latest GET error:', err);
     res.status(500).json({ error: err.message });
   }
 });

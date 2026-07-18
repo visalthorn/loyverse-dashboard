@@ -204,6 +204,8 @@ window.invCloseHistory           = Inventory.invCloseHistory;
 window.invDeleteRestock          = Inventory.invDeleteRestock;
 window.invOpenAnalysis           = Inventory.invOpenAnalysis;
 window.invCloseAnalysis          = Inventory.invCloseAnalysis;
+window.invRunAiAnalysis          = Inventory.invRunAiAnalysis;
+window.invToggleAiLang           = Inventory.invToggleAiLang;
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 

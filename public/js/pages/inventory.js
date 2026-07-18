@@ -476,6 +476,119 @@ export function invCloseAnalysis() {
   hideModal('analysisModal');
 }
 
+// ── AI analysis ───────────────────────────────────────────────────────────
+// Cards render from cached results on page load; the button POSTs a run that
+// only sends CHANGED ingredients to the API (see services/inventoryAI.js).
+
+let aiRunning = false;
+
+function fmtAiTime(v) {
+  if (!v) return '—';
+  return new Date(v).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function updateAiStatusBar(latest) {
+  const btn = getEl('aiAnalyzeBtn'), txt = getEl('aiStatusText');
+  if (!btn || !latest) return;
+  txt.textContent = latest.last_analyzed_at
+    ? t('inventory.aiLastAnalyzed', { time: fmtAiTime(latest.last_analyzed_at), n: latest.changed_count })
+    : t('inventory.aiNeverAnalyzed');
+  if (latest.changed_count === 0) {
+    btn.disabled = true;
+    btn.textContent = t('inventory.aiUpToDate');
+    btn.title = t('inventory.aiUpToDateTooltip');
+  } else {
+    btn.disabled = false;
+    btn.textContent = t('inventory.aiAnalyze');
+    btn.title = '';
+  }
+}
+
+function aiCardHTML(r) {
+  const cachedChip = r.cached
+    ? `<span class="badge ai-chip-cached">${t('inventory.aiCached')}</span>` : '';
+  const anomalies = (r.anomalies || []).map(a => `<div class="ai-anomaly">⚠ ${esc(a)}</div>`).join('');
+  const note = r.data_quality_note
+    ? `<div class="text-xs text-[color:var(--text-muted)]">${esc(r.data_quality_note)}</div>` : '';
+  return `
+    <div class="card inv-card">
+      <div class="inv-card-head">
+        <div class="inv-card-name">${esc(r.name)}${r.name_kh ? `<span class="inv-card-name-kh">${esc(r.name_kh)}</span>` : ''}</div>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          ${cachedChip}
+          <span class="badge ai-health--${esc(r.health)}">${t(`inventory.aiHealth.${r.health}`)}</span>
+        </div>
+      </div>
+      <div class="ai-summary" data-en="${esc(r.summary_en)}" data-kh="${esc(r.summary_kh)}" data-lang="en">${esc(r.summary_en)}
+        ${r.summary_kh ? `<button type="button" class="ai-lang-toggle" onclick="invToggleAiLang(this)" title="ភាសាខ្មែរ / English">🇰🇭</button>` : ''}
+      </div>
+      ${anomalies}
+      ${r.refill_advice ? `<div class="ai-advice">📦 ${esc(r.refill_advice)}</div>` : ''}
+      ${note}
+      <div class="text-xs text-[color:var(--text-dim)]">${fmtAiTime(r.analyzed_at)}</div>
+    </div>`;
+}
+
+function renderAiCards(list) {
+  const sec = getEl('aiInsightsSection'), grid = getEl('aiInsightsGrid');
+  if (!sec || !grid) return;
+  if (!list.length) { sec.classList.add('hidden'); return; }
+  sec.classList.remove('hidden');
+  grid.innerHTML = list.map(aiCardHTML).join('');
+}
+
+export function invToggleAiLang(btn) {
+  const box = btn.closest('.ai-summary');
+  if (!box) return;
+  const toKh = box.dataset.lang !== 'kh';
+  box.dataset.lang = toKh ? 'kh' : 'en';
+  // Replace only the text node; the toggle button stays.
+  box.childNodes[0].textContent = (toKh ? box.dataset.kh : box.dataset.en) + '\n        ';
+  btn.textContent = toKh ? '🇬🇧' : '🇰🇭';
+}
+
+async function loadAiStatus({ renderCards = true } = {}) {
+  const latest = await fetchJSON('/api/inventory/ai-analyze/latest');
+  if (!latest) return;
+  updateAiStatusBar(latest);
+  if (renderCards) {
+    renderAiCards((latest.ingredients || [])
+      .filter(r => r.analysis)
+      .map(r => ({ ...r.analysis, name: r.name, name_kh: r.name_kh, unit: r.unit,
+                   cached: false, analyzed_at: r.analyzed_at })));
+  }
+}
+
+export async function invRunAiAnalysis() {
+  if (aiRunning) return;
+  const btn = getEl('aiAnalyzeBtn');
+  aiRunning = true;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="ai-spinner"></span> ${t('inventory.aiAnalyzing')}`;
+  try {
+    const res = await apiPost('/api/inventory/ai-analyze', {});
+    if (!res.ok) {
+      // Errors never break the page — toast and keep the last cached cards.
+      showToast(res.data?.message || t('inventory.aiRunFailed'), 'error');
+      return;
+    }
+    const d = res.data;
+    renderAiCards([...(d.results || []), ...(d.cached || [])]);
+    getEl('aiUsageFooter').textContent = d.usage
+      ? t('inventory.aiUsage', { in: d.usage.input_tokens, out: d.usage.output_tokens })
+      : '';
+    if (d.skipped?.length) showToast(t('inventory.aiSkipped', { n: d.skipped.length }));
+    if (d.failed?.length)  showToast(t('inventory.aiFailed'), 'error');
+  } catch {
+    showToast(t('inventory.aiRunFailed'), 'error');
+  } finally {
+    aiRunning = false;
+    btn.disabled = false;
+    btn.textContent = t('inventory.aiAnalyze');
+    loadAiStatus({ renderCards: false });
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────
 
 export function init() {
@@ -484,4 +597,5 @@ export function init() {
     if (m) m.style.display = 'none';   // ensure hidden despite inline flex
   });
   loadIngredients();
+  loadAiStatus();
 }
