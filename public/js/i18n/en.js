@@ -25,6 +25,11 @@ export const en = {
   'common.showing': 'Showing',
   'common.clearDateFilter': 'Clear date filter',
 
+  // ── dialog ──────────────────────────────────────────────
+  'dialog.confirm': 'Confirm',
+  'dialog.cancel': 'Cancel',
+  'dialog.ok': 'OK',
+
   // ── panel states ────────────────────────────────────────
   'common.emptyNoData': 'Nothing to show for this range',
   'common.emptyNoSales': 'No sales recorded for this range yet',

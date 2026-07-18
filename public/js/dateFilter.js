@@ -1,5 +1,6 @@
 import { t } from './i18n.js';
 import { getTodayDate, TZ } from './utils.js';
+import { showToast } from './toast.js';
 
 // Date N days ago as YYYY-MM-DD in Cambodia time — never the browser's zone.
 function daysAgo(n) {
@@ -64,8 +65,8 @@ export function renderDateFilter(mountEl, { presets, defaultPreset, onChange }) 
     mountEl.querySelector('.date-filter-apply')?.addEventListener('click', () => {
       const start = mountEl.querySelector('.date-filter-start')?.value || '';
       const end   = mountEl.querySelector('.date-filter-end')?.value   || '';
-      if (!start || !end) { alert(t('common.errorMissingDates')); return; }
-      if (start > end)    { alert(t('common.errorDateOrder')); return; }
+      if (!start || !end) { showToast(t('common.errorMissingDates'), 'error'); return; }
+      if (start > end)    { showToast(t('common.errorDateOrder'), 'error'); return; }
       applied = { start, end };
       render('range', true);
       onChange({ period: 'range', start, end });

@@ -2,6 +2,7 @@ import { apiPost, fetchJSON } from '../api.js';
 import { getEl, fmtDatetime, TZ } from '../utils.js';
 import { t } from '../i18n.js';
 import { showToast } from '../toast.js';
+import { showConfirm } from '../dialog.js';
 import { state } from '../state.js';
 
 let logs = [];
@@ -143,7 +144,7 @@ export async function archiveReceipts() {
   const preview = await fetchJSON(`/api/archive/status?cutoff=${cutoff}`);
   if (!preview) { showToast(t('sync.failed'), 'error'); return; }
   if (!preview.affected) { showToast(t('sync.archiveNothing'), 'success'); return; }
-  if (!confirm(t('sync.archiveConfirm', { count: preview.affected, cutoff }))) return;
+  if (!(await showConfirm(t('sync.archiveConfirm', { count: preview.affected, cutoff }), { danger: true }))) return;
 
   const btn = getEl('archiveBtn');
   if (btn) { btn.disabled = true; }

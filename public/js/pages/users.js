@@ -3,6 +3,8 @@ import { getEl } from '../utils.js';
 import { logout } from '../auth.js';
 import { state } from '../state.js';
 import { t } from '../i18n.js';
+import { showToast } from '../toast.js';
+import { showConfirm } from '../dialog.js';
 
 let usersList       = [];
 let permissionsList = [];
@@ -114,7 +116,7 @@ export async function submitUser(e) {
   const confirmMsg = editingUserId
     ? t('users.confirmUpdateUser', { email: payload.email })
     : t('users.confirmCreateUser', { username: payload.username });
-  if (state.currentUserRole !== 'admin' && !confirm(confirmMsg)) return;
+  if (state.currentUserRole !== 'admin' && !(await showConfirm(confirmMsg))) return;
 
   const res = editingUserId
     ? await apiPut(`/api/users/${editingUserId}`, payload)
@@ -169,19 +171,19 @@ export async function toggleUserStatus(id, isActive) {
   const u = usersList.find(x => x.id === id);
   if (!u) return;
   const res = await apiPut(`/api/users/${id}`, { email: u.email, full_name: u.full_name, role: u.role, is_active: isActive });
-  if (!res.ok) { alert(t('staff.statusUpdateFailed')); return; }
+  if (!res.ok) { showToast(t('staff.statusUpdateFailed'), 'error'); return; }
   loadUsersList();
 }
 
-export function confirmDeleteUser(id) {
+export async function confirmDeleteUser(id) {
   const u = usersList.find(x => x.id === id);
-  if (!confirm(t('users.confirmDeleteUser', { username: u?.username }))) return;
+  if (!(await showConfirm(t('users.confirmDeleteUser', { username: u?.username }), { danger: true, confirmText: t('common.delete') }))) return;
   deleteUser(id);
 }
 
 async function deleteUser(id) {
   const res = await apiDelete(`/api/users/${id}`);
-  if (!res.ok) { alert(res.data?.message || t('staff.deleteFailed')); return; }
+  if (!res.ok) { showToast(res.data?.message || t('staff.deleteFailed'), 'error'); return; }
   loadUsersList();
 }
 
@@ -189,12 +191,12 @@ export async function togglePermission(role, page, canWrite) {
   const action     = canWrite ? t('users.actionEnable') : t('users.actionDisable');
   const roleLabel  = role === 'manager' ? t('users.roleManager') : t('users.roleAdmin');
   const pageLabel  = page === 'expenses' ? t('nav.expenses') : page === 'staff' ? t('nav.staff') : t('nav.receipts');
-  if (state.currentUserRole !== 'admin' && !confirm(t('users.confirmTogglePermission', { action, role: roleLabel, page: pageLabel }))) {
+  if (state.currentUserRole !== 'admin' && !(await showConfirm(t('users.confirmTogglePermission', { action, role: roleLabel, page: pageLabel })))) {
     loadPermissionsList();
     return;
   }
   const res = await apiPut('/api/permissions', { role, page, can_write: canWrite });
-  if (!res.ok) { alert(t('users.permissionUpdateFailed')); loadPermissionsList(); }
+  if (!res.ok) { showToast(t('users.permissionUpdateFailed'), 'error'); loadPermissionsList(); }
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────

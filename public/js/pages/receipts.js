@@ -2,6 +2,7 @@ import { fetchJSON } from '../api.js';
 import { getEl, fmtRaw, fmtKHR, downloadCSV, TZ } from '../utils.js';
 import { t } from '../i18n.js';
 import { renderDateFilter } from '../dateFilter.js';
+import { showToast } from '../toast.js';
 
 const PAGE_SIZE = 25;
 
@@ -269,7 +270,7 @@ export function selectReceipt(id) {
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
 export function exportReceiptsCSV() {
-  if (!allReceipts.length) return alert(t('receipts.exportNoData'));
+  if (!allReceipts.length) return showToast(t('receipts.exportNoData'), 'error');
   downloadCSV(`receipts-${new Date().toISOString().slice(0, 10)}.csv`, [
     [t('receipts.csvReceiptNo'), t('receipts.csvOrder'), t('receipts.csvDate'), t('receipts.csvPosDevice'), t('receipts.csvType'), t('receipts.csvCanceled'), t('receipts.csvTotal')],
     ...allReceipts.map(r => [

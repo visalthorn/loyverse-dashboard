@@ -25,6 +25,11 @@ export const km = {
   'common.showing': 'កំពុងបង្ហាញ',
   'common.clearDateFilter': 'លុបតម្រងកាលបរិច្ឆេទ',
 
+  // ── dialog ──────────────────────────────────────────────
+  'dialog.confirm': 'បញ្ជាក់',
+  'dialog.cancel': 'បោះបង់',
+  'dialog.ok': 'យល់ព្រម',
+
   // ── panel states ────────────────────────────────────────
   'common.emptyNoData': 'គ្មានទិន្នន័យសម្រាប់ចន្លោះនេះទេ',
   'common.emptyNoSales': 'មិនទាន់មានការលក់ក្នុងចន្លោះនេះទេ',

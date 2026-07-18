@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { fetchJSON, apiPut } from '../api.js';
 import { getEl } from '../utils.js';
 import { t, getLang } from '../i18n.js';
+import { showToast } from '../toast.js';
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
@@ -382,7 +383,7 @@ export function closeShiftPicker() {
 export async function applyShift(staffId, dateStr, shift) {
   closeShiftPicker();
   const res = await apiPut('/api/schedule', { staff_id: staffId, schedule_date: dateStr, shift });
-  if (!res.ok) { alert(t('schedule.shiftUpdateFailed')); return; }
+  if (!res.ok) { showToast(t('schedule.shiftUpdateFailed'), 'error'); return; }
 
   const day = parseInt(dateStr.split('-')[2], 10);
   if (!scheduleMap[staffId])    scheduleMap[staffId]    = {};
@@ -450,7 +451,7 @@ export async function applyRosterFill(staffId, pattern) {
 
   const entries = _buildRosterEntries(staffId, pattern);
   const res = await apiPut('/api/schedule/bulk', { entries });
-  if (!res.ok) { alert(t('schedule.rosterUpdateFailed')); return; }
+  if (!res.ok) { showToast(t('schedule.rosterUpdateFailed'), 'error'); return; }
 
   if (!scheduleMap[staffId])    scheduleMap[staffId]    = {};
   if (!scheduleByDate[staffId]) scheduleByDate[staffId] = {};

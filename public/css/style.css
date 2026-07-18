@@ -356,6 +356,77 @@
 }
 .btn-ghost:hover { background: var(--hover-tint); color: var(--text-primary); }
 
+/* ── App dialog (confirm/alert replacement) ──────────────── */
+dialog.app-dialog {
+  padding: 0;
+  border: none;
+  background: transparent;
+  max-width: none;
+  overflow: visible;
+}
+dialog.app-dialog::backdrop {
+  background: rgba(4, 8, 16, .55);
+  backdrop-filter: blur(2px);
+}
+.app-dialog-card {
+  width: min(400px, calc(100vw - 2rem));
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  padding: 1.25rem;
+  box-shadow: var(--shadow-lift);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+dialog.app-dialog[open] .app-dialog-card {
+  animation: appDialogIn .18s ease-out;
+}
+@keyframes appDialogIn {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+}
+.app-dialog-body {
+  display: flex;
+  gap: .75rem;
+  align-items: flex-start;
+}
+.app-dialog-icon {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: .95rem;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.app-dialog-icon--danger {
+  background: var(--loss-soft);
+  color: var(--loss);
+}
+.app-dialog-title {
+  font-size: .9rem;
+  font-weight: 700;
+  margin-bottom: .25rem;
+}
+.app-dialog-message {
+  font-size: .85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  padding-top: .3rem;
+}
+.app-dialog-title + .app-dialog-message { padding-top: 0; }
+.app-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .5rem;
+  margin-top: 1.1rem;
+}
+.btn-accent.app-dialog-btn--danger { background: var(--loss); color: #fff; }
+.btn-accent.app-dialog-btn--danger:hover { background: var(--loss); filter: brightness(1.1); }
+
 .header-signout {
   display: inline-flex;
   align-items: center;

@@ -3,6 +3,8 @@ import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
 import { getEl, fmtRaw, fmtKHR, fmtUSD, downloadCSV } from '../utils.js';
 import { logout } from '../auth.js';
 import { t } from '../i18n.js';
+import { showToast } from '../toast.js';
+import { showConfirm } from '../dialog.js';
 
 let staffList     = [];
 let editingStaffId = null;
@@ -114,7 +116,7 @@ export async function submitStaff(e) {
   };
 
   const action = editingStaffId ? t('staff.actionUpdate') : t('staff.actionAdd');
-  if (state.currentUserRole !== 'admin' && !confirm(t('staff.confirmAddUpdate', { action, name: payload.full_name }))) return;
+  if (state.currentUserRole !== 'admin' && !(await showConfirm(t('staff.confirmAddUpdate', { action, name: payload.full_name })))) return;
 
   const existing = editingStaffId ? staffList.find(x => x.id === editingStaffId) : null;
   const body = editingStaffId
@@ -185,28 +187,28 @@ export async function toggleStaffStatus(id, isActive) {
     last_salary_date: s.last_salary_date ? s.last_salary_date.slice(0, 10) : null,
     is_active: isActive,
   });
-  if (!res.ok) { alert(t('staff.statusUpdateFailed')); return; }
+  if (!res.ok) { showToast(t('staff.statusUpdateFailed'), 'error'); return; }
   loadStaff();
   window.reloadScheduleIfLoaded?.();
 }
 
-export function confirmDeleteStaff(id) {
+export async function confirmDeleteStaff(id) {
   const s = staffList.find(x => x.id === id);
   const name = s?.full_name ?? t('common.thisStaffMember');
-  if (!confirm(`${t('staff.confirmDelete', { name })} ${t('common.confirmCannotUndo')}`)) return;
+  if (!(await showConfirm(`${t('staff.confirmDelete', { name })} ${t('common.confirmCannotUndo')}`, { danger: true, confirmText: t('common.delete') }))) return;
   deleteStaff(id);
 }
 
 async function deleteStaff(id) {
   const res = await apiDelete(`/api/staff/${id}`);
-  if (!res.ok) { alert(res.data?.message || t('staff.deleteFailed')); return; }
+  if (!res.ok) { showToast(res.data?.message || t('staff.deleteFailed'), 'error'); return; }
   loadStaff();
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export function exportStaffCSV() {
-  if (!staffList.length) return alert(t('staff.noStaffLoaded'));
+  if (!staffList.length) return showToast(t('staff.noStaffLoaded'), 'error');
   const showInactive = getEl('showInactive')?.checked;
   const rows = showInactive ? staffList : staffList.filter(s => s.is_active);
   downloadCSV(`staff-${new Date().toISOString().slice(0, 10)}.csv`, [

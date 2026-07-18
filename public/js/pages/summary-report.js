@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl, getTodayDate, TZ } from '../utils.js';
 import { t } from '../i18n.js';
+import { showToast } from '../toast.js';
 import { createReportSections } from './report-sections.js';
 import { createHighlights } from './report-highlights.js';
 
@@ -97,8 +98,8 @@ export function toggleCustom() {
 export function applyCustom() {
   const start = getEl('customStart')?.value || '';
   const end   = getEl('customEnd')?.value   || '';
-  if (!start || !end) { alert(t('common.errorMissingDates')); return; }
-  if (start > end)    { alert(t('common.errorDateOrder')); return; }
+  if (!start || !end) { showToast(t('common.errorMissingDates'), 'error'); return; }
+  if (start > end)    { showToast(t('common.errorDateOrder'), 'error'); return; }
   anchor = { start, end };
   updateBlockTabs();
   selectBlock('full');

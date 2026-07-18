@@ -4,6 +4,8 @@ import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, downloadCSV } from '../utils.js';
 import { logout } from '../auth.js';
 import { t, getLang } from '../i18n.js';
 import { renderDateFilter } from '../dateFilter.js';
+import { showToast } from '../toast.js';
+import { showConfirm } from '../dialog.js';
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
@@ -127,7 +129,7 @@ export async function submitExpense(e) {
     return;
   }
 
-  if (state.currentUserRole !== 'admin' && !confirm(editingId ? t('expenses.confirmUpdate') : t('expenses.confirmAdd'))) return;
+  if (state.currentUserRole !== 'admin' && !(await showConfirm(editingId ? t('expenses.confirmUpdate') : t('expenses.confirmAdd')))) return;
 
   const body = { expense_date, amount, remark, expense_by };
   const res  = editingId
@@ -150,7 +152,7 @@ export function startEditExpense(id) {
   (async () => {
     const data = await fetchJSON('/api/expenses?page=1&per_page=100');
     const item = (data?.items || []).find(x => x.id === id);
-    if (!item) return alert(t('expenses.notFound'));
+    if (!item) return showToast(t('expenses.notFound'), 'error');
 
     getEl('expenseDate').value   = item.expense_date.split('T')[0];
     getEl('expenseAmount').value = item.amount;
@@ -162,14 +164,14 @@ export function startEditExpense(id) {
   })();
 }
 
-export function confirmDeleteExpense(id) {
-  if (!confirm(t('expenses.confirmDelete'))) return;
+export async function confirmDeleteExpense(id) {
+  if (!(await showConfirm(t('expenses.confirmDelete'), { danger: true, confirmText: t('common.delete') }))) return;
   deleteExpense(id);
 }
 
 async function deleteExpense(id) {
   const res = await apiDelete(`/api/expenses/${id}`);
-  if (!res.ok) { alert(res.data?.message || t('expenses.deleteFailed')); return; }
+  if (!res.ok) { showToast(res.data?.message || t('expenses.deleteFailed'), 'error'); return; }
   loadExpenses();
 }
 
@@ -180,7 +182,7 @@ export async function exportExpensesCSV() {
   if (state.expenseFilterStartDate) params.set('start', state.expenseFilterStartDate);
   if (state.expenseFilterEndDate)   params.set('end',   state.expenseFilterEndDate);
   const data = await fetchJSON(`/api/expenses?${params}`);
-  if (!data?.items) return alert(t('expenses.exportLoadFailed'));
+  if (!data?.items) return showToast(t('expenses.exportLoadFailed'), 'error');
   downloadCSV(`expenses-${new Date().toISOString().slice(0, 10)}.csv`, [
     [t('expenses.csvDate'), t('expenses.csvAmount'), t('expenses.csvExpenseBy'), t('expenses.csvRemark')],
     ...data.items.map(e => [e.expense_date?.slice(0, 10) || '', e.amount, e.expense_by, e.remark ?? '']),

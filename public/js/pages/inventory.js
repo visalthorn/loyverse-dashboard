@@ -4,6 +4,7 @@ import { getEl, fmtKHR, fmtDate, getTodayDate } from '../utils.js';
 import { t } from '../i18n.js';
 import { emptyStateHTML } from '../ui.js';
 import { showToast } from '../toast.js';
+import { showConfirm } from '../dialog.js';
 import { destroyChart, themeColor, withAlpha, tooltipTheme, legendTheme, numTicks } from '../charts.js';
 
 // Ingredient stock control: restock-only tracking (date + qty added + qty
@@ -196,7 +197,7 @@ export async function invSubmitIngredient(e) {
 export async function invToggleActive(id) {
   const ing = ingredients.find(i => i.id === id);
   if (!ing) return;
-  if (!confirm(t(ing.is_active ? 'inventory.confirmDeactivate' : 'inventory.confirmActivate'))) return;
+  if (!(await showConfirm(t(ing.is_active ? 'inventory.confirmDeactivate' : 'inventory.confirmActivate')))) return;
   const res = await apiPatch(`/api/inventory/ingredients/${id}/toggle`);
   if (!res.ok) { showToast(res.data?.message || t('inventory.saveFailed'), 'error'); return; }
   await loadIngredients();
@@ -375,7 +376,7 @@ export async function invOpenHistory(id) {
 export function invCloseHistory() { hideModal('historyModal'); }
 
 export async function invDeleteRestock(id, ingredientId) {
-  if (!confirm(t('inventory.confirmDeleteRestock'))) return;
+  if (!(await showConfirm(t('inventory.confirmDeleteRestock'), { danger: true, confirmText: t('common.delete') }))) return;
   const res = await apiDelete(`/api/inventory/restocks/${id}`);
   if (!res.ok) { showToast(res.data?.message || t('inventory.deleteFailed'), 'error'); return; }
 
