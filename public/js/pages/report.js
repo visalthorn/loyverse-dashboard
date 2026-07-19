@@ -2,6 +2,8 @@ import { state } from '../state.js';
 import { fetchJSON } from '../api.js';
 import { getEl } from '../utils.js';
 import { renderDateFilter } from '../dateFilter.js';
+import { renderBranchFilter } from '../branchFilter.js';
+import { loadBranchBreakdown } from '../branchBreakdown.js';
 import { createReportSections } from './report-sections.js';
 
 // Live Sales & Marketing Report: reads the live /api/* analytics endpoints
@@ -11,7 +13,8 @@ function q() {
   const range = state.currentPeriod === 'range' && state.currentStartDate && state.currentEndDate
     ? `&start=${state.currentStartDate}&end=${state.currentEndDate}`
     : '';
-  return `period=${state.currentPeriod}${range}`;
+  const branch = state.branchId ? `&branch=${state.branchId}` : '';
+  return `period=${state.currentPeriod}${range}${branch}`;
 }
 
 const api = {
@@ -49,6 +52,7 @@ export function applyDateFilter({ period, start, end }) {
   state.currentStartDate = start;
   state.currentEndDate   = end;
   sections.loadAll();
+  loadBranchBreakdown('reportBranchBreakdown');
 }
 
 export function init() {
@@ -60,5 +64,8 @@ export function init() {
     ],
     defaultPreset: 'yesterday',
     onChange: applyDateFilter,
+  });
+  renderBranchFilter(getEl('branchFilterMount'), {
+    onChange: () => { sections.loadAll(); loadBranchBreakdown('reportBranchBreakdown'); },
   });
 }
