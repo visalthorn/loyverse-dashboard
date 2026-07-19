@@ -44,5 +44,6 @@ async function fetchAllPages(path, key) {
 
 function fetchItems()      { return fetchAllPages('/items', 'items'); }
 function fetchCategories() { return fetchAllPages('/categories', 'categories'); }
+function fetchPosDevices() { return fetchAllPages('/pos_devices', 'pos_devices'); }
 
-module.exports = { fetchReceipts, fetchItems, fetchCategories };
+module.exports = { fetchReceipts, fetchItems, fetchCategories, fetchPosDevices };
