@@ -31,7 +31,10 @@ function renderBranches() {
   tbody.innerHTML = branches.map((b, i) => `
     <tr class="border-b border-[color:var(--border-subtle)]">
       <td class="py-2.5 pr-3 text-[color:var(--text-secondary)]">${i + 1}</td>
-      <td class="py-2.5 pr-3 font-medium">${esc(b.name)}</td>
+      <td class="py-2.5 pr-3">
+        <div class="font-medium">${esc(b.name)}${b.is_default ? ` <span class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style="background:var(--accent-soft);color:var(--accent)">${t('branches.defaultBadge')}</span>` : ''}${b.google_maps_url ? ` <a href="${esc(b.google_maps_url)}" target="_blank" rel="noopener" title="Google Maps">📍</a>` : ''}</div>
+        ${b.address ? `<div class="text-xs text-[color:var(--text-muted)] truncate" style="max-width:240px">${esc(b.address)}</div>` : ''}
+      </td>
       <td class="py-2.5 pr-3 text-center">${b.device_count}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
         <button onclick="startEditBranch(${b.id})" class="text-xs text-[color:var(--accent-strong)] hover:underline mr-3">${t('branches.edit')}</button>
@@ -71,9 +74,11 @@ export async function submitBranch(e) {
   e.preventDefault();
   const name = (getEl('branchName')?.value || '').trim();
   if (!name) { showToast(t('branches.nameRequired'), 'error'); return; }
+  const address         = (getEl('branchAddress')?.value || '').trim();
+  const google_maps_url = (getEl('branchMapUrl')?.value || '').trim();
   const res = editingId
-    ? await apiPut(`/api/branches/${editingId}`, { name })
-    : await apiPost('/api/branches', { name });
+    ? await apiPut(`/api/branches/${editingId}`, { name, address, google_maps_url })
+    : await apiPost('/api/branches', { name, address, google_maps_url });
   if (res.ok) {
     showToast(t(editingId ? 'branches.updated' : 'branches.created'), 'success');
     cancelEditBranch();
@@ -90,6 +95,8 @@ export function startEditBranch(id) {
   if (!b) return;
   editingId = id;
   getEl('branchName').value = b.name;
+  getEl('branchAddress').value = b.address || '';
+  getEl('branchMapUrl').value  = b.google_maps_url || '';
   getEl('branchFormTitle').textContent = t('branches.editTitle');
   getEl('branchSubmitLabel').textContent = t('branches.updateBtn');
   getEl('branchFormCancelBtn').classList.remove('hidden');

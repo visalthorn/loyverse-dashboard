@@ -62,9 +62,13 @@
           <h2 class="section-title">🏬 <span id="branchFormTitle" data-i18n="branches.addTitle">Add Branch</span></h2>
           <button id="branchFormCancelBtn" onclick="cancelEditBranch()" class="hidden text-xs text-[color:var(--text-secondary)] hover:text-[color:var(--accent-strong)] border border-[color:var(--border-strong)] hover:border-[color:var(--accent)] px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
         </div>
-        <form id="branchForm" onsubmit="submitBranch(event)" class="flex gap-2 mb-4">
+        <form id="branchForm" onsubmit="submitBranch(event)" class="grid md:grid-cols-2 gap-2 mb-4">
           <input id="branchName" type="text" required maxlength="100" class="field-input" data-i18n-placeholder="branches.namePlaceholder" placeholder="e.g. Riverside"/>
-          <button type="submit" class="btn-accent flex-shrink-0"><span id="branchSubmitLabel" data-i18n="branches.createBtn">Create Branch</span></button>
+          <input id="branchAddress" type="text" maxlength="200" class="field-input" data-i18n-placeholder="branches.addressPlaceholder" placeholder="Address (optional)"/>
+          <input id="branchMapUrl" type="url" class="field-input md:col-span-2" data-i18n-placeholder="branches.mapUrlPlaceholder" placeholder="Google Maps link (optional)"/>
+          <div class="md:col-span-2">
+            <button type="submit" class="btn-accent"><span id="branchSubmitLabel" data-i18n="branches.createBtn">Create Branch</span></button>
+          </div>
         </form>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
