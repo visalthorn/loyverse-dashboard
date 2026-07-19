@@ -536,6 +536,8 @@ export const en = {
   'inventory.close': 'Close',
   'inventory.errorRequiredFields': 'Please fill in all required fields.',
   'inventory.restockHint': 'Record what was found remaining, then how much was added.',
+  'inventory.editRestock': 'Edit restock',
+  'inventory.editRestockHint': "Cost changes here won't update any expense already recorded — edit that separately on the Expenses page.",
   'inventory.date': 'Date',
   'inventory.remainingFound': 'Remaining found',
   'inventory.newQtyAdded': 'New qty added',

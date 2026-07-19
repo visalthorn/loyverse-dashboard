@@ -1,6 +1,6 @@
 import { state } from '../state.js';
 import { fetchJSON, apiPost, apiPut, apiPatch, apiDelete } from '../api.js';
-import { getEl, fmtKHR, fmtDate, getTodayDate } from '../utils.js';
+import { getEl, fmtKHR, fmtDate, getTodayDate, toISODate } from '../utils.js';
 import { t } from '../i18n.js';
 import { emptyStateHTML } from '../ui.js';
 import { showToast } from '../toast.js';
@@ -19,6 +19,7 @@ let soldItems = null;          // lazily fetched, cached for the link picker
 let currentIngredientId = null;
 let currentLinks = [];
 let currentRestockUnit = '';
+let currentHistoryRows = [];
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -210,6 +211,10 @@ export function invOpenRestock(id) {
   if (!ing) return;
   currentRestockUnit = ing.unit;
 
+  getEl('restockEditId').value = '';
+  getEl('restockModalAction').textContent = t('inventory.restock');
+  getEl('restockExpenseRow').classList.remove('hidden');
+  getEl('restockEditHint').classList.add('hidden');
   getEl('restockIngredientId').value = id;
   getEl('restockIngName').textContent = ing.name;
   getEl('restockDate').value = getTodayDate();
@@ -218,6 +223,31 @@ export function invOpenRestock(id) {
   getEl('restockCost').value = '';
   getEl('restockRecordExpense').checked = true;
   getEl('restockNote').value = '';
+  getEl('restockUnit1').textContent = ing.unit;
+  getEl('restockUnit2').textContent = ing.unit;
+  getEl('restockMsg').textContent = '';
+  invUpdateRestockPreview();
+  showModal('restockModal');
+  getEl('restockRemaining').focus();
+}
+
+export function invOpenEditRestock(id, ingredientId) {
+  const ing = ingredients.find(i => i.id === ingredientId);
+  const row = currentHistoryRows.find(r => r.id === id);
+  if (!ing || !row) return;
+  currentRestockUnit = ing.unit;
+
+  getEl('restockEditId').value = id;
+  getEl('restockModalAction').textContent = t('inventory.editRestock');
+  getEl('restockExpenseRow').classList.add('hidden');
+  getEl('restockEditHint').classList.remove('hidden');
+  getEl('restockIngredientId').value = ingredientId;
+  getEl('restockIngName').textContent = ing.name;
+  getEl('restockDate').value = toISODate(row.restock_date);
+  getEl('restockRemaining').value = row.qty_remaining;
+  getEl('restockAdded').value = row.qty_added;
+  getEl('restockCost').value = row.cost ?? '';
+  getEl('restockNote').value = row.note || '';
   getEl('restockUnit1').textContent = ing.unit;
   getEl('restockUnit2').textContent = ing.unit;
   getEl('restockMsg').textContent = '';
@@ -241,10 +271,11 @@ export async function invSubmitRestock(e) {
   const msg = getEl('restockMsg');
   msg.textContent = '';
 
-  const ingredient_id = parseInt(getEl('restockIngredientId').value);
-  const restock_date  = getEl('restockDate').value;
-  const remainingVal  = getEl('restockRemaining').value;
-  const addedVal      = getEl('restockAdded').value;
+  const editId        = getEl('restockEditId').value;
+  const ingredientId   = parseInt(getEl('restockIngredientId').value);
+  const restock_date   = getEl('restockDate').value;
+  const remainingVal   = getEl('restockRemaining').value;
+  const addedVal       = getEl('restockAdded').value;
   const costVal        = getEl('restockCost').value;
   const record_expense = getEl('restockRecordExpense').checked;
   const note = getEl('restockNote').value.trim();
@@ -254,20 +285,27 @@ export async function invSubmitRestock(e) {
     return;
   }
 
-  const res = await apiPost('/api/inventory/restocks', {
-    ingredient_id,
+  const body = {
     restock_date,
     qty_remaining: parseFloat(remainingVal),
     qty_added:     parseFloat(addedVal),
     cost: costVal === '' ? null : parseFloat(costVal),
-    record_expense,
     note,
-  });
+  };
+
+  const res = editId
+    ? await apiPut(`/api/inventory/restocks/${editId}`, body)
+    : await apiPost('/api/inventory/restocks', { ...body, ingredient_id: ingredientId, record_expense });
 
   if (!res.ok) { msg.textContent = res.data?.message || t('inventory.saveFailed'); return; }
 
   showToast(t('inventory.restockSaved'), 'success');
   invCloseRestock();
+  if (editId && !getEl('historyModal').classList.contains('hidden')) {
+    const ing = ingredients.find(i => i.id === ingredientId);
+    const rows = await fetchJSON(`/api/inventory/restocks?ingredient_id=${ingredientId}&limit=20`) || [];
+    renderHistory(rows, ing?.unit || '');
+  }
   await loadIngredients();
 }
 
@@ -339,6 +377,7 @@ export async function invRemoveLink(id) {
 // ── History ───────────────────────────────────────────────────────────────
 
 function renderHistory(rows, unit) {
+  currentHistoryRows = rows;
   const tbody = getEl('historyTableBody');
   if (!tbody) return;
 
@@ -357,7 +396,9 @@ function renderHistory(rows, unit) {
       <td class="py-2 pr-3 text-right num">${r.consumed_since_previous != null ? `${fmtQty(r.consumed_since_previous)} ${esc(unit)}` : '—'}</td>
       <td class="py-2 pr-3 text-right num">${r.cost ? fmtKHR(r.cost) : '—'}</td>
       <td class="py-2 pr-3 text-xs text-[color:var(--text-muted)]">${esc(r.note || '')}</td>
-      <td class="py-2 text-center">${isAdmin ? `<button onclick="invDeleteRestock(${r.id},${currentIngredientId})" class="inv-icon-btn" title="${t('common.delete')}">🗑️</button>` : ''}</td>
+      <td class="py-2 text-center whitespace-nowrap">${isAdmin ? `
+        <button onclick="invOpenEditRestock(${r.id},${currentIngredientId})" class="inv-icon-btn" title="${t('common.edit')}">✏️</button>
+        <button onclick="invDeleteRestock(${r.id},${currentIngredientId})" class="inv-icon-btn" title="${t('common.delete')}">🗑️</button>` : ''}</td>
     </tr>`).join('');
 }
 

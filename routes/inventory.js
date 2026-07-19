@@ -177,6 +177,40 @@ router.get('/restocks', requireAuth, async (req, res) => {
   }
 });
 
+router.put('/restocks/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { restock_date, note } = req.body;
+  const added     = parseFloat(req.body.qty_added);
+  const remaining = parseFloat(req.body.qty_remaining);
+
+  if (!id) return badRequest(res, 'Invalid id.');
+  if (!restock_date || !DATE_RE.test(restock_date))
+    return badRequest(res, 'A valid restock_date (YYYY-MM-DD) is required.');
+  if (isNaN(added) || added < 0 || isNaN(remaining) || remaining < 0)
+    return badRequest(res, 'qty_added and qty_remaining must be numbers >= 0.');
+
+  const totalAfter = remaining + added;
+  const cost = req.body.cost !== undefined && req.body.cost !== null && req.body.cost !== ''
+    ? Math.round(parseFloat(req.body.cost)) : null;
+  if (cost !== null && (isNaN(cost) || cost < 0)) return badRequest(res, 'cost must be a number >= 0.');
+
+  try {
+    const result = await pool.query(`
+      UPDATE inv_restocks
+      SET restock_date=$1, qty_added=$2, qty_remaining=$3, total_after=$4, cost=$5, note=$6
+      WHERE id=$7
+      RETURNING *
+    `, [restock_date, added, remaining, totalAfter, cost, note?.trim() || null, id]);
+    if (!result.rows.length) return res.status(404).json({ message: 'Restock not found.' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'A restock for this ingredient already exists on that date.' });
+    if (err.code === '23514') return badRequest(res, 'qty_added and qty_remaining must be >= 0.');
+    console.error('Inventory restocks PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/restocks/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const id = parseInt(req.params.id);
   if (!id) return badRequest(res, 'Invalid id.');

@@ -16,7 +16,12 @@ export function setHTML(id, value) {
 
 // Today's date (YYYY-MM-DD) in Cambodia time — never the browser's zone.
 export function getTodayDate() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: TZ });
+  return toISODate(new Date());
+}
+
+// Any timestamp/date, as YYYY-MM-DD in Cambodia time — for prefilling <input type="date">.
+export function toISODate(iso) {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ });
 }
 
 export function fmt(n) {

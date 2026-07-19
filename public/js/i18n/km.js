@@ -536,6 +536,8 @@ export const km = {
   'inventory.close': 'បិទ',
   'inventory.errorRequiredFields': 'សូមបំពេញគ្រប់ចន្លោះដែលត្រូវការ។',
   'inventory.restockHint': 'កត់ត្រាចំនួនដែលនៅសល់ជាមុនសិន បន្ទាប់មកចំនួនដែលបានបន្ថែម។',
+  'inventory.editRestock': 'កែសម្រួលការបន្ថែមស្តុក',
+  'inventory.editRestockHint': 'ការផ្លាស់ប្តូរតម្លៃនៅទីនេះ នឹងមិនធ្វើបច្ចុប្បន្នភាពចំណាយដែលបានកត់ត្រារួចទេ — សូមកែសម្រួលវានៅទំព័រចំណាយដាច់ដោយឡែក។',
   'inventory.date': 'កាលបរិច្ឆេទ',
   'inventory.remainingFound': 'ចំនួននៅសល់',
   'inventory.newQtyAdded': 'ចំនួនបន្ថែមថ្មី',

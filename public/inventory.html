@@ -94,6 +94,8 @@
 
   /* Modals */
   .inv-modal-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.5); align-items: center; justify-content: center; padding: 1rem; }
+  /* Restock can be opened for editing from inside the History modal, so it must stack above it. */
+  #restockModal.inv-modal-overlay { z-index: 60; }
   .inv-modal { width: min(420px, 100%); max-height: 85vh; overflow-y: auto; }
   .inv-modal--wide { width: min(720px, 100%); }
   .inv-field-label { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.25rem; display: block; }
@@ -219,10 +221,11 @@
     <!-- Restock modal -->
     <div id="restockModal" class="hidden inv-modal-overlay">
       <div class="card inv-modal">
-        <h3 class="section-title mb-1">📦 <span data-i18n="inventory.restock">Restock</span> — <span id="restockIngName"></span></h3>
+        <h3 class="section-title mb-1">📦 <span id="restockModalAction" data-i18n="inventory.restock">Restock</span> — <span id="restockIngName"></span></h3>
         <p class="text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.restockHint">Record what was found remaining, then how much was added.</p>
         <form onsubmit="invSubmitRestock(event)">
           <input type="hidden" id="restockIngredientId"/>
+          <input type="hidden" id="restockEditId"/>
 
           <label class="inv-field-label" data-i18n="inventory.date">Date</label>
           <input id="restockDate" type="date" class="field-input mb-3" required/>
@@ -246,10 +249,11 @@
             <span class="inv-unit-suffix">៛</span>
             <input id="restockCost" type="number" min="0" step="1" class="field-input"/>
           </div>
-          <label class="flex items-center gap-2 text-xs text-[color:var(--text-secondary)] cursor-pointer mb-3">
+          <label id="restockExpenseRow" class="flex items-center gap-2 text-xs text-[color:var(--text-secondary)] cursor-pointer mb-3">
             <input id="restockRecordExpense" type="checkbox" checked/>
             <span data-i18n="inventory.recordAsExpense">Record as expense</span>
           </label>
+          <p id="restockEditHint" class="hidden text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.editRestockHint"></p>
 
           <label class="inv-field-label" data-i18n="inventory.note">Note (optional)</label>
           <textarea id="restockNote" class="field-input mb-3" rows="2"></textarea>

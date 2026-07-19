@@ -191,6 +191,7 @@ window.invCloseIngredientModal   = Inventory.invCloseIngredientModal;
 window.invSubmitIngredient       = Inventory.invSubmitIngredient;
 window.invToggleActive           = Inventory.invToggleActive;
 window.invOpenRestock            = Inventory.invOpenRestock;
+window.invOpenEditRestock        = Inventory.invOpenEditRestock;
 window.invCloseRestock           = Inventory.invCloseRestock;
 window.invUpdateRestockPreview   = Inventory.invUpdateRestockPreview;
 window.invSubmitRestock          = Inventory.invSubmitRestock;
