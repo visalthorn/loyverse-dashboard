@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
-const { requireAuth, requireWrite } = require('../middleware/auth');
-const { syncYesterdayReceipts, syncItems, getSchedulerStatus } = require('../services/sync');
+const { requireAuth, requireRole, requireWrite } = require('../middleware/auth');
+const { syncYesterdayReceipts, syncItems, syncPosDevices, getSchedulerStatus } = require('../services/sync');
 const { tz } = require('../config');
 
 router.post('/receipts', requireAuth, requireWrite('receipts'), async (req, res) => {
@@ -20,6 +20,16 @@ router.post('/items', requireAuth, requireWrite('items'), async (req, res) => {
     res.status(result.status === 'failed' ? 500 : 200).json(result);
   } catch (err) {
     console.error('❌ Items sync route error:', err.message);
+    res.status(500).json({ status: 'failed', error: err.message });
+  }
+});
+
+router.post('/pos-devices', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const result = await syncPosDevices('manual');
+    res.status(result.status === 'failed' ? 500 : 200).json(result);
+  } catch (err) {
+    console.error('❌ POS devices sync route error:', err.message);
     res.status(500).json({ status: 'failed', error: err.message });
   }
 });
