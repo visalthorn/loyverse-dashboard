@@ -5,6 +5,8 @@ import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, fmtDatetime, TZ } from '../utils.j
 import { destroyChart, chartOpts, barOpts, donutOpts, themeColor, withAlpha, legendTheme } from '../charts.js';
 import { renderDateFilter, periodLabel } from '../dateFilter.js';
 import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML, growthBadge } from '../ui.js';
+import { renderBranchFilter } from '../branchFilter.js';
+import { loadBranchBreakdown } from '../branchBreakdown.js';
 
 function currentRangeLabel() {
   return periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate);
@@ -16,6 +18,10 @@ function rangeQuery() {
   return state.currentPeriod === 'range' && state.currentStartDate && state.currentEndDate
     ? `&start=${state.currentStartDate}&end=${state.currentEndDate}`
     : '';
+}
+
+function branchQuery() {
+  return state.branchId ? `&branch=${state.branchId}` : '';
 }
 
 function getGrossIncomeTrendGranularity() {
@@ -34,7 +40,7 @@ function getGrossIncomeTrendGranularity() {
 // ─── KPIs ────────────────────────────────────────────────────────────────────
 
 async function loadKPIs() {
-  const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/kpis?period=${state.currentPeriod}${rangeQuery()}${branchQuery()}`);
   if (!data) {
     const html = `<div class="col-span-full card">${errorStateHTML({ vars: { range: currentRangeLabel() } })}</div>`;
     const p = getEl('kpiPrimary'); if (p) p.innerHTML = html;
@@ -107,8 +113,8 @@ async function loadGrossIncomeTrend() {
   if (trendLabel) trendLabel.textContent = periodLabel(p, s, e);
 
   const [incomeData, expenseTrend] = await Promise.all([
-    fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}`),
-    fetchJSON(`/api/expenses-trend?period=${p}${rangeQuery()}`),
+    fetchJSON(`/api/gross-income?period=${p}${rangeQuery()}${branchQuery()}`),
+    fetchJSON(`/api/expenses-trend?period=${p}${rangeQuery()}${branchQuery()}`),
   ]);
   destroyChart('grossIncomeChart');
   if (!incomeData) {
@@ -148,7 +154,7 @@ async function loadGrossIncomeTrend() {
 // ─── Dining Options ──────────────────────────────────────────────────────────
 
 async function loadDiningOptions() {
-  const data = await fetchJSON(`/api/dining-options?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/dining-options?period=${state.currentPeriod}${rangeQuery()}${branchQuery()}`);
   const legend = getEl('diningLegend');
   destroyChart('diningChart');
   if (!data?.length) {
@@ -179,7 +185,7 @@ async function loadDiningOptions() {
 // ─── Payment Methods ─────────────────────────────────────────────────────────
 
 async function loadPaymentMethods() {
-  const data = await fetchJSON(`/api/payment-methods?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/payment-methods?period=${state.currentPeriod}${rangeQuery()}${branchQuery()}`);
   const legend = getEl('paymentLegend');
   destroyChart('paymentChart');
   if (!data?.length) {
@@ -243,13 +249,13 @@ let topProductsCategory = '';
 
 async function loadTopItems() {
   const categoryQuery = topProductsCategory ? `&category=${encodeURIComponent(topProductsCategory)}` : '';
-  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=20${categoryQuery}`);
+  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=desc&limit=20${categoryQuery}${branchQuery()}`);
   renderProductRows(data, 'productTableBody');
 }
 
 async function loadSlowMovers() {
   const categoryQuery = topProductsCategory ? `&category=${encodeURIComponent(topProductsCategory)}` : '';
-  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=asc&limit=10${categoryQuery}`);
+  const data = await fetchJSON(`/api/item-comparison?period=${state.currentPeriod}${rangeQuery()}&order=asc&limit=10${categoryQuery}${branchQuery()}`);
   renderProductRows(data, 'slowMoversBody', 1);
 }
 
@@ -288,7 +294,7 @@ export function toggleSlowMovers() {
 // ─── Employee Performance ────────────────────────────────────────────────────
 
 async function loadEmployeePerformance() {
-  const data = await fetchJSON(`/api/employee-performance?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/employee-performance?period=${state.currentPeriod}${rangeQuery()}${branchQuery()}`);
   destroyChart('employeeChart');
   if (!data?.length) {
     chartStateShow('employeeChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: currentRangeLabel() } }));
@@ -309,7 +315,7 @@ async function loadEmployeePerformance() {
 // ─── Device Performance ──────────────────────────────────────────────────────
 
 async function loadDevicePerformance() {
-  const data = await fetchJSON(`/api/device-performance?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/device-performance?period=${state.currentPeriod}${rangeQuery()}${branchQuery()}`);
   destroyChart('deviceChart');
   if (!data?.length) {
     chartStateShow('deviceChart', data ? emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' }) : errorStateHTML({ vars: { range: currentRangeLabel() } }));
@@ -372,7 +378,7 @@ async function loadStockWatch() {
 // ─── Cancelled Orders ────────────────────────────────────────────────────────
 
 async function loadCancelledOrders() {
-  const data = await fetchJSON(`/api/cancelled-orders?period=${state.currentPeriod}${rangeQuery()}`);
+  const data = await fetchJSON(`/api/cancelled-orders?period=${state.currentPeriod}${rangeQuery()}${branchQuery()}`);
   const cancelSummary = getEl('cancelSummary');
   const cancelList = getEl('cancelList');
   if (!data) {
@@ -412,6 +418,7 @@ export function loadAll() {
   loadEmployeePerformance();
   loadDevicePerformance();
   loadCancelledOrders();
+  loadBranchBreakdown('branchBreakdown');
 }
 
 // ─── Period Controls (exposed to window) ─────────────────────────────────────
@@ -439,6 +446,7 @@ export async function init() {
     defaultPreset: 'yesterday',
     onChange: applyDateFilter,
   });
+  renderBranchFilter(getEl('branchFilterMount'), { onChange: () => loadAll() });
   loadStockWatch();
   setInterval(loadAll, 5 * 60 * 1000);
   setInterval(loadStockWatch, 5 * 60 * 1000);
