@@ -24,6 +24,7 @@ export const en = {
   'common.errorDateOrder': 'Start date must be before or equal to end date.',
   'common.showing': 'Showing',
   'common.clearDateFilter': 'Clear date filter',
+  'common.allBranches': 'All branches',
 
   // ── dialog ──────────────────────────────────────────────
   'dialog.confirm': 'Confirm',
@@ -460,6 +461,10 @@ export const en = {
   'branches.updated': 'Branch updated.',
   'branches.deleted': 'Branch deleted.',
   'branches.loadingRow': 'Loading…',
+  'branches.cardTitle': '🏬 Revenue by Branch',
+  'branches.cardOrders': '{count} orders',
+  'branches.cardEmpty': 'No sales in this period.',
+  'branches.cardLoadFailed': 'Could not load branch breakdown.',
 
   // ── sync page ───────────────────────────────────────────
   'sync.title': 'Loyverse Sync',

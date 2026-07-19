@@ -6,6 +6,8 @@ export const state = {
   currentEndDate:       '',
   expenseFilterStartDate: '',
   expenseFilterEndDate:   '',
+  branchId:             null,
+  expenseFilterBranchId: null,
   charts:               {},
 };
 

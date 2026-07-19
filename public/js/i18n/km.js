@@ -24,6 +24,7 @@ export const km = {
   'common.errorDateOrder': 'កាលបរិច្ឆេទចាប់ផ្តើមត្រូវតែមុន ឬស្មើកាលបរិច្ឆេទបញ្ចប់។',
   'common.showing': 'កំពុងបង្ហាញ',
   'common.clearDateFilter': 'លុបតម្រងកាលបរិច្ឆេទ',
+  'common.allBranches': 'គ្រប់សាខា',
 
   // ── dialog ──────────────────────────────────────────────
   'dialog.confirm': 'បញ្ជាក់',
@@ -460,6 +461,10 @@ export const km = {
   'branches.updated': 'បានកែសម្រួលសាខា។',
   'branches.deleted': 'បានលុបសាខា។',
   'branches.loadingRow': 'កំពុងផ្ទុក…',
+  'branches.cardTitle': '🏬 ចំណូលតាមសាខា',
+  'branches.cardOrders': '{count} ការបញ្ជាទិញ',
+  'branches.cardEmpty': 'គ្មានការលក់ក្នុងរយៈពេលនេះទេ។',
+  'branches.cardLoadFailed': 'មិនអាចផ្ទុកទិន្នន័យតាមសាខាបានទេ។',
 
   // ── sync page ───────────────────────────────────────────
   'sync.title': 'សមកាលកម្ម Loyverse',
