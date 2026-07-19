@@ -5,7 +5,7 @@ const { insertExpense } = require('../services/expenses');
 
 async function validBranchId(branch_id) {
   if (branch_id == null) return { ok: true, value: null };
-  const id = parseInt(branch_id);
+  const id = Number(branch_id);
   if (!Number.isInteger(id)) return { ok: false };
   const r = await pool.query('SELECT 1 FROM branches WHERE id = $1', [id]);
   return r.rowCount ? { ok: true, value: id } : { ok: false };
@@ -22,7 +22,12 @@ router.get('/', requireAuth, async (req, res) => {
     let i = 1;
     if (req.query.start) { filters.push(`e.expense_date >= $${i++}`); params.push(req.query.start); }
     if (req.query.end)   { filters.push(`e.expense_date <= $${i++}`); params.push(req.query.end); }
-    if (req.query.branch_id) { filters.push(`e.branch_id = $${i++}`); params.push(parseInt(req.query.branch_id)); }
+    // Non-numeric/invalid branch_id is deliberately ignored (treated as "no filter")
+    // rather than passed through to Postgres, which would 500 on NaN.
+    const branchIdFilter = Number(req.query.branch_id);
+    if (req.query.branch_id && Number.isInteger(branchIdFilter) && branchIdFilter > 0) {
+      filters.push(`e.branch_id = $${i++}`); params.push(branchIdFilter);
+    }
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 

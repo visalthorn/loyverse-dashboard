@@ -87,7 +87,7 @@ export async function loadExpenses() {
     return `${showHeader ? `<div class="mt-3 mb-1 text-xs uppercase tracking-wide text-[color:var(--accent-strong)] font-bold border-b border-[color:var(--border)] pb-1">${dayLabel}</div>` : ''}
     <div class="flex items-center justify-between p-2 bg-[color:var(--bg-surface-alt)] rounded ${showHeader ? '' : 'mt-2'}">
       <div>
-        <div class="font-medium">${e.expense_by}</div>
+        <div class="font-medium">${esc(e.expense_by)}</div>
         <div class="text-xs text-[color:var(--text-muted)]">${esc(e.remark || '')}${e.branch_name ? `<span class="text-[color:var(--accent-strong)]"> · ${esc(e.branch_name)}</span>` : ''}</div>
       </div>
       <div class="flex items-center gap-3">

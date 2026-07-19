@@ -7,16 +7,22 @@ const { buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, getPeriodDateRange,
 // that recorded them (pos_devices.branch_id is dashboard-owned). Appends one
 // param, so ALWAYS use the returned params array for the query.
 function branchClause(branchId, params, alias = 'r') {
-  if (!branchId) return { sql: '', params };
+  // Invalid/non-numeric branch values are deliberately ignored (treated as "no filter")
+  // rather than passed through to Postgres, which would 500 on NaN.
+  const id = Number(branchId);
+  if (!Number.isInteger(id) || id <= 0) return { sql: '', params };
   return {
     sql: ` AND ${alias}.pos_device_id IN (SELECT id::varchar FROM pos_devices WHERE branch_id = $${params.length + 1})`,
-    params: [...params, parseInt(branchId)],
+    params: [...params, id],
   };
 }
 
 function expenseBranchClause(branchId, params, alias = 'e') {
-  if (!branchId) return { sql: '', params };
-  return { sql: ` AND ${alias}.branch_id = $${params.length + 1}`, params: [...params, parseInt(branchId)] };
+  // Invalid/non-numeric branch values are deliberately ignored (treated as "no filter")
+  // rather than passed through to Postgres, which would 500 on NaN.
+  const id = Number(branchId);
+  if (!Number.isInteger(id) || id <= 0) return { sql: '', params };
+  return { sql: ` AND ${alias}.branch_id = $${params.length + 1}`, params: [...params, id] };
 }
 
 // Per-day average query: for each calendar day in [start,end], compute
@@ -65,8 +71,11 @@ router.get('/kpis', requireAuth, async (req, res) => {
   const bcPrev    = branchClause(branch, prevFilter.params);
   const ebCurr    = expenseBranchClause(branch, expFilter.params);
   const ebPrev    = expenseBranchClause(branch, prevExpFilter.params);
-  const avgParams     = branch ? [currRange.start, currRange.end, parseInt(branch)] : [currRange.start, currRange.end];
-  const prevAvgParams = branch ? [prevRange.start, prevRange.end, parseInt(branch)] : [prevRange.start, prevRange.end];
+  // Same strict coercion as branchClause/expenseBranchClause: invalid values are ignored.
+  const branchIdNum = Number(branch);
+  const hasBranch    = Number.isInteger(branchIdNum) && branchIdNum > 0;
+  const avgParams     = hasBranch ? [currRange.start, currRange.end, branchIdNum] : [currRange.start, currRange.end];
+  const prevAvgParams = hasBranch ? [prevRange.start, prevRange.end, branchIdNum] : [prevRange.start, prevRange.end];
   try {
     const [curr, prev, expRes, prevExpRes, currAvg, prevAvg] = await Promise.all([
       pool.query(`
@@ -85,8 +94,8 @@ router.get('/kpis', requireAuth, async (req, res) => {
       pool.query(`
         SELECT COALESCE(SUM(amount),0) AS total_expense FROM expenses e WHERE ${prevExpFilter.clause}${ebPrev.sql}
       `, ebPrev.params),
-      pool.query(dailyAvgSql(!!branch), avgParams),
-      pool.query(dailyAvgSql(!!branch), prevAvgParams),
+      pool.query(dailyAvgSql(hasBranch), avgParams),
+      pool.query(dailyAvgSql(hasBranch), prevAvgParams),
     ]);
 
     const c = curr.rows[0];

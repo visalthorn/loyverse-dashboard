@@ -24,7 +24,7 @@ const parseId = v => {
 function parseMeta(body) {
   const address = (body.address || '').trim() || null;
   const url     = (body.google_maps_url || '').trim() || null;
-  if (url && !/^https?:\/\//.test(url)) return { error: 'Google Maps link must start with http:// or https://' };
+  if (url && !/^https?:\/\//i.test(url)) return { error: 'Google Maps link must start with http:// or https://' };
   return { address, google_maps_url: url };
 }
 
@@ -126,6 +126,9 @@ router.delete('/:id', async (req, res) => {
   const id = parseId(req.params.id);
   if (id === null) return res.status(404).json({ error: 'Branch not found' });
   try {
+    const existing = await pool.query('SELECT is_default FROM branches WHERE id = $1', [id]);
+    if (!existing.rowCount) return res.status(404).json({ error: 'Branch not found' });
+    if (existing.rows[0].is_default) return res.status(400).json({ error: 'Cannot delete the default branch.' });
     const result = await pool.query('DELETE FROM branches WHERE id = $1 RETURNING id', [id]);
     if (!result.rowCount) return res.status(404).json({ error: 'Branch not found' });
     res.json({ success: true });
