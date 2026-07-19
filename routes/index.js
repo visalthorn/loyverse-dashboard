@@ -15,6 +15,7 @@ const archiveRouter     = require('./archive');
 const telegramRouter    = require('./telegram');
 const itemsRouter       = require('./items');
 const inventoryRouter   = require('./inventory');
+const branchesRouter    = require('./branches');
 
 router.use('/api/auth',        authRouter);
 router.use('/api',             analyticsRouter);
@@ -30,6 +31,7 @@ router.use('/api/archive',     archiveRouter);
 router.use('/api/telegram',    telegramRouter);
 router.use('/api/items',       itemsRouter);
 router.use('/api/inventory',   inventoryRouter);
+router.use('/api/branches',    branchesRouter);
 
 router.get('/login',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
 router.get('/',            (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
