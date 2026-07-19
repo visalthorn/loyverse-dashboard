@@ -7,6 +7,38 @@ import { renderDateFilter } from '../dateFilter.js';
 import { showToast } from '../toast.js';
 import { showConfirm } from '../dialog.js';
 
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+let branchOptions = [];
+
+function defaultBranchId() {
+  return branchOptions.find(b => b.is_default)?.id ?? null;
+}
+
+function setFormBranch(id) {
+  const sel = getEl('expenseBranch');
+  if (sel) sel.value = id ?? defaultBranchId() ?? '';
+}
+
+async function loadBranchOptions() {
+  branchOptions = await fetchJSON('/api/branches/options') || [];
+  const formSel = getEl('expenseBranch');
+  if (formSel) {
+    formSel.innerHTML = branchOptions.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+    setFormBranch(null); // pre-select the default branch
+  }
+  const filterSel = getEl('expenseBranchFilter');
+  if (filterSel) {
+    filterSel.innerHTML = `<option value="">${t('common.allBranches')}</option>` +
+      branchOptions.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+    filterSel.onchange = () => {
+      state.expenseFilterBranchId = filterSel.value ? Number(filterSel.value) : null;
+      window.expensesPage = 1;
+      loadExpenses();
+    };
+  }
+}
+
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
 function updateExpenseSummary(count, totalAmount) {
@@ -30,6 +62,7 @@ export async function loadExpenses() {
   const queryParts = [`page=${page}`, `per_page=${per_page}`];
   if (state.expenseFilterStartDate) queryParts.push(`start=${encodeURIComponent(state.expenseFilterStartDate)}`);
   if (state.expenseFilterEndDate)   queryParts.push(`end=${encodeURIComponent(state.expenseFilterEndDate)}`);
+  if (state.expenseFilterBranchId) queryParts.push(`branch_id=${state.expenseFilterBranchId}`);
 
   const data = await fetchJSON(`/api/expenses?${queryParts.join('&')}`);
   if (!data) {
@@ -55,7 +88,7 @@ export async function loadExpenses() {
     <div class="flex items-center justify-between p-2 bg-[color:var(--bg-surface-alt)] rounded ${showHeader ? '' : 'mt-2'}">
       <div>
         <div class="font-medium">${e.expense_by}</div>
-        <div class="text-xs text-[color:var(--text-muted)]">${e.remark || ''}</div>
+        <div class="text-xs text-[color:var(--text-muted)]">${esc(e.remark || '')}${e.branch_name ? `<span class="text-[color:var(--accent-strong)]"> · ${esc(e.branch_name)}</span>` : ''}</div>
       </div>
       <div class="flex items-center gap-3">
         <div class="val-accent font-bold num">${fmtKHR(e.amount)}</div>
@@ -122,6 +155,8 @@ export async function submitExpense(e) {
   const amount       = getEl('expenseAmount').value;
   const expense_by   = getEl('expenseBy').value.trim();
   const remark       = getEl('expenseRemark').value.trim();
+  const branchSel    = getEl('expenseBranch');
+  const branch_id    = branchSel?.value ? Number(branchSel.value) : null;
   const editingId    = window.editingExpenseId || null;
 
   if (!expense_date || !amount || !expense_by) {
@@ -131,7 +166,7 @@ export async function submitExpense(e) {
 
   if (state.currentUserRole !== 'admin' && !(await showConfirm(editingId ? t('expenses.confirmUpdate') : t('expenses.confirmAdd')))) return;
 
-  const body = { expense_date, amount, remark, expense_by };
+  const body = { expense_date, amount, remark, expense_by, branch_id };
   const res  = editingId
     ? await apiPut(`/api/expenses/${editingId}`, body)
     : await apiPost('/api/expenses', body);
@@ -143,6 +178,7 @@ export async function submitExpense(e) {
 
   if (msg) msg.textContent = editingId ? t('expenses.updated') : t('expenses.saved');
   getEl('expenseForm').reset();
+  setFormBranch(null);
   window.editingExpenseId = null;
   getEl('expenseForm').querySelector('button[type=submit]').textContent = t('expenses.addButton');
   loadExpenses();
@@ -158,6 +194,7 @@ export function startEditExpense(id) {
     getEl('expenseAmount').value = item.amount;
     getEl('expenseBy').value     = item.expense_by;
     getEl('expenseRemark').value = item.remark || '';
+    setFormBranch(item.branch_id);
     window.editingExpenseId      = id;
     getEl('expenseForm').querySelector('button[type=submit]').textContent = t('expenses.saveButton');
     window.scrollTo({ top: (getEl('expenseForm')?.offsetTop ?? 0) - 50, behavior: 'smooth' });
@@ -181,17 +218,19 @@ export async function exportExpensesCSV() {
   const params = new URLSearchParams({ per_page: 1000 });
   if (state.expenseFilterStartDate) params.set('start', state.expenseFilterStartDate);
   if (state.expenseFilterEndDate)   params.set('end',   state.expenseFilterEndDate);
+  if (state.expenseFilterBranchId) params.set('branch_id', state.expenseFilterBranchId);
   const data = await fetchJSON(`/api/expenses?${params}`);
   if (!data?.items) return showToast(t('expenses.exportLoadFailed'), 'error');
   downloadCSV(`expenses-${new Date().toISOString().slice(0, 10)}.csv`, [
-    [t('expenses.csvDate'), t('expenses.csvAmount'), t('expenses.csvExpenseBy'), t('expenses.csvRemark')],
-    ...data.items.map(e => [e.expense_date?.slice(0, 10) || '', e.amount, e.expense_by, e.remark ?? '']),
+    [t('expenses.csvDate'), t('expenses.csvAmount'), t('expenses.csvExpenseBy'), t('expenses.csvBranch'), t('expenses.csvRemark')],
+    ...data.items.map(e => [e.expense_date?.slice(0, 10) || '', e.amount, e.expense_by, e.branch_name ?? '', e.remark ?? '']),
   ]);
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 export function init() {
+  loadBranchOptions();
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [{ key: 'yesterday', labelKey: 'common.yesterday' }],
     defaultPreset: 'yesterday',

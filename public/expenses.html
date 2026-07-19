@@ -61,6 +61,10 @@
           <label class="text-xs text-[color:var(--text-secondary)]" data-i18n="expenses.expenseBy">Expense by</label>
           <input id="expenseBy" type="text" required placeholder="Name" data-i18n-placeholder="expenses.expenseByPlaceholder" class="w-full rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-sm p-2" />
         </div>
+        <div>
+          <label class="text-xs text-[color:var(--text-secondary)]" data-i18n="expenses.branch">Branch</label>
+          <select id="expenseBranch" class="w-full rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-sm p-2"></select>
+        </div>
         <div class="md:col-span-3">
           <label class="text-xs text-[color:var(--text-secondary)]" data-i18n="expenses.remark">Remark</label>
           <textarea id="expenseRemark" placeholder="Optional note" data-i18n-placeholder="expenses.remarkPlaceholder" class="w-full rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-sm p-2"></textarea>
@@ -77,6 +81,7 @@
           <span id="expensesSummary" class="text-sm text-[color:var(--text-secondary)]"><span class="text-sm text-[color:var(--accent-strong)] font-bold">0</span> items · Total: <span class="text-sm text-[color:var(--accent-strong)] font-bold">៛0.00</span></span>
         </div>
         <div class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--text-secondary)]">
+          <select id="expenseBranchFilter" class="rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1"></select>
           <div id="dateFilterMount"></div>
           <button onclick="exportExpensesCSV()" class="btn-ghost"><span data-i18n="common.csv">⬇ CSV</span></button>
         </div>

@@ -121,6 +121,7 @@ export const km = {
   'expenses.amount': 'ចំនួនទឹកប្រាក់',
   'expenses.expenseBy': 'ចំណាយដោយ',
   'expenses.expenseByPlaceholder': 'ឈ្មោះ',
+  'expenses.branch': 'សាខា',
   'expenses.remark': 'ចំណាំ',
   'expenses.remarkPlaceholder': 'ចំណាំបន្ថែម (មិនចាំបាច់)',
   'expenses.addButton': 'បន្ថែមចំណាយ',
@@ -146,6 +147,7 @@ export const km = {
   'expenses.csvDate': 'កាលបរិច្ឆេទ',
   'expenses.csvAmount': 'ចំនួនទឹកប្រាក់ (KHR)',
   'expenses.csvExpenseBy': 'ចំណាយដោយ',
+  'expenses.csvBranch': 'សាខា',
   'expenses.csvRemark': 'ចំណាំ',
 
   // ── receipts ────────────────────────────────────────────

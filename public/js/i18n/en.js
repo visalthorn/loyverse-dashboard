@@ -121,6 +121,7 @@ export const en = {
   'expenses.amount': 'Amount',
   'expenses.expenseBy': 'Expense by',
   'expenses.expenseByPlaceholder': 'Name',
+  'expenses.branch': 'Branch',
   'expenses.remark': 'Remark',
   'expenses.remarkPlaceholder': 'Optional note',
   'expenses.addButton': 'Add Expense',
@@ -146,6 +147,7 @@ export const en = {
   'expenses.csvDate': 'Date',
   'expenses.csvAmount': 'Amount (KHR)',
   'expenses.csvExpenseBy': 'Expense By',
+  'expenses.csvBranch': 'Branch',
   'expenses.csvRemark': 'Remark',
 
   // ── receipts ────────────────────────────────────────────
