@@ -92,6 +92,7 @@ window.dashboardSetTopProductsCategory = Dashboard.setTopProductsCategory;
 window.syncReceipts    = Sync.syncReceipts;
 window.syncItemsNow    = Sync.syncItems;
 window.archiveReceipts = Sync.archiveReceipts;
+window.syncPosDevices  = Sync.syncPosDevices;
 
 // Expenses
 window.submitExpense        = Expenses.submitExpense;

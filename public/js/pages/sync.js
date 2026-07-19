@@ -13,6 +13,12 @@ function statusIcon(status) {
   return status === 'success' ? '✅' : status === 'skipped' ? '⏭' : '❌';
 }
 
+const TYPE_KEYS = {
+  receipts:    'sync.typeReceipts',
+  items:       'sync.typeItems',
+  pos_devices: 'sync.typePosDevices',
+};
+
 function renderLastSync(type, mountId) {
   const el = getEl(mountId);
   if (!el) return;
@@ -31,7 +37,7 @@ function renderHistory() {
   }
   tbody.innerHTML = logs.map(l => `
     <tr class="border-b border-[color:var(--border-subtle)]">
-      <td class="py-2 pr-3">${l.sync_type === 'items' ? t('sync.typeItems') : t('sync.typeReceipts')}</td>
+      <td class="py-2 pr-3">${t(TYPE_KEYS[l.sync_type] || 'sync.typeReceipts')}</td>
       <td class="py-2 pr-3">${fmtDatetime(l.created_at)}</td>
       <td class="py-2 pr-3">${statusIcon(l.status)} ${esc(l.status)}</td>
       <td class="py-2 pr-3 text-right">${l.inserted ?? 0}</td>
@@ -88,6 +94,7 @@ async function loadLogs() {
   }
   renderLastSync('receipts', 'receiptsLastSync');
   renderLastSync('items', 'itemsLastSync');
+  renderLastSync('pos_devices', 'posDevicesLastSync');
   renderHistory();
 }
 
@@ -114,8 +121,9 @@ async function runSync(url, btnId, successKey) {
   }
 }
 
-export function syncReceipts() { return runSync('/api/sync/receipts', 'syncReceiptsBtn', 'sync.receiptsSuccess'); }
-export function syncItems()    { return runSync('/api/sync/items',    'syncItemsBtn',    'sync.itemsSuccess'); }
+export function syncReceipts()    { return runSync('/api/sync/receipts',    'syncReceiptsBtn',    'sync.receiptsSuccess'); }
+export function syncItems()       { return runSync('/api/sync/items',       'syncItemsBtn',       'sync.itemsSuccess'); }
+export function syncPosDevices()  { return runSync('/api/sync/pos-devices', 'syncPosDevicesBtn',  'sync.posDevicesSuccess'); }
 
 // ─── Archive (admin only) ─────────────────────────────────────────────────────
 
@@ -171,5 +179,8 @@ export function init() {
     const card = getEl('archiveCard');
     if (card) card.style.display = '';
     loadArchiveStatus();
+
+    const pdCard = getEl('posDevicesCard');
+    if (pdCard) pdCard.style.display = '';
   }
 }

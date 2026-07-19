@@ -434,6 +434,8 @@ export const km = {
   'sync.receiptsCardSub': 'ទាញយកបង្កាន់ដៃម្សិលមិញពី Loyverse',
   'sync.itemsCard': '🏷️ ទំនិញ និងប្រភេទ',
   'sync.itemsCardSub': 'ទាញយកបញ្ជីទំនិញទាំងអស់ពី Loyverse',
+  'sync.posDevicesCard': '🖥️ ឧបករណ៍ POS',
+  'sync.posDevicesCardSub': 'ទាញយកឧបករណ៍ POS ពី Loyverse សម្រាប់កំណត់សាខា',
   'sync.syncNow': 'ធ្វើសមកាលកម្មឥឡូវនេះ',
   'sync.syncing': 'កំពុងធ្វើសមកាលកម្ម…',
   'sync.never': 'មិនទាន់ធ្វើសមកាលកម្មទេ',
@@ -452,6 +454,7 @@ export const km = {
   'sync.skipped': 'បានធ្វើសមកាលកម្មរួចហើយសម្រាប់ម្សិលមិញ',
   'sync.receiptsSuccess': 'បានធ្វើសមកាលកម្មបង្កាន់ដៃ {count}',
   'sync.itemsSuccess': 'បានធ្វើសមកាលកម្មទំនិញ {count}',
+  'sync.posDevicesSuccess': 'ធ្វើសមកាលកម្មឧបករណ៍ POS រួចរាល់ — {count} ឧបករណ៍',
   'sync.failed': 'ការធ្វើសមកាលកម្មបរាជ័យ',
   'sync.failedConnection': 'ការធ្វើសមកាលកម្មបរាជ័យ — សូមពិនិត្យការតភ្ជាប់',
   'sync.archiveCard': '🗄️ រក្សាទុកបង្កាន់ដៃចាស់',
@@ -472,6 +475,7 @@ export const km = {
   'sync.thError': 'កំហុស',
   'sync.typeReceipts': 'ចំណូលដុល',
   'sync.typeItems': 'ទំនិញ និងប្រភេទ',
+  'sync.typePosDevices': 'ឧបករណ៍ POS',
   'sync.noLogs': 'មិនទាន់មានសមកាលកម្មទេ',
 
   // ── items page ──

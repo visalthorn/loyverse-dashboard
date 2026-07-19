@@ -434,6 +434,8 @@ export const en = {
   'sync.receiptsCardSub': "Pulls yesterday's receipts from Loyverse",
   'sync.itemsCard': '🏷️ Items & Categories',
   'sync.itemsCardSub': 'Pulls the full item catalog from Loyverse',
+  'sync.posDevicesCard': '🖥️ POS Devices',
+  'sync.posDevicesCardSub': 'Pulls POS devices from Loyverse for branch assignment',
   'sync.syncNow': 'Sync Now',
   'sync.syncing': 'Syncing…',
   'sync.never': 'Never synced',
@@ -452,6 +454,7 @@ export const en = {
   'sync.skipped': 'Already synced for yesterday',
   'sync.receiptsSuccess': 'Synced {count} receipt(s)',
   'sync.itemsSuccess': 'Synced {count} item(s)',
+  'sync.posDevicesSuccess': 'POS devices synced — {count} devices',
   'sync.failed': 'Sync failed',
   'sync.failedConnection': 'Sync failed — check connection',
   'sync.archiveCard': '🗄️ Archive Old Receipts',
@@ -472,6 +475,7 @@ export const en = {
   'sync.thError': 'Error',
   'sync.typeReceipts': 'Gross Income',
   'sync.typeItems': 'Items & Categories',
+  'sync.typePosDevices': 'POS Devices',
   'sync.noLogs': 'No syncs yet',
 
   // ── items page ──

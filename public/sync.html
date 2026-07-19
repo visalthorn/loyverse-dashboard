@@ -87,6 +87,18 @@
         </div>
         <div id="itemsLastSync" class="text-xs text-[color:var(--text-secondary)] mt-3"></div>
       </div>
+
+      <!-- POS Devices card (admin only; shown by pages/sync.js) -->
+      <div id="posDevicesCard" class="card" style="display:none">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="section-title" data-i18n="sync.posDevicesCard">🖥️ POS Devices</h2>
+            <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="sync.posDevicesCardSub">Pulls POS devices from Loyverse for branch assignment</p>
+          </div>
+          <button id="syncPosDevicesBtn" onclick="syncPosDevices()" class="btn-accent flex-shrink-0" data-i18n="sync.syncNow">Sync Now</button>
+        </div>
+        <div id="posDevicesLastSync" class="text-xs text-[color:var(--text-secondary)] mt-3"></div>
+      </div>
     </div>
 
     <!-- Archive (admin only; shown by pages/sync.js) -->
