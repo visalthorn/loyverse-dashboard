@@ -2,12 +2,31 @@ const router = require('express').Router();
 const pool   = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
+// Non-admin: branch names for filters/forms. Everything below the gate stays admin-only.
+router.get('/options', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, is_default FROM branches ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('branches options GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.use(requireAuth, requireRole('admin'));
 
 const parseId = v => {
   const n = parseInt(v, 10);
   return Number.isInteger(n) && String(n) === String(v) ? n : null;
 };
+
+// address/google_maps_url: trim, empty -> NULL; url must be http(s) when present.
+function parseMeta(body) {
+  const address = (body.address || '').trim() || null;
+  const url     = (body.google_maps_url || '').trim() || null;
+  if (url && !/^https?:\/\//.test(url)) return { error: 'Google Maps link must start with http:// or https://' };
+  return { address, google_maps_url: url };
+}
 
 // NOTE: /devices routes are registered before /:id so they never collide.
 
@@ -51,10 +70,11 @@ router.put('/devices/:id', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT b.id, b.name, COUNT(pd.id)::int AS device_count
+      SELECT b.id, b.name, b.address, b.google_maps_url, b.is_default,
+             COUNT(pd.id)::int AS device_count
       FROM branches b
       LEFT JOIN pos_devices pd ON pd.branch_id = b.id AND pd.deleted_at IS NULL
-      GROUP BY b.id, b.name
+      GROUP BY b.id, b.name, b.address, b.google_maps_url, b.is_default
       ORDER BY b.name
     `);
     res.json(result.rows);
@@ -67,9 +87,12 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const name = (req.body.name || '').trim();
   if (!name || name.length > 100) return res.status(400).json({ error: 'Branch name is required (max 100 chars).' });
+  const meta = parseMeta(req.body);
+  if (meta.error) return res.status(400).json({ error: meta.error });
   try {
     const result = await pool.query(
-      'INSERT INTO branches (name) VALUES ($1) RETURNING id, name', [name]);
+      'INSERT INTO branches (name, address, google_maps_url) VALUES ($1, $2, $3) RETURNING id, name, address, google_maps_url, is_default',
+      [name, meta.address, meta.google_maps_url]);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'A branch with this name already exists.' });
@@ -83,9 +106,13 @@ router.put('/:id', async (req, res) => {
   if (id === null) return res.status(404).json({ error: 'Branch not found' });
   const name = (req.body.name || '').trim();
   if (!name || name.length > 100) return res.status(400).json({ error: 'Branch name is required (max 100 chars).' });
+  const meta = parseMeta(req.body);
+  if (meta.error) return res.status(400).json({ error: meta.error });
   try {
     const result = await pool.query(
-      'UPDATE branches SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name', [name, id]);
+      `UPDATE branches SET name = $1, address = $2, google_maps_url = $3, updated_at = NOW()
+       WHERE id = $4 RETURNING id, name, address, google_maps_url, is_default`,
+      [name, meta.address, meta.google_maps_url, id]);
     if (!result.rowCount) return res.status(404).json({ error: 'Branch not found' });
     res.json(result.rows[0]);
   } catch (err) {
