@@ -11,6 +11,7 @@ import * as Receipts  from './pages/receipts.js';
 import * as Staff     from './pages/staff.js';
 import * as Schedule  from './pages/schedule.js';
 import * as Users     from './pages/users.js';
+import * as Branches  from './pages/branches.js';
 import * as Report        from './pages/report.js';
 import * as SummaryReport from './pages/summary-report.js';
 import * as Sync      from './pages/sync.js';
@@ -77,6 +78,7 @@ function detectPage() {
   if (document.getElementById('syncCards'))         return 'sync';
   if (document.getElementById('itemsTableBody'))    return 'items';
   if (document.getElementById('ingredientsGrid'))   return 'inventory';
+  if (document.getElementById('branchesTableBody')) return 'branches';
   return null;
 }
 
@@ -173,6 +175,13 @@ window.toggleUserStatus   = Users.toggleUserStatus;
 window.confirmDeleteUser  = Users.confirmDeleteUser;
 window.togglePermission   = Users.togglePermission;
 
+// Branches
+window.submitBranch        = Branches.submitBranch;
+window.startEditBranch     = Branches.startEditBranch;
+window.cancelEditBranch    = Branches.cancelEditBranch;
+window.confirmDeleteBranch = Branches.confirmDeleteBranch;
+window.changeDeviceBranch  = Branches.changeDeviceBranch;
+
 // Items
 window.onItemSearch          = Items.onItemSearch;
 window.onItemFilterChange    = Items.onItemFilterChange;
@@ -228,7 +237,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   const navUsers = getEl('navUsers');
   if (navUsers) navUsers.style.display = state.currentUserRole === 'admin' ? '' : 'none';
 
-  if (document.getElementById('usersTableBody') && state.currentUserRole !== 'admin') {
+  const navBranches = getEl('navBranches');
+  if (navBranches) navBranches.style.display = state.currentUserRole === 'admin' ? '' : 'none';
+
+  if ((document.getElementById('usersTableBody') || document.getElementById('branchesTableBody'))
+      && state.currentUserRole !== 'admin') {
     window.location.href = '/';
     return;
   }
@@ -243,4 +256,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (page === 'sync')      Sync.init();
   if (page === 'items')     Items.init();
   if (page === 'inventory') Inventory.init();
+  if (page === 'branches')  Branches.init();
 });

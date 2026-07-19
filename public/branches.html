@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Branch Management</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+    document.documentElement.classList.toggle('dark', t === 'dark');
+  })();
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+<link rel="stylesheet" href="/css/style.css"/>
+<style>
+  .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; }
+  .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+  .field-input {
+    background: var(--bg-canvas); border: 1px solid var(--border); border-radius: 0.5rem;
+    color: var(--text-primary); font-size: 0.8125rem; padding: 0.5rem 0.75rem;
+    transition: border-color .15s; outline: none; width: 100%;
+  }
+  .field-input:focus { border-color: var(--accent-strong); }
+  .field-input::placeholder { color: var(--text-dim); }
+  .field-input:disabled { opacity: 0.5; cursor: not-allowed; }
+  .badge { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
+</style>
+</head>
+<body class="app-shell min-h-screen">
+
+<!-- Sidebar -->
+<aside id="sidebar" class="sidebar"></aside>
+
+<!-- Mobile overlay -->
+<div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Main content -->
+<div class="main-wrapper">
+  <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
+    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+    <div>
+      <h2 class="text-lg font-semibold" data-i18n="branches.title">Branch Management</h2>
+      <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="branches.subtitle">Manage branches and assign POS devices</p>
+    </div>
+    <div class="flex-1"></div>
+    <button onclick="logout()" class="header-signout" data-i18n-title="common.signOut" aria-label="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+  </header>
+
+  <main class="p-4 md:p-6 w-full max-w-screen-xl mx-auto">
+    <div class="grid lg:grid-cols-2 gap-4 items-start">
+
+      <!-- Branches card -->
+      <div class="card">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="section-title">🏬 <span id="branchFormTitle" data-i18n="branches.addTitle">Add Branch</span></h2>
+          <button id="branchFormCancelBtn" onclick="cancelEditBranch()" class="hidden text-xs text-[color:var(--text-secondary)] hover:text-[color:var(--accent-strong)] border border-[color:var(--border-strong)] hover:border-[color:var(--accent)] px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
+        </div>
+        <form id="branchForm" onsubmit="submitBranch(event)" class="flex gap-2 mb-4">
+          <input id="branchName" type="text" required maxlength="100" class="field-input" data-i18n-placeholder="branches.namePlaceholder" placeholder="e.g. Riverside"/>
+          <button type="submit" class="btn-accent flex-shrink-0"><span id="branchSubmitLabel" data-i18n="branches.createBtn">Create Branch</span></button>
+        </form>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left text-xs">
+                <th class="pb-2 pr-3 font-medium">#</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="branches.thName">Name</th>
+                <th class="pb-2 pr-3 font-medium text-center" data-i18n="branches.thDevices">Devices</th>
+                <th class="pb-2 font-medium text-center" data-i18n="branches.thActions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="branchesTableBody">
+              <tr><td colspan="4" class="py-10 text-center text-[color:var(--text-secondary)]" data-i18n="branches.loadingRow">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Devices card -->
+      <div class="card">
+        <div class="mb-4">
+          <h2 class="section-title" data-i18n="branches.devicesTitle">🖥️ POS Devices</h2>
+          <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="branches.devicesSubtitle">Assign each Loyverse POS device to a branch</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left text-xs">
+                <th class="pb-2 pr-3 font-medium" data-i18n="branches.thDevice">Device</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="branches.thStatus">Status</th>
+                <th class="pb-2 font-medium" data-i18n="branches.thBranch">Branch</th>
+              </tr>
+            </thead>
+            <tbody id="branchDevicesBody">
+              <tr><td colspan="3" class="py-10 text-center text-[color:var(--text-secondary)]" data-i18n="branches.loadingRow">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('sidebar-open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function toggleSidebarCollapse() {
+    document.body.classList.toggle('sidebar-collapsed');
+  }
+</script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

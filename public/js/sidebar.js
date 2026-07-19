@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { page: 'staff',     href: '/staff.html',     icon: '👥', labelKey: 'nav.staff'     },
   { page: 'items',     href: '/items.html',     icon: '🏷️', labelKey: 'nav.items'     },
   { page: 'inventory', href: '/inventory',      icon: '🧂', labelKey: 'nav.inventory' },
+  { page: 'branches',  href: '/branches.html',  icon: '🏬', labelKey: 'nav.branches', id: 'navBranches', adminOnly: true },
   { page: 'users',     href: '/users.html',     icon: '⚙️', labelKey: 'nav.users', id: 'navUsers', adminOnly: true },
   { page: 'sync',      href: '/sync.html',      icon: '🔄', labelKey: 'nav.sync'      },
 ];
