@@ -137,7 +137,8 @@ function renderPagination(total, page, per_page) {
 
 // ─── Filters ─────────────────────────────────────────────────────────────────
 
-export function applyDateFilter({ start, end }) {
+export function applyDateFilter({ period, start, end }) {
+  state.expenseFilterPeriod    = period;
   state.expenseFilterStartDate = start;
   state.expenseFilterEndDate   = end;
   window.expensesPage = 1;
@@ -234,6 +235,7 @@ export function init() {
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [{ key: 'yesterday', labelKey: 'common.yesterday' }],
     defaultPreset: 'yesterday',
+    initial: { period: state.expenseFilterPeriod, start: state.expenseFilterStartDate, end: state.expenseFilterEndDate },
     onChange: applyDateFilter,
   });
 }

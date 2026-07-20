@@ -1,15 +1,51 @@
-export const state = {
+// Filter fields mirrored into sessionStorage so they survive the full-page
+// reload triggered by the theme/currency/language toggles (and a plain F5) —
+// without it, every switch silently resets the period/branch back to defaults.
+const FILTER_KEYS = [
+  'currentPeriod', 'currentStartDate', 'currentEndDate', 'branchId',
+  'expenseFilterPeriod', 'expenseFilterStartDate', 'expenseFilterEndDate', 'expenseFilterBranchId',
+];
+const SNAPSHOT_KEY = 'pos_filter_state';
+
+function loadFilterSnapshot() {
+  try { return JSON.parse(sessionStorage.getItem(SNAPSHOT_KEY)) || {}; }
+  catch { return {}; }
+}
+
+export function clearFilterMemory() {
+  sessionStorage.removeItem(SNAPSHOT_KEY);
+}
+
+const saved = loadFilterSnapshot();
+
+const initialState = {
   userPermissions:      {},
   currentUserRole:      '',
-  currentPeriod:        'last10',
-  currentStartDate:     '',
-  currentEndDate:       '',
-  expenseFilterStartDate: '',
-  expenseFilterEndDate:   '',
-  branchId:             null,
-  expenseFilterBranchId: null,
+  // null/'' (rather than a hardcoded preset) when nothing was saved, so page
+  // init code can tell "restore this" apart from "nothing to restore, use
+  // your own default" — see the `initial` param on renderDateFilter.
+  currentPeriod:        saved.currentPeriod ?? null,
+  currentStartDate:     saved.currentStartDate ?? '',
+  currentEndDate:       saved.currentEndDate ?? '',
+  branchId:             saved.branchId ?? null,
+  expenseFilterPeriod:   saved.expenseFilterPeriod ?? null,
+  expenseFilterStartDate: saved.expenseFilterStartDate ?? '',
+  expenseFilterEndDate:   saved.expenseFilterEndDate ?? '',
+  expenseFilterBranchId: saved.expenseFilterBranchId ?? null,
   charts:               {},
 };
+
+export const state = new Proxy(initialState, {
+  set(target, key, value) {
+    target[key] = value;
+    if (FILTER_KEYS.includes(key)) {
+      const snapshot = loadFilterSnapshot();
+      snapshot[key] = value;
+      sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+    }
+    return true;
+  },
+});
 
 // Categorical chart palette — reads the CVD-validated --chart-N theme tokens.
 // Order is fixed (never cycled); theme changes trigger a full reload, so

@@ -1,3 +1,5 @@
+import { clearFilterMemory } from './state.js';
+
 const TOKEN_KEY = 'pos_token';
 const USER_KEY  = 'pos_user';
 
@@ -13,6 +15,7 @@ export function getUser() {
 export function logout() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  clearFilterMemory();
   window.location.href = '/login';
 }
 

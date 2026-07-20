@@ -294,6 +294,7 @@
   background: var(--accent);
   color: var(--accent-contrast);
   font-weight: 700;
+  box-shadow: var(--shadow-lift);
 }
 
 /* Charts */
@@ -313,15 +314,38 @@
   50%       { opacity: 0.4; }
 }
 
-.filter-select {
-  background: var(--bg-surface);
+/* ── Form fields: shared box treatment for inputs + selects ─ */
+.field-input, .filter-select, .field-select {
+  background: var(--bg-surface-alt);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 9px;
   color: var(--text-primary);
-  font-size: 0.75rem;
-  padding: 6px 10px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  padding: 8px 11px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.15);
+  transition: border-color .15s, box-shadow .15s;
 }
-.filter-select:focus { outline: none; border-color: var(--accent); }
+[data-theme="light"] .field-input, [data-theme="light"] .filter-select, [data-theme="light"] .field-select {
+  box-shadow: inset 0 1px 2px rgba(30,36,51,.06);
+}
+.field-input::placeholder { color: var(--text-dim); }
+.field-input:focus, .filter-select:focus, .field-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.filter-select, .field-select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235c6b8a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+[data-theme="light"] .filter-select, [data-theme="light"] .field-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23948c78' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn-accent {

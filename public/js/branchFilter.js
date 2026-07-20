@@ -12,7 +12,9 @@ export async function renderBranchFilter(mountEl, { onChange }) {
   if (!options?.length) { mountEl.innerHTML = ''; return; }
 
   const sel = document.createElement('select');
-  sel.className = 'rounded bg-[color:var(--bg-surface)] border border-[color:var(--border)] text-[color:var(--text-primary)] text-xs p-1';
+  sel.className = 'field-select';
+  sel.style.fontSize = '.75rem';
+  sel.style.padding = '6px 26px 6px 9px';
   sel.setAttribute('aria-label', t('common.allBranches'));
   sel.innerHTML = `<option value="">${t('common.allBranches')}</option>` +
     options.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');

@@ -444,6 +444,7 @@ export async function init() {
       { key: 'last10', labelKey: 'common.last10Days' },
     ],
     defaultPreset: 'yesterday',
+    initial: { period: state.currentPeriod, start: state.currentStartDate, end: state.currentEndDate },
     onChange: applyDateFilter,
   });
   renderBranchFilter(getEl('branchFilterMount'), { onChange: () => loadAll() });

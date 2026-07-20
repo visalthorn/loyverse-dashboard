@@ -26,14 +26,6 @@
   }
   .stat-icon { width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
 
-  .staff-input {
-    background: var(--bg-canvas); border: 1px solid var(--border); border-radius: 0.5rem;
-    color: var(--text-primary); font-size: 0.8125rem; padding: 0.5rem 0.75rem;
-    transition: border-color .15s; outline: none; width: 100%;
-  }
-  .staff-input:focus { border-color: var(--accent-strong); }
-  .staff-input::placeholder { color: var(--text-dim); }
-
   .badge-active   { background: var(--gain-soft); color: var(--gain); }
   .badge-inactive { background: color-mix(in srgb, var(--text-muted) 14%, transparent); color: var(--text-muted); }
   .badge-loan     { background: var(--accent-soft); color: var(--accent-strong); }
@@ -327,15 +319,15 @@
         <form id="staffForm" onsubmit="submitStaff(event)" class="grid md:grid-cols-3 gap-3">
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block"><span data-i18n="staff.fieldStaffId">Staff ID</span> <span class="text-[color:var(--loss)]">*</span></label>
-            <input id="staffId" type="text" required placeholder="e.g. 00-9" data-i18n-placeholder="staff.staffIdPlaceholder" class="staff-input"/>
+            <input id="staffId" type="text" required placeholder="e.g. 00-9" data-i18n-placeholder="staff.staffIdPlaceholder" class="field-input w-full"/>
           </div>
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block"><span data-i18n="staff.fieldFullName">Full Name</span> <span class="text-[color:var(--loss)]">*</span></label>
-            <input id="staffFullName" type="text" required placeholder="Full name" data-i18n-placeholder="staff.fullNamePlaceholder" class="staff-input"/>
+            <input id="staffFullName" type="text" required placeholder="Full name" data-i18n-placeholder="staff.fullNamePlaceholder" class="field-input w-full"/>
           </div>
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block" data-i18n="staff.fieldPosition">Position</label>
-            <input id="staffPosition" type="text" list="positionList" placeholder="e.g. Waiter" data-i18n-placeholder="staff.positionPlaceholder" class="staff-input"/>
+            <input id="staffPosition" type="text" list="positionList" placeholder="e.g. Waiter" data-i18n-placeholder="staff.positionPlaceholder" class="field-input w-full"/>
             <datalist id="positionList">
               <option data-i18n="staff.posOwner">Owner/Biz</option>
               <option data-i18n="staff.posManager">Manager</option>
@@ -348,13 +340,13 @@
           </div>
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block" data-i18n="staff.fieldJoinDate">Join Date</label>
-            <input id="staffJoinDate" type="date" class="staff-input"/>
+            <input id="staffJoinDate" type="date" class="field-input w-full"/>
           </div>
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block" data-i18n="staff.fieldSalary">Salary</label>
             <div class="flex gap-1.5">
-              <input id="staffSalary" type="number" step="0.01" min="0" placeholder="0.00" class="staff-input flex-1"/>
-              <select id="staffSalaryCcy" class="staff-input" style="width:5.5rem">
+              <input id="staffSalary" type="number" step="0.01" min="0" placeholder="0.00" class="field-input flex-1"/>
+              <select id="staffSalaryCcy" class="field-select" style="width:5.5rem">
                 <option value="USD">USD</option>
                 <option value="KHR">KHR</option>
               </select>
@@ -362,13 +354,13 @@
           </div>
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block" data-i18n="staff.fieldPhone">Phone</label>
-            <input id="staffPhone" type="text" placeholder="0xx-xxxxxxx" class="staff-input"/>
+            <input id="staffPhone" type="text" placeholder="0xx-xxxxxxx" class="field-input w-full"/>
           </div>
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block" data-i18n="staff.fieldLoan">Loan</label>
             <div class="flex gap-1.5">
-              <input id="staffLoan" type="number" min="0" placeholder="0" class="staff-input flex-1"/>
-              <select id="staffLoanCcy" class="staff-input" style="width:5.5rem">
+              <input id="staffLoan" type="number" min="0" placeholder="0" class="field-input flex-1"/>
+              <select id="staffLoanCcy" class="field-select" style="width:5.5rem">
                 <option value="KHR">KHR</option>
                 <option value="USD">USD</option>
               </select>
@@ -376,7 +368,7 @@
           </div>
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block" data-i18n="staff.fieldDefaultShift">Default Shift</label>
-            <select id="staffDefaultShift" class="staff-input">
+            <select id="staffDefaultShift" class="field-select w-full">
               <option value="" data-i18n="staff.shiftNone">— None —</option>
               <option value="M" data-i18n="staff.shiftMorningOpt">M · Morning (11am–10pm)</option>
               <option value="A" selected data-i18n="staff.shiftAfternoonOpt">A · Afternoon (2pm–1am)</option>
@@ -384,7 +376,7 @@
           </div>
           <div>
             <label class="text-xs text-[color:var(--text-secondary)] mb-1 block" data-i18n="staff.fieldNotes">Notes</label>
-            <input id="staffNotes" type="text" placeholder="Optional notes" data-i18n-placeholder="staff.notesPlaceholder" class="staff-input"/>
+            <input id="staffNotes" type="text" placeholder="Optional notes" data-i18n-placeholder="staff.notesPlaceholder" class="field-input w-full"/>
           </div>
           <div class="md:col-span-3 flex items-center gap-3 pt-1">
             <button type="submit" class="btn-accent">
