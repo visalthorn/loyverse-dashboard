@@ -22,8 +22,10 @@ const HEALTH_VALUES  = ['good', 'watch', 'urgent'];
 const SYSTEM_PROMPT = `You are an inventory analyst for a Cambodian BBQ & Oyster restaurant.
 Ingredients are free add-ons and consumables (garlic, butter, chili, charcoal)
 restocked periodically; consumption is estimated from restock history vs item
-sales. You receive pre-computed stats per ingredient. Respond ONLY with valid
-JSON, no markdown, matching:
+sales. You receive pre-computed stats per ingredient. A stats entry may
+include branch_id/branch_name fields identifying which branch's restock
+history the stats came from — you may reference the branch by name in
+summary text if useful. Respond ONLY with valid JSON, no markdown, matching:
 { "ingredients": [ { "id": number,
     "health": "good"|"watch"|"urgent",
     "summary_en": string (max 2 sentences),
@@ -45,13 +47,14 @@ class AiAnalysisError extends Error {
 // ── Pure helpers (unit-tested directly) ─────────────────────────────────────
 
 // Field order is fixed so JSON.stringify is deterministic across runs.
-function computeInputHash({ last_restock_id, restock_count, links, sales_qty_since_last_restock, alert_threshold }) {
+function computeInputHash({ last_restock_id, restock_count, links, sales_qty_since_last_restock, alert_threshold, branch_id }) {
   const canonical = {
     last_restock_id:              last_restock_id ?? null,
     restock_count:                restock_count || 0,
     links:                        [...(links || [])].sort(),
     sales_qty_since_last_restock: Math.round(sales_qty_since_last_restock || 0),
     alert_threshold:              parseFloat(alert_threshold) || 0,
+    branch_id:                    branch_id ?? null,
   };
   return crypto.createHash('md5').update(JSON.stringify(canonical)).digest('hex');
 }
@@ -71,6 +74,7 @@ function compactStats(a) {
     status: a.status,
     periods: a.periods,
     bad_periods: a.bad_periods,
+    ...(a.branch_id ? { branch_id: a.branch_id, branch_name: a.branch_name } : {}),
   };
 }
 
@@ -160,13 +164,14 @@ async function callAnthropic(body) {
 
 // ── Fingerprinting (DB) ─────────────────────────────────────────────────────
 
-async function fingerprintIngredient(ing) {
+async function fingerprintIngredient(ing, branchId = null) {
+  const params = branchId ? [ing.id, branchId] : [ing.id];
   const agg = await pool.query(`
     SELECT COUNT(*)::int AS restock_count,
            (ARRAY_AGG(id ORDER BY restock_date DESC, created_at DESC))[1] AS last_restock_id,
            to_char((ARRAY_AGG(restock_date ORDER BY restock_date DESC, created_at DESC))[1], 'YYYY-MM-DD') AS last_restock_date
-    FROM inv_restocks WHERE ingredient_id = $1
-  `, [ing.id]);
+    FROM inv_restocks WHERE ingredient_id = $1${branchId ? ' AND branch_id = $2' : ''}
+  `, params);
   const { restock_count, last_restock_id, last_restock_date } = agg.rows[0];
 
   const linksRes = await pool.query(
@@ -192,16 +197,22 @@ async function fingerprintIngredient(ing) {
     links: skus,
     sales_qty_since_last_restock: Math.round(sales),
     alert_threshold: parseFloat(ing.alert_threshold),
+    branch_id: branchId ?? null,
   };
 }
 
-async function latestStoredByIngredient() {
+// branch_id is a cache-scope filter (which scope was this cached analysis run
+// under?), not a data-scope filter — it must always apply, including when
+// branchId is null, so IS NOT DISTINCT FROM (not =) is required to correctly
+// match cache rows whose branch_id is NULL.
+async function latestStoredByIngredient(branchId = null) {
   const res = await pool.query(`
     SELECT DISTINCT ON (ingredient_id)
            ingredient_id, input_hash, result, created_at
     FROM inv_ai_analyses
+    WHERE branch_id IS NOT DISTINCT FROM $1
     ORDER BY ingredient_id, created_at DESC
-  `);
+  `, [branchId]);
   return new Map(res.rows.map(r => [r.ingredient_id, r]));
 }
 
@@ -211,6 +222,13 @@ async function activeIngredients() {
     FROM inv_ingredients WHERE is_active = true ORDER BY name
   `);
   return res.rows;
+}
+
+// Resolve once per run/request and reuse — avoids re-querying per ingredient.
+async function resolveBranchName(branchId) {
+  if (!branchId) return null;
+  const res = await pool.query('SELECT name FROM branches WHERE id = $1', [branchId]);
+  return res.rows[0]?.name ?? null;
 }
 
 // ── Rate limit (in-memory; only API-calling runs consume the budget) ────────
@@ -223,21 +241,26 @@ function _resetRateLimit() { lastApiRunAt = 0; }
 // options.apiCall and options.listIngredients are injectable for tests so no
 // real API request is ever made and parallel test files can't interfere.
 async function runAiAnalysis({ username = null, apiCall = callAnthropic, now = Date.now,
-                               listIngredients = activeIngredients } = {}) {
+                               listIngredients = activeIngredients, branchId = null } = {}) {
   const startedAt = now();
   const ingredients = await listIngredients();
-  const stored = await latestStoredByIngredient();
+  const stored = await latestStoredByIngredient(branchId);
+  const branchName = await resolveBranchName(branchId);
 
   const changed = [], cached = [];
   for (const ing of ingredients) {
-    const fp = await fingerprintIngredient(ing);
+    const fp = await fingerprintIngredient(ing, branchId);
     const hash = computeInputHash(fp);
     const prev = stored.get(ing.id);
     if (prev && prev.input_hash === hash) {
+      // Cache hit already guarantees prev.branch_id matches branchId (per
+      // latestStoredByIngredient's IS NOT DISTINCT FROM filter above) — no
+      // need to re-derive it from prev.
       cached.push({ ...prev.result, id: ing.id, name: ing.name, name_kh: ing.name_kh, unit: ing.unit,
-                    cached: true, analyzed_at: prev.created_at });
+                    cached: true, analyzed_at: prev.created_at,
+                    ...(branchId ? { branch_id: branchId, branch_name: branchName } : {}) });
     } else {
-      const stats = compactStats(await analyzeIngredient(ing));
+      const stats = compactStats(await analyzeIngredient(ing, branchId));
       changed.push({ ing, hash, stats });
     }
   }
@@ -282,12 +305,13 @@ async function runAiAnalysis({ username = null, apiCall = callAnthropic, now = D
       continue;
     }
     const ins = await pool.query(`
-      INSERT INTO inv_ai_analyses (ingredient_id, input_hash, stats, result, model, input_tokens, output_tokens, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING created_at
+      INSERT INTO inv_ai_analyses (ingredient_id, input_hash, stats, result, model, input_tokens, output_tokens, created_by, branch_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING created_at
     `, [ing.id, hash, JSON.stringify(stats), JSON.stringify(entry), response?.model || MODEL,
-        usage.input_tokens, usage.output_tokens, username]);
+        usage.input_tokens, usage.output_tokens, username, branchId]);
     results.push({ ...entry, name: ing.name, name_kh: ing.name_kh, unit: ing.unit,
-                   cached: false, analyzed_at: ins.rows[0].created_at });
+                   cached: false, analyzed_at: ins.rows[0].created_at,
+                   ...(branchId ? { branch_id: branchId, branch_name: branchName } : {}) });
   }
 
   console.log(`🤖 [ai-analyze] changed=${selected.length} cached=${cached.length} skipped=${skipped.length} failed=${failed.length} tokens=${usage.input_tokens}in/${usage.output_tokens}out (${now() - startedAt}ms)`);
@@ -303,16 +327,17 @@ async function runAiAnalysis({ username = null, apiCall = callAnthropic, now = D
 }
 
 // Latest stored analysis per active ingredient + stale flag for the page load.
-async function getLatestAnalyses() {
+async function getLatestAnalyses(branchId = null) {
   const ingredients = await activeIngredients();
-  const stored = await latestStoredByIngredient();
+  const stored = await latestStoredByIngredient(branchId);
+  const branchName = await resolveBranchName(branchId);
 
   let lastAnalyzedAt = null;
   let changedCount = 0;
   const rows = [];
   for (const ing of ingredients) {
     const prev = stored.get(ing.id);
-    const hash = computeInputHash(await fingerprintIngredient(ing));
+    const hash = computeInputHash(await fingerprintIngredient(ing, branchId));
     const stale = !prev || prev.input_hash !== hash;
     if (stale) changedCount++;
     if (prev && (!lastAnalyzedAt || prev.created_at > lastAnalyzedAt)) lastAnalyzedAt = prev.created_at;
@@ -321,6 +346,7 @@ async function getLatestAnalyses() {
       analysis: prev ? prev.result : null,
       analyzed_at: prev ? prev.created_at : null,
       stale,
+      ...(branchId ? { branch_id: branchId, branch_name: branchName } : {}),
     });
   }
   return { last_analyzed_at: lastAnalyzedAt, changed_count: changedCount, ingredients: rows };

@@ -86,24 +86,32 @@ function statusFor({ restockCount, periodCount, estimatedRemaining, alertThresho
 // One query pulls daily linked-item sales from the first restock onward; JS
 // sums them per period and since the last restock. receipt_date is stored in
 // Cambodia time already (toCambodiaTime at INSERT), so DATE() needs no shift.
-async function analyzeIngredient(ing) {
-  const [restocksRes, linksRes] = await Promise.all([
+async function analyzeIngredient(ing, branchId = null) {
+  const restockParams = branchId ? [ing.id, branchId] : [ing.id];
+  const [restocksRes, linksRes, branchRes] = await Promise.all([
     pool.query(`
       SELECT to_char(restock_date, 'YYYY-MM-DD') AS restock_date,
              qty_remaining::float, total_after::float
-      FROM inv_restocks WHERE ingredient_id = $1
+      FROM inv_restocks WHERE ingredient_id = $1${branchId ? ' AND branch_id = $2' : ''}
       ORDER BY restock_date, created_at
-    `, [ing.id]),
+    `, restockParams),
     pool.query('SELECT sku FROM inv_item_links WHERE ingredient_id = $1', [ing.id]),
+    branchId ? pool.query('SELECT name FROM branches WHERE id = $1', [branchId]) : Promise.resolve(null),
   ]);
-  const restocks = restocksRes.rows;
-  const skus     = linksRes.rows.map(r => r.sku);
-  const last     = restocks[restocks.length - 1] || null;
+  const restocks   = restocksRes.rows;
+  const skus       = linksRes.rows.map(r => r.sku);
+  const last       = restocks[restocks.length - 1] || null;
+  const branchName = branchId ? (branchRes.rows[0]?.name ?? null) : null;
 
   const { periods, badPeriods } = computePeriods(restocks);
 
   const salesByDay = {};
   if (skus.length && restocks.length) {
+    // Sales/consumption data isn't branch-tagged yet — receipts would need the
+    // pos_devices.branch_id join idiom used in routes/analytics.js (lines 6-18)
+    // applied here, a separate, larger change. So branch-scoped estimates mix
+    // an exact per-branch restock number with a whole-business consumption
+    // number — approximate by design.
     const salesRes = await pool.query(`
       SELECT to_char(DATE(r.receipt_date), 'YYYY-MM-DD') AS day, SUM(ri.quantity)::float AS qty
       FROM receipt_items ri
@@ -161,15 +169,16 @@ async function analyzeIngredient(ing) {
     }),
     periods,
     bad_periods: badPeriods,
+    ...(branchId ? { branch_id: branchId, branch_name: branchName } : {}),
   };
 }
 
-async function analyzeAllActive() {
+async function analyzeAllActive(branchId = null) {
   const result = await pool.query(`
     SELECT id, name, name_kh, unit, alert_threshold
     FROM inv_ingredients WHERE is_active = true ORDER BY name
   `);
-  return Promise.all(result.rows.map(analyzeIngredient));
+  return Promise.all(result.rows.map(ing => analyzeIngredient(ing, branchId)));
 }
 
 module.exports = {
