@@ -1,12 +1,14 @@
-import { fetchJSON, apiPut } from '../api.js';
+import { fetchJSON, apiPut, apiPost, apiDelete } from '../api.js';
 import { getEl } from '../utils.js';
 import { t } from '../i18n.js';
 import { showToast } from '../toast.js';
 import { state } from '../state.js';
+import { showConfirm } from '../dialog.js';
 
 let items = [];
 let categories = [];
-let renameTarget = null;   // { kind: 'item'|'category', id }
+let renameTarget = null;   // { kind: 'item'|'category'|'reportCategory', id }
+let reportCategories = [];
 
 const canWrite = () => !!state.userPermissions.items?.can_write;
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -36,6 +38,15 @@ function categoryDropdown(item) {
             onchange="changeItemCategory('${item.id}', this.value)">${opts}</select>`;
 }
 
+function reportCategoryDropdown(item) {
+  const opts = `<option value="">${t('items.reportCategoryNone')}</option>` +
+    reportCategories.map(c =>
+      `<option value="${c.id}"${c.id === item.report_category_id ? ' selected' : ''}>${esc(c.name)}</option>`
+    ).join('');
+  return `<select class="field-input" style="max-width:190px;padding:0.25rem 0.5rem;font-size:0.75rem"
+            onchange="changeItemReportCategory('${item.id}', this.value)">${opts}</select>`;
+}
+
 function visibleItems() {
   const q = (getEl('itemSearch')?.value || '').toLowerCase().trim();
   const cat = getEl('itemCategoryFilter')?.value || '';
@@ -55,7 +66,7 @@ function renderItems() {
   getEl('itemCount').textContent = `(${rows.length})`;
 
   if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-center text-[color:var(--text-secondary)]">
+    tbody.innerHTML = `<tr><td colspan="7" class="py-10 text-center text-[color:var(--text-secondary)]">
       <div class="font-semibold mb-1">${t('items.emptyTitle')}</div>
       <div class="text-xs mb-3">${t('items.emptyHint')}</div>
       <a href="/sync.html" class="text-[color:var(--accent-strong)] text-xs">${t('items.goToSync')}</a>
@@ -63,7 +74,7 @@ function renderItems() {
     return;
   }
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-center text-[color:var(--text-secondary)]">${t('common.emptyNoData')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="py-10 text-center text-[color:var(--text-secondary)]">${t('common.emptyNoData')}</td></tr>`;
     return;
   }
 
@@ -79,6 +90,7 @@ function renderItems() {
       </td>
       <td class="py-2 pr-3 text-xs">${esc(i.sku) || '—'}</td>
       <td class="py-2 pr-3">${canWrite() ? categoryDropdown(i) : esc(i.category_name || t('items.uncategorized'))}</td>
+      <td class="py-2 pr-3">${canWrite() ? reportCategoryDropdown(i) : esc(i.report_category_name || t('items.reportCategoryNone'))}</td>
       <td class="py-2 pr-3 text-right">${fmtPrice(i.price)}</td>
       <td class="py-2 text-center" data-write-page="items">
         <button onclick="openRename('item','${i.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" title="${t('items.renameTitle')}">✏️</button>
@@ -105,18 +117,35 @@ function renderCategoriesPanel() {
   if (!canWrite()) document.querySelectorAll('#categoriesTableBody [data-write-page]').forEach(el => el.style.display = 'none');
 }
 
+function renderReportCategoriesPanel() {
+  const tbody = getEl('reportCategoriesTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = reportCategories.map(c => `
+    <tr class="border-b border-[color:var(--border-subtle)]">
+      <td class="py-2 pr-3 font-medium">${esc(c.name)}</td>
+      <td class="py-2 text-center" data-write-page="items">
+        <button onclick="openRename('reportCategory','${c.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]">✏️</button>
+        <button onclick="confirmDeleteReportCategory('${c.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]">🗑️</button>
+      </td>
+    </tr>`).join('');
+  if (!canWrite()) document.querySelectorAll('#reportCategoriesTableBody [data-write-page]').forEach(el => el.style.display = 'none');
+}
+
 // ── data ─────────────────────────────────────────────────────────────────────
 
 async function loadAll() {
-  const [itemsRes, categoriesRes] = await Promise.all([
+  const [itemsRes, categoriesRes, reportCategoriesRes] = await Promise.all([
     fetchJSON('/api/items'),
     fetchJSON('/api/items/categories'),
+    fetchJSON('/api/items/report-categories'),
   ]);
-  items      = itemsRes      || [];
-  categories = categoriesRes || [];
+  items             = itemsRes             || [];
+  categories        = categoriesRes        || [];
+  reportCategories  = reportCategoriesRes  || [];
   renderCategoryFilter();
   renderItems();
   renderCategoriesPanel();
+  renderReportCategoriesPanel();
 }
 
 // ── actions (exposed via window in app.js) ───────────────────────────────────
@@ -138,14 +167,63 @@ export async function changeItemCategory(id, categoryId) {
   renderItems();
 }
 
+export async function changeItemReportCategory(id, reportCategoryId) {
+  const item = items.find(i => i.id === id);
+  const res = await apiPut(`/api/items/${id}`, { report_category_id: reportCategoryId || null });
+  if (res.ok) {
+    Object.assign(item, res.data);
+    showToast(t('items.saved'), 'success');
+  } else {
+    showToast(res.data?.message || t('items.saveFailed'), 'error');
+  }
+  renderItems();
+}
+
+export function toggleReportCategoriesPanel() {
+  getEl('reportCategoriesPanel').classList.toggle('hidden');
+}
+
+export async function createReportCategory() {
+  const input = getEl('newReportCategoryName');
+  const name = (input?.value || '').trim();
+  if (!name) return;
+  const res = await apiPost('/api/items/report-categories', { name });
+  if (res.ok) {
+    reportCategories.push(res.data);
+    reportCategories.sort((a, b) => a.name.localeCompare(b.name));
+    input.value = '';
+    renderReportCategoriesPanel();
+    renderItems();
+    showToast(t('items.saved'), 'success');
+  } else {
+    showToast(res.data?.message || t('items.saveFailed'), 'error');
+  }
+}
+
+export async function confirmDeleteReportCategory(id) {
+  const cat = reportCategories.find(c => String(c.id) === String(id));
+  if (!cat) return;
+  const ok = await showConfirm(t('items.reportCategoryDeleteConfirm', { name: cat.name }), { danger: true });
+  if (!ok) return;
+  const res = await apiDelete(`/api/items/report-categories/${id}`);
+  if (res.ok) {
+    await loadAll();
+    showToast(t('items.saved'), 'success');
+  } else {
+    showToast(res.data?.message || t('items.saveFailed'), 'error');
+  }
+}
+
 export function openRename(kind, id) {
-  const list = kind === 'item' ? items : categories;
-  const row = list.find(r => r.id === id);
+  const list = kind === 'item' ? items : kind === 'category' ? categories : reportCategories;
+  const row = list.find(r => String(r.id) === String(id));
   if (!row) return;
   renameTarget = { kind, id };
-  getEl('renameTitle').textContent = kind === 'item' ? t('items.renameTitle') : t('items.renameCategoryTitle');
-  getEl('renameInput').value = row.custom_name || '';
-  getEl('renameLoyverseName').textContent = `${t('items.loyverseNameLabel')}: ${row.name}`;
+  getEl('renameTitle').textContent =
+    kind === 'item' ? t('items.renameTitle') :
+    kind === 'category' ? t('items.renameCategoryTitle') : t('items.renameReportCategoryTitle');
+  getEl('renameInput').value = kind === 'reportCategory' ? row.name : (row.custom_name || '');
+  getEl('renameLoyverseName').textContent = kind === 'reportCategory' ? '' : `${t('items.loyverseNameLabel')}: ${row.name}`;
   const modal = getEl('renameModal');
   modal.classList.remove('hidden');
   modal.style.display = 'flex';
@@ -162,6 +240,19 @@ export function closeRename() {
 export async function submitRename(event) {
   event.preventDefault();
   if (!renameTarget) return;
+  if (renameTarget.kind === 'reportCategory') {
+    const name = getEl('renameInput').value.trim();
+    if (!name) { showToast(t('items.saveFailed'), 'error'); return; }
+    const res = await apiPut(`/api/items/report-categories/${renameTarget.id}`, { name });
+    if (res.ok) {
+      showToast(t('items.saved'), 'success');
+      closeRename();
+      await loadAll();
+    } else {
+      showToast(res.data?.message || t('items.saveFailed'), 'error');
+    }
+    return;
+  }
   const value = getEl('renameInput').value.trim() || null;
   const url = renameTarget.kind === 'item'
     ? `/api/items/${renameTarget.id}`

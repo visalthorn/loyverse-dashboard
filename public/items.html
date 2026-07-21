@@ -67,6 +67,7 @@
         </label>
         <div class="flex-1"></div>
         <button onclick="toggleCategoriesPanel()" class="text-xs border border-[color:var(--border-strong)] px-3 py-1.5 rounded hover:border-[color:var(--accent)] transition-colors" data-i18n="items.categoriesToggle">Manage categories</button>
+        <button onclick="toggleReportCategoriesPanel()" class="text-xs border border-[color:var(--border-strong)] px-3 py-1.5 rounded hover:border-[color:var(--accent)] transition-colors" data-i18n="items.reportCategoriesToggle">Manage report categories</button>
       </div>
 
       <!-- Categories panel (hidden by default) -->
@@ -82,6 +83,23 @@
           <tbody id="categoriesTableBody"></tbody>
         </table>
       </div>
+
+      <!-- Report categories panel (hidden by default) -->
+      <div id="reportCategoriesPanel" class="hidden mt-4 border-t border-[color:var(--border)] pt-4">
+        <div class="flex items-center gap-2 mb-3" data-write-page="items">
+          <input id="newReportCategoryName" type="text" class="field-input" style="max-width:220px" data-i18n-placeholder="items.reportCategoryNamePlaceholder" placeholder="New report category name"/>
+          <button onclick="createReportCategory()" class="btn-accent" data-i18n="items.reportCategoryCreate">Add</button>
+        </div>
+        <table class="w-full text-sm" style="max-width:560px">
+          <thead>
+            <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left text-xs">
+              <th class="pb-2 pr-3 font-medium" data-i18n="items.thReportCategory">Report category</th>
+              <th class="pb-2 font-medium text-center" data-write-page="items" data-i18n="items.thActions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reportCategoriesTableBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Items table -->
@@ -95,12 +113,13 @@
               <th class="pb-2 pr-3 font-medium" data-i18n="items.thName">Item</th>
               <th class="pb-2 pr-3 font-medium" data-i18n="items.thSku">SKU</th>
               <th class="pb-2 pr-3 font-medium" data-i18n="items.thCategory">Category</th>
+              <th class="pb-2 pr-3 font-medium" data-i18n="items.thReportCategory">Report category</th>
               <th class="pb-2 pr-3 font-medium text-right" data-i18n="items.thPrice">Price</th>
               <th class="pb-2 font-medium text-center" data-write-page="items" data-i18n="items.thActions">Actions</th>
             </tr>
           </thead>
           <tbody id="itemsTableBody">
-            <tr><td colspan="6" class="py-10 text-center text-[color:var(--text-secondary)]" data-i18n="common.loading">Loading...</td></tr>
+            <tr><td colspan="7" class="py-10 text-center text-[color:var(--text-secondary)]" data-i18n="common.loading">Loading...</td></tr>
           </tbody>
         </table>
       </div>

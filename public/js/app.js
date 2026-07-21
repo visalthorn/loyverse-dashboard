@@ -191,6 +191,10 @@ window.submitRename          = Items.submitRename;
 window.closeRename           = Items.closeRename;
 window.resetItemName         = Items.resetItemName;
 window.toggleCategoriesPanel = Items.toggleCategoriesPanel;
+window.changeItemReportCategory    = Items.changeItemReportCategory;
+window.toggleReportCategoriesPanel = Items.toggleReportCategoriesPanel;
+window.createReportCategory        = Items.createReportCategory;
+window.confirmDeleteReportCategory = Items.confirmDeleteReportCategory;
 
 // Inventory
 window.invOnShowInactiveChange   = Inventory.invOnShowInactiveChange;
