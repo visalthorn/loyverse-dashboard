@@ -339,6 +339,8 @@ export const km = {
   'common.other': 'ផ្សេងៗ',
   'summary.hl.marginBarExpense': 'ចំណាយ {pct}%',
   'summary.hl.marginBarNet': 'កម្រៃសុទ្ធ {pct}%',
+  'summary.hl.rowExpenses': 'ចំណាយ',
+  'summary.hl.rowNetMargin': 'កម្រៃសុទ្ធ',
   'summary.hl.comparePeriod': 'ធៀបនឹង {start} → {end}',
   'summary.hl.dataQualityNotice': '{n} ក្នុងចំណោម {m} ថ្ងៃមិនមានកំណត់ត្រាចំណាយទេ — ចំណេញអាចខ្ពស់ជាងការពិត។',
   'summary.hl.insight.marginDrop': 'កម្រៃសុទ្ធធ្លាក់ចុះពី {prev}% មក {curr}% — ចំណាយកើនលឿនជាងចំណូល។',

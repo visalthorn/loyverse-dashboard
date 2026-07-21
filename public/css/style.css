@@ -945,16 +945,6 @@ body.app-shell {
 
 .hl-items-title { margin: 10px 0 4px; font-size: 0.8125rem; color: var(--text-secondary); }
 .hl-items-title b { color: var(--text-primary); font-family: var(--font-num); }
-.hl-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin: 6px 2px 0;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-.hl-legend-item { display: inline-flex; align-items: center; gap: 6px; }
-.hl-legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 
 /* Highlights card: analyst notes (blue markers distinguish them from data lines) */
 .hl-insights { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
