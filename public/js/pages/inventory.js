@@ -585,7 +585,7 @@ function aiCardHTML(r) {
   const cachedChip = r.cached
     ? `<span class="badge ai-chip-cached">${t('inventory.aiCached')}</span>` : '';
   const branchChip = r.branch_name
-    ? `<span class="badge ai-chip-cached">${esc(r.branch_name)}</span>` : '';
+    ? `<span class="badge ai-chip-branch">${esc(r.branch_name)}</span>` : '';
   const anomalies = (r.anomalies || []).map(a => `<div class="ai-anomaly">⚠ ${esc(a)}</div>`).join('');
   const note = r.data_quality_note
     ? `<div class="text-xs text-[color:var(--text-muted)]">${esc(r.data_quality_note)}</div>` : '';
