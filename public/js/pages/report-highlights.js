@@ -117,7 +117,7 @@ export function createHighlights() {
     }
     const parts = categoryParts();
     const bar = `<div class="hl-bar">${parts.map(p => segHTML(p.accent, p.pct, `${p.lbl} ${p.pct}%`, 0)).join('')}</div>`;
-    const rows = legendRowsHTML(parts.map(p => ({
+    const rows = legendRowsHTML(parts.filter(p => p.pct > 0).map(p => ({
       label: p.lbl, color: ACCENT_HEX[p.accent], amount: fmt(p.units), pct: p.pct,
     })));
     el.innerHTML = title + bar + rows;

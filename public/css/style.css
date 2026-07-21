@@ -906,6 +906,7 @@ body.app-shell {
 /* Side-by-side split bars (channel + payment on one row) */
 .hl-bar-row { display: flex; gap: 8px; }
 .hl-bar-row .hl-bar { flex: 1; min-width: 0; }
+.hl-bar-row .hl-mix-block { flex: 1; min-width: 0; }
 @media (max-width: 640px) {
   .hl-bar-row { flex-direction: column; gap: 0; }
 }
