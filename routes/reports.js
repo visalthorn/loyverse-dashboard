@@ -134,10 +134,10 @@ async function splitTop2(table, labelCol, start, end, revenueCol = 'revenue') {
 
   let running = 0;
   return parts.map((p, i) => {
-    if (i === parts.length - 1) return { label: p.label, pct: pct1(100 - running) };
+    if (i === parts.length - 1) return { label: p.label, revenue: p.revenue, pct: pct1(100 - running) };
     const pct = pct1((p.revenue / total) * 100);
     running += pct;
-    return { label: p.label, pct };
+    return { label: p.label, revenue: p.revenue, pct };
   });
 }
 
