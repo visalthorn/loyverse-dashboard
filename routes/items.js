@@ -9,9 +9,11 @@ const ITEM_SELECT = `
          i.category_id, i.custom_category_id,
          COALESCE(i.custom_category_id, i.category_id)  AS effective_category_id,
          COALESCE(c.custom_name, c.name)                AS category_name,
+         i.report_category_id, rc.name                  AS report_category_name,
          i.price, i.cost, i.image_url, i.deleted_at, i.synced_at
   FROM items i
-  LEFT JOIN categories c ON c.id = COALESCE(i.custom_category_id, i.category_id)`;
+  LEFT JOIN categories c ON c.id = COALESCE(i.custom_category_id, i.category_id)
+  LEFT JOIN report_categories rc ON rc.id = i.report_category_id`;
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -57,6 +59,68 @@ router.put('/categories/:id', requireAuth, requireWrite('items'), async (req, re
   }
 });
 
+function parseReportCategoryId(v) {
+  const n = parseInt(v, 10);
+  return Number.isInteger(n) && String(n) === String(v) ? n : null;
+}
+
+router.get('/report-categories', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name FROM report_categories ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Report categories GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/report-categories', requireAuth, requireWrite('items'), async (req, res) => {
+  const name = (req.body.name || '').trim();
+  if (!name || name.length > 100) return res.status(400).json({ message: 'Name is required (max 100 chars).' });
+  try {
+    const result = await pool.query(
+      'INSERT INTO report_categories (name) VALUES ($1) RETURNING id, name', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'A report category with this name already exists.' });
+    console.error('Report categories POST error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/report-categories/:id', requireAuth, requireWrite('items'), async (req, res) => {
+  const id = parseReportCategoryId(req.params.id);
+  if (id === null) return res.status(404).json({ message: 'Report category not found.' });
+  const name = (req.body.name || '').trim();
+  if (!name || name.length > 100) return res.status(400).json({ message: 'Name is required (max 100 chars).' });
+  try {
+    const result = await pool.query(
+      'UPDATE report_categories SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name',
+      [name, id]);
+    if (!result.rows.length) return res.status(404).json({ message: 'Report category not found.' });
+    await rebuildItemCategories();
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'A report category with this name already exists.' });
+    console.error('Report categories PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/report-categories/:id', requireAuth, requireWrite('items'), async (req, res) => {
+  const id = parseReportCategoryId(req.params.id);
+  if (id === null) return res.status(404).json({ message: 'Report category not found.' });
+  try {
+    const result = await pool.query('DELETE FROM report_categories WHERE id = $1 RETURNING id', [id]);
+    if (!result.rowCount) return res.status(404).json({ message: 'Report category not found.' });
+    await rebuildItemCategories();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Report categories DELETE error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.put('/:id', requireAuth, requireWrite('items'), async (req, res) => {
   const sets   = [];
   const params = [];
@@ -68,6 +132,10 @@ router.put('/:id', requireAuth, requireWrite('items'), async (req, res) => {
   if ('custom_category_id' in req.body) {
     sets.push(`custom_category_id = $${i++}`);
     params.push(req.body.custom_category_id || null);
+  }
+  if ('report_category_id' in req.body) {
+    sets.push(`report_category_id = $${i++}`);
+    params.push(req.body.report_category_id || null);
   }
   if (!sets.length)
     return res.status(400).json({ message: 'Nothing to update. Send custom_name and/or custom_category_id.' });

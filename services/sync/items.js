@@ -24,9 +24,12 @@ dayjs.extend(tzPlug);
 async function rebuildItemCategories(db = pool) {
   await db.query(`
     WITH new_data AS (
-      SELECT DISTINCT ON (i.sku) i.sku, COALESCE(c.custom_name, c.name) AS category
+      SELECT DISTINCT ON (i.sku) i.sku,
+             COALESCE(c.custom_name, c.name) AS category,
+             rc.name AS report_category
       FROM items i
       JOIN categories c ON c.id = COALESCE(i.custom_category_id, i.category_id)
+      LEFT JOIN report_categories rc ON rc.id = i.report_category_id
       WHERE i.sku IS NOT NULL AND i.deleted_at IS NULL
       ORDER BY i.sku
     ),
@@ -34,9 +37,9 @@ async function rebuildItemCategories(db = pool) {
       DELETE FROM item_categories
       WHERE sku NOT IN (SELECT sku FROM new_data)
     )
-    INSERT INTO item_categories (sku, category)
-    SELECT sku, category FROM new_data
-    ON CONFLICT (sku) DO UPDATE SET category = EXCLUDED.category
+    INSERT INTO item_categories (sku, category, report_category)
+    SELECT sku, category, report_category FROM new_data
+    ON CONFLICT (sku) DO UPDATE SET category = EXCLUDED.category, report_category = EXCLUDED.report_category
   `);
 }
 
