@@ -162,6 +162,7 @@
           <span data-i18n="inventory.showInactive">Show inactive</span>
         </label>
         <div class="flex-1"></div>
+        <select id="inventoryBranchFilter" class="field-select" style="font-size:.75rem;padding:6px 26px 6px 9px"></select>
         <span id="aiStatusText" class="text-xs text-[color:var(--text-muted)]"></span>
         <button id="aiAnalyzeBtn" onclick="invRunAiAnalysis()" class="inv-btn inv-btn--accent">🤖 Analyze with AI</button>
       </div>
@@ -229,6 +230,9 @@
 
           <label class="inv-field-label" data-i18n="inventory.date">Date</label>
           <input id="restockDate" type="date" class="field-input mb-3" required/>
+
+          <label class="inv-field-label" data-i18n="inventory.branch">Branch</label>
+          <select id="restockBranch" class="field-input mb-3"></select>
 
           <label class="inv-field-label" data-i18n="inventory.remainingFound">Remaining found</label>
           <div class="flex items-center gap-2 mb-3">

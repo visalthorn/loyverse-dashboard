@@ -20,8 +20,36 @@ let currentIngredientId = null;
 let currentLinks = [];
 let currentRestockUnit = '';
 let currentHistoryRows = [];
+let branchOptions = [];
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function defaultBranchId() {
+  return branchOptions.find(b => b.is_default)?.id ?? null;
+}
+
+function setFormBranch(id) {
+  const sel = getEl('restockBranch');
+  if (sel) sel.value = id ?? defaultBranchId() ?? '';
+}
+
+async function loadBranchOptions() {
+  branchOptions = await fetchJSON('/api/branches/options') || [];
+  const formSel = getEl('restockBranch');
+  if (formSel) {
+    formSel.innerHTML = branchOptions.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+  }
+  const filterSel = getEl('inventoryBranchFilter');
+  if (filterSel) {
+    filterSel.innerHTML = `<option value="">${t('common.allBranches')}</option>` +
+      branchOptions.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+    filterSel.onchange = () => {
+      state.inventoryFilterBranchId = filterSel.value ? Number(filterSel.value) : null;
+      loadIngredients();
+      loadAiStatus();
+    };
+  }
+}
 
 // Ingredient quantities keep up to 2 decimals (fmt()/fmtKHR() round to whole numbers).
 function fmtQty(n) {
@@ -48,9 +76,11 @@ function hideModal(id) {
 
 async function loadIngredients() {
   const includeInactive = getEl('showInactiveToggle')?.checked;
+  const branchId = state.inventoryFilterBranchId;
+  const ingredientsQuery = (includeInactive ? '?include_inactive=true' : '') + (branchId ? `${includeInactive ? '&' : '?'}branch_id=${branchId}` : '');
   const [data, analysis] = await Promise.all([
-    fetchJSON(`/api/inventory/ingredients${includeInactive ? '?include_inactive=true' : ''}`),
-    fetchJSON('/api/inventory/analysis'),
+    fetchJSON(`/api/inventory/ingredients${ingredientsQuery}`),
+    fetchJSON(`/api/inventory/analysis${branchId ? `?branch_id=${branchId}` : ''}`),
   ]);
   ingredients = data || [];
   analysisById = {};
@@ -218,6 +248,7 @@ export function invOpenRestock(id) {
   getEl('restockIngredientId').value = id;
   getEl('restockIngName').textContent = ing.name;
   getEl('restockDate').value = getTodayDate();
+  setFormBranch(null);
   getEl('restockRemaining').value = '';
   getEl('restockAdded').value = '';
   getEl('restockCost').value = '';
@@ -244,6 +275,7 @@ export function invOpenEditRestock(id, ingredientId) {
   getEl('restockIngredientId').value = ingredientId;
   getEl('restockIngName').textContent = ing.name;
   getEl('restockDate').value = toISODate(row.restock_date);
+  setFormBranch(row.branch_id);
   getEl('restockRemaining').value = row.qty_remaining;
   getEl('restockAdded').value = row.qty_added;
   getEl('restockCost').value = row.cost ?? '';
@@ -279,6 +311,8 @@ export async function invSubmitRestock(e) {
   const costVal        = getEl('restockCost').value;
   const record_expense = getEl('restockRecordExpense').checked;
   const note = getEl('restockNote').value.trim();
+  const branchSel = getEl('restockBranch');
+  const branch_id = branchSel?.value ? Number(branchSel.value) : null;
 
   if (!restock_date || remainingVal === '' || addedVal === '') {
     msg.textContent = t('inventory.errorRequiredFields');
@@ -291,6 +325,7 @@ export async function invSubmitRestock(e) {
     qty_added:     parseFloat(addedVal),
     cost: costVal === '' ? null : parseFloat(costVal),
     note,
+    branch_id,
   };
 
   const res = editId
@@ -498,7 +533,7 @@ export async function invOpenAnalysis(event, id) {
   getEl('analysisBadPeriods').style.display = 'none';
   showModal('analysisModal');
 
-  const a = await fetchJSON(`/api/inventory/analysis/${id}`);
+  const a = await fetchJSON(`/api/inventory/analysis/${id}${state.inventoryFilterBranchId ? `?branch_id=${state.inventoryFilterBranchId}` : ''}`);
   if (!a) { getEl('analysisSummary').textContent = t('inventory.saveFailed'); return; }
 
   getEl('analysisSummary').textContent = `${ing.name}: ${analysisSummaryText(a, ing.unit)}`;
@@ -549,6 +584,8 @@ function updateAiStatusBar(latest) {
 function aiCardHTML(r) {
   const cachedChip = r.cached
     ? `<span class="badge ai-chip-cached">${t('inventory.aiCached')}</span>` : '';
+  const branchChip = r.branch_name
+    ? `<span class="badge ai-chip-cached">${esc(r.branch_name)}</span>` : '';
   const anomalies = (r.anomalies || []).map(a => `<div class="ai-anomaly">⚠ ${esc(a)}</div>`).join('');
   const note = r.data_quality_note
     ? `<div class="text-xs text-[color:var(--text-muted)]">${esc(r.data_quality_note)}</div>` : '';
@@ -557,6 +594,7 @@ function aiCardHTML(r) {
       <div class="inv-card-head">
         <div class="inv-card-name">${esc(r.name)}${r.name_kh ? `<span class="inv-card-name-kh">${esc(r.name_kh)}</span>` : ''}</div>
         <div class="flex items-center gap-1 flex-shrink-0">
+          ${branchChip}
           ${cachedChip}
           <span class="badge ai-health--${esc(r.health)}">${t(`inventory.aiHealth.${r.health}`)}</span>
         </div>
@@ -590,14 +628,15 @@ export function invToggleAiLang(btn) {
 }
 
 async function loadAiStatus({ renderCards = true } = {}) {
-  const latest = await fetchJSON('/api/inventory/ai-analyze/latest');
+  const branchId = state.inventoryFilterBranchId;
+  const latest = await fetchJSON(`/api/inventory/ai-analyze/latest${branchId ? `?branch_id=${branchId}` : ''}`);
   if (!latest) return;
   updateAiStatusBar(latest);
   if (renderCards) {
     renderAiCards((latest.ingredients || [])
       .filter(r => r.analysis)
       .map(r => ({ ...r.analysis, name: r.name, name_kh: r.name_kh, unit: r.unit,
-                   cached: false, analyzed_at: r.analyzed_at })));
+                   cached: false, analyzed_at: r.analyzed_at, branch_name: r.branch_name })));
   }
 }
 
@@ -608,7 +647,8 @@ export async function invRunAiAnalysis() {
   btn.disabled = true;
   btn.innerHTML = `<span class="ai-spinner"></span> ${t('inventory.aiAnalyzing')}`;
   try {
-    const res = await apiPost('/api/inventory/ai-analyze', {});
+    const body = state.inventoryFilterBranchId ? { branch_id: state.inventoryFilterBranchId } : {};
+    const res = await apiPost('/api/inventory/ai-analyze', body);
     if (!res.ok) {
       // Errors never break the page — toast and keep the last cached cards.
       showToast(res.data?.message || t('inventory.aiRunFailed'), 'error');
@@ -638,6 +678,7 @@ export function init() {
     const m = getEl(id);
     if (m) m.style.display = 'none';   // ensure hidden despite inline flex
   });
+  loadBranchOptions();
   loadIngredients();
   loadAiStatus();
 }

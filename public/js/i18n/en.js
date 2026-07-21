@@ -587,6 +587,7 @@ export const en = {
   'inventory.editRestock': 'Edit restock',
   'inventory.editRestockHint': "Cost changes here won't update any expense already recorded — edit that separately on the Expenses page.",
   'inventory.date': 'Date',
+  'inventory.branch': 'Branch',
   'inventory.remainingFound': 'Remaining found',
   'inventory.newQtyAdded': 'New qty added',
   'inventory.totalAfterPreview': 'Total after restock: {total} {unit}',
