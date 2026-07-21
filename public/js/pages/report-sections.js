@@ -10,6 +10,8 @@ import { periodLabel } from '../dateFilter.js';
 // page. Each page supplies `api`: async functions that return the dataset for
 // a section (or null on error) — the pages own their endpoints/query styles.
 
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 function trendGranularity() {
   const { currentPeriod: p, currentStartDate: s, currentEndDate: e } = state;
   if (p === 'year') return 'monthly';
@@ -346,7 +348,7 @@ export function createReportSections(api, opts = {}) {
 
     container.innerHTML = data.map((group, i) => `
       <div class="report-cat-card">
-        <div class="report-cat-title">${group.report_category}</div>
+        <div class="report-cat-title">${esc(group.report_category)}</div>
         <div class="chart-container-sm"><canvas id="reportCatChart${i}"></canvas></div>
         <div id="reportCatLegend${i}" class="mt-2 space-y-1"></div>
       </div>`).join('');
