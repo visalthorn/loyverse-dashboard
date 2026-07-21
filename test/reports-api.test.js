@@ -187,3 +187,32 @@ test('rebuild is admin-only', async () => {
   });
   assert.equal(ok.status, 200);
 });
+
+test('top-items-by-report-category groups items by report category', async () => {
+  const day = '2026-04-15';
+  await pool.query(`INSERT INTO item_categories (sku, category, report_category)
+    VALUES ('RC-TOP-1', 'Some Cat', 'RC Group A')
+    ON CONFLICT (sku) DO UPDATE SET report_category = EXCLUDED.report_category`);
+  await pool.query(`INSERT INTO daily_item_summary (day, sku, item_name, qty, revenue)
+    VALUES ($1, 'RC-TOP-1', 'RC Top Item', 3, 90000)
+    ON CONFLICT (day, sku) DO UPDATE SET qty = EXCLUDED.qty, revenue = EXCLUDED.revenue`, [day]);
+
+  try {
+    const rows = await get(`/api/reports/top-items-by-report-category?start=${day}&end=${day}`);
+    const group = rows.find(g => g.report_category === 'RC Group A');
+    assert.ok(group, 'expected RC Group A in response');
+    const item = group.items.find(i => i.sku === 'RC-TOP-1');
+    assert.ok(item, 'expected RC-TOP-1 in the group');
+    assert.equal(item.qty, 3);
+    assert.equal(item.revenue, 90000);
+  } finally {
+    await pool.query(`DELETE FROM daily_item_summary WHERE sku = 'RC-TOP-1'`);
+    await pool.query(`DELETE FROM item_categories WHERE sku = 'RC-TOP-1'`);
+  }
+});
+
+test('top-items-by-report-category omits groups with no report category', async () => {
+  const rows = await get(`/api/reports/top-items-by-report-category?${RANGE}`);
+  assert.ok(Array.isArray(rows));
+  rows.forEach(g => assert.ok(g.report_category, 'every group must have a non-empty report_category'));
+});

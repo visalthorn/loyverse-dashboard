@@ -328,6 +328,42 @@ router.get('/top-items', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/top-items-by-report-category', requireAuth, async (req, res) => {
+  const range = parseRange(req, res);
+  if (!range) return;
+  try {
+    const result = await pool.query(`
+      SELECT report_category, sku, item_name, qty, revenue FROM (
+        SELECT ic.report_category, dis.sku, MAX(dis.item_name) AS item_name,
+               SUM(dis.qty) AS qty, COALESCE(SUM(dis.revenue), 0) AS revenue,
+               ROW_NUMBER() OVER (
+                 PARTITION BY ic.report_category
+                 ORDER BY COALESCE(SUM(dis.revenue), 0) DESC
+               ) AS rn
+        FROM daily_item_summary dis
+        JOIN item_categories ic ON ic.sku = dis.sku
+        WHERE dis.day BETWEEN $1 AND $2 AND ic.report_category IS NOT NULL
+        GROUP BY ic.report_category, dis.sku
+      ) ranked
+      WHERE rn <= 5
+      ORDER BY report_category, revenue DESC
+    `, [range.start, range.end]);
+
+    const groups = new Map();
+    for (const row of result.rows) {
+      if (!groups.has(row.report_category)) groups.set(row.report_category, []);
+      groups.get(row.report_category).push({
+        sku: row.sku, item_name: row.item_name,
+        qty: parseInt(row.qty), revenue: parseFloat(row.revenue),
+      });
+    }
+    res.json([...groups].map(([report_category, items]) => ({ report_category, items })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/device', requireAuth, async (req, res) => {
   const range = parseRange(req, res);
   if (!range) return;
