@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { insertExpense } = require('../services/expenses');
+const { insertExpense, getDefaultBranchId } = require('../services/expenses');
 const { analyzeIngredient, analyzeAllActive } = require('../services/inventoryAnalysis');
 const { runAiAnalysis, getLatestAnalyses, AiAnalysisError } = require('../services/inventoryAI');
 
@@ -12,10 +12,27 @@ const DATE_RE  = /^\d{4}-\d{2}-\d{2}$/;
 
 function badRequest(res, message) { return res.status(400).json({ message }); }
 
+async function validBranchId(branch_id) {
+  if (branch_id == null) return { ok: true, value: null };
+  const id = Number(branch_id);
+  if (!Number.isInteger(id)) return { ok: false };
+  const r = await pool.query('SELECT 1 FROM branches WHERE id = $1', [id]);
+  return r.rowCount ? { ok: true, value: id } : { ok: false };
+}
+
+// GET (read/filter) idiom: an invalid/non-numeric branch_id query param is
+// silently ignored (treated as "no filter"), never a 400 — matches
+// routes/expenses.js's GET /.
+function branchIdFilter(query) {
+  const n = Number(query.branch_id);
+  return (query.branch_id && Number.isInteger(n) && n > 0) ? n : null;
+}
+
 // ── Ingredients ────────────────────────────────────────────────────────────
 
 router.get('/ingredients', requireAuth, async (req, res) => {
   const includeInactive = req.query.include_inactive === 'true';
+  const branchId = branchIdFilter(req.query);
   try {
     const result = await pool.query(`
       SELECT i.id, i.name, i.name_kh, i.unit, i.alert_threshold, i.is_active,
@@ -25,6 +42,7 @@ router.get('/ingredients', requireAuth, async (req, res) => {
       LEFT JOIN LATERAL (
         SELECT restock_date, total_after FROM inv_restocks
         WHERE ingredient_id = i.id
+        ${branchId ? 'AND branch_id = $1' : ''}
         ORDER BY restock_date DESC, created_at DESC
         LIMIT 1
       ) lr ON true
@@ -33,7 +51,7 @@ router.get('/ingredients', requireAuth, async (req, res) => {
       ) lc ON lc.ingredient_id = i.id
       ${includeInactive ? '' : 'WHERE i.is_active = true'}
       ORDER BY i.name
-    `);
+    `, branchId ? [branchId] : []);
     res.json(result.rows);
   } catch (err) {
     console.error('Inventory ingredients GET error:', err);
@@ -116,14 +134,18 @@ router.post('/restocks', requireAuth, async (req, res) => {
   if (cost !== null && (isNaN(cost) || cost < 0)) return badRequest(res, 'cost must be a number >= 0.');
 
   try {
+    const branch = await validBranchId(req.body.branch_id);
+    if (!branch.ok) return badRequest(res, 'Unknown branch.');
+    const resolvedBranchId = branch.value ?? await getDefaultBranchId();
+
     const ing = await pool.query('SELECT name, unit FROM inv_ingredients WHERE id=$1', [ingredientId]);
     if (!ing.rows.length) return res.status(404).json({ message: 'Ingredient not found.' });
 
     const result = await pool.query(`
-      INSERT INTO inv_restocks (ingredient_id, restock_date, qty_added, qty_remaining, total_after, cost, note, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      INSERT INTO inv_restocks (ingredient_id, restock_date, qty_added, qty_remaining, total_after, cost, note, created_by, branch_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING *
-    `, [ingredientId, restock_date, added, remaining, totalAfter, cost, note?.trim() || null, req.user.username]);
+    `, [ingredientId, restock_date, added, remaining, totalAfter, cost, note?.trim() || null, req.user.username, resolvedBranchId]);
 
     let expense = null;
     if (cost > 0 && record_expense) {
@@ -134,6 +156,7 @@ router.post('/restocks', requireAuth, async (req, res) => {
         remark: `Stock: ${name} +${added}${unit}`,
         expense_by: req.user.username,
         source: 'inventory',
+        branch_id: resolvedBranchId,
       });
     }
 
@@ -195,12 +218,16 @@ router.put('/restocks/:id', requireAuth, requireRole('admin'), async (req, res) 
   if (cost !== null && (isNaN(cost) || cost < 0)) return badRequest(res, 'cost must be a number >= 0.');
 
   try {
+    const branch = await validBranchId(req.body.branch_id);
+    if (!branch.ok) return badRequest(res, 'Unknown branch.');
+
     const result = await pool.query(`
       UPDATE inv_restocks
-      SET restock_date=$1, qty_added=$2, qty_remaining=$3, total_after=$4, cost=$5, note=$6
-      WHERE id=$7
+      SET restock_date=$1, qty_added=$2, qty_remaining=$3, total_after=$4, cost=$5, note=$6,
+          branch_id = COALESCE($7, branch_id)
+      WHERE id=$8
       RETURNING *
-    `, [restock_date, added, remaining, totalAfter, cost, note?.trim() || null, id]);
+    `, [restock_date, added, remaining, totalAfter, cost, note?.trim() || null, branch.value, id]);
     if (!result.rows.length) return res.status(404).json({ message: 'Restock not found.' });
     res.json(result.rows[0]);
   } catch (err) {
@@ -287,7 +314,7 @@ router.delete('/links/:id', requireAuth, async (req, res) => {
 
 router.get('/analysis', requireAuth, async (req, res) => {
   try {
-    res.json(await analyzeAllActive());
+    res.json(await analyzeAllActive(branchIdFilter(req.query)));
   } catch (err) {
     console.error('Inventory analysis GET error:', err);
     res.status(500).json({ error: err.message });
@@ -301,7 +328,7 @@ router.get('/analysis/:id', requireAuth, async (req, res) => {
     const ing = await pool.query(
       'SELECT id, name, name_kh, unit, alert_threshold FROM inv_ingredients WHERE id = $1', [id]);
     if (!ing.rows.length) return res.status(404).json({ message: 'Ingredient not found.' });
-    res.json(await analyzeIngredient(ing.rows[0]));
+    res.json(await analyzeIngredient(ing.rows[0], branchIdFilter(req.query)));
   } catch (err) {
     console.error('Inventory analysis:id GET error:', err);
     res.status(500).json({ error: err.message });
@@ -312,7 +339,9 @@ router.get('/analysis/:id', requireAuth, async (req, res) => {
 
 router.post('/ai-analyze', requireAuth, async (req, res) => {
   try {
-    res.json(await runAiAnalysis({ username: req.user.username }));
+    const branch = await validBranchId(req.body.branch_id);
+    if (!branch.ok) return badRequest(res, 'Unknown branch.');
+    res.json(await runAiAnalysis({ username: req.user.username, branchId: branch.value }));
   } catch (err) {
     if (err instanceof AiAnalysisError) return res.status(err.status).json({ message: err.message });
     console.error('Inventory ai-analyze POST error:', err);
@@ -322,7 +351,7 @@ router.post('/ai-analyze', requireAuth, async (req, res) => {
 
 router.get('/ai-analyze/latest', requireAuth, async (req, res) => {
   try {
-    res.json(await getLatestAnalyses());
+    res.json(await getLatestAnalyses(branchIdFilter(req.query)));
   } catch (err) {
     console.error('Inventory ai-analyze/latest GET error:', err);
     res.status(500).json({ error: err.message });
