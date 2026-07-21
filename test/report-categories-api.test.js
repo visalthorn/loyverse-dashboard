@@ -88,6 +88,18 @@ test('PUT /api/items/report-categories/:id renames and rebuild reflects it', asy
   assert.equal(ic.rows[0].report_category, 'RC Test Renamed');
 });
 
+test('PUT /api/items/report-categories/:id with non-numeric id returns 404', async () => {
+  const res = await fetch(`${base}/api/items/report-categories/abc`,
+    authed(adminToken, { method: 'PUT', body: JSON.stringify({ name: 'RC Test Whatever' }) }));
+  assert.equal(res.status, 404);
+});
+
+test('PUT /api/items/report-categories/:id with unknown numeric id returns 404', async () => {
+  const res = await fetch(`${base}/api/items/report-categories/999999`,
+    authed(adminToken, { method: 'PUT', body: JSON.stringify({ name: 'RC Test Whatever' }) }));
+  assert.equal(res.status, 404);
+});
+
 test('DELETE /api/items/report-categories/:id clears assignment via ON DELETE SET NULL', async () => {
   const res = await fetch(`${base}/api/items/report-categories/${reportCategoryId}`,
     authed(adminToken, { method: 'DELETE' }));
@@ -102,6 +114,12 @@ test('DELETE /api/items/report-categories/:id clears assignment via ON DELETE SE
 
 test('DELETE /api/items/report-categories/:id with unknown id returns 404', async () => {
   const res = await fetch(`${base}/api/items/report-categories/999999`,
+    authed(adminToken, { method: 'DELETE' }));
+  assert.equal(res.status, 404);
+});
+
+test('DELETE /api/items/report-categories/:id with non-numeric id returns 404', async () => {
+  const res = await fetch(`${base}/api/items/report-categories/abc`,
     authed(adminToken, { method: 'DELETE' }));
   assert.equal(res.status, 404);
 });
