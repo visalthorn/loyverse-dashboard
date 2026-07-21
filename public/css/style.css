@@ -300,6 +300,17 @@
 /* Charts */
 .chart-container    { position: relative; height: 280px; }
 .chart-container-sm { position: relative; height: 200px; }
+.report-cat-card {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+.report-cat-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
 
 /* Skeleton */
 .skeleton {

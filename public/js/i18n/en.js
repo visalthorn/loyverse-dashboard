@@ -380,6 +380,9 @@ export const en = {
   'report.tooltipExpenseRatio': 'Expense ratio: {pct}%',
   'report.expenseSummaryChip': 'Total {total} · {pct}% of revenue',
   'report.noCategoryItemsForPeriod': 'No {category} items for this period',
+  'report.byReportCategoryTitle': '📊 By Report Category',
+  'report.emptyNoReportCategories': 'No report categories yet',
+  'report.emptyHintReportCategories': 'Assign items to a report category in Items Management to see charts here.',
 
   // ── users ───────────────────────────────────────────────
   'users.title': 'User Management',

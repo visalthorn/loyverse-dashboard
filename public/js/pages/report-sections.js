@@ -38,6 +38,7 @@ export function createReportSections(api, opts = {}) {
 
   let topProductsLimit    = 5;
   let topProductsCategory = '';
+  let reportCategoryChartIds = [];
 
   const rangeLabel = () => periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate);
 
@@ -323,6 +324,57 @@ export function createReportSections(api, opts = {}) {
     });
   }
 
+  // ── Section 3d: Top Products by Report Category (Summary Report only) ────
+  async function loadTopItemsByReportCategory() {
+    const container = getEl('reportCategoryCharts');
+    if (!container) return;
+    const data = await api.topItemsByReportCategory();
+
+    reportCategoryChartIds.forEach(id => destroyChart(id));
+    reportCategoryChartIds = [];
+
+    if (!data) {
+      container.innerHTML = `<div class="col-span-full">${errorStateHTML({ vars: { range: rangeLabel() } })}</div>`;
+      return;
+    }
+    if (!data.length) {
+      container.innerHTML = `<div class="col-span-full">${emptyStateHTML({
+        titleKey: 'report.emptyNoReportCategories', hintKey: 'report.emptyHintReportCategories',
+      })}</div>`;
+      return;
+    }
+
+    container.innerHTML = data.map((group, i) => `
+      <div class="report-cat-card">
+        <div class="report-cat-title">${group.report_category}</div>
+        <div class="chart-container-sm"><canvas id="reportCatChart${i}"></canvas></div>
+        <div id="reportCatLegend${i}" class="mt-2 space-y-1"></div>
+      </div>`).join('');
+
+    data.forEach((group, i) => {
+      const canvasId = `reportCatChart${i}`;
+      const labels  = group.items.map(it => it.item_name);
+      const revenue = group.items.map(it => parseFloat(it.revenue));
+      const total   = revenue.reduce((a, b) => a + b, 0);
+
+      reportCategoryChartIds.push(canvasId);
+      state.charts[canvasId] = new Chart(document.getElementById(canvasId), {
+        type: 'pie',
+        data: { labels, datasets: [{ data: revenue, backgroundColor: COLORS, borderWidth: 0 }] },
+        options: pieOpts(false),
+      });
+
+      const legend = getEl(`reportCatLegend${i}`);
+      if (legend) legend.innerHTML = legendRowsHTML(group.items.map((it, j) => ({
+        label: it.item_name,
+        color: COLORS[j % COLORS.length],
+        meta: `${t('dashboard.table.qty')}: ${fmt(it.qty)}`,
+        amount: fmtKHR(it.revenue),
+        pct: total > 0 ? ((it.revenue / total) * 100).toFixed(1) : 0,
+      })));
+    });
+  }
+
   // ── Section 5: Revenue vs Expenses ────────────────────────────────────────
   async function loadExpenseTrend() {
     const gran = trendGranularity();
@@ -464,6 +516,7 @@ export function createReportSections(api, opts = {}) {
     topProducts:  loadTopProducts,
     expenseTrend: loadExpenseTrend,
     device:       loadDevicePerformance,
+    reportCategoryCharts: loadTopItemsByReportCategory,
   };
 
   function loadAll() {
