@@ -902,58 +902,32 @@ body.app-shell {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hl-col--rev { background: #f6c453; }
-.hl-col--exp { background: #ef8a80; }
-.hl-col--net { background: #8fd8a8; }
+.hl-col--rev    { background: #f6c453; }
+.hl-col--exp    { background: #ef8a80; }
+.hl-col--net    { background: #8fd8a8; }
+.hl-col--blue   { background: #93b8f0; }
+.hl-col--slate  { background: #b7c3d4; }
+.hl-col--teal   { background: #7fd4cd; }
+.hl-col--orange { background: #f0a568; }
+.hl-col--yellow { background: #f6d365; }
 /* Per-day row: lighter tints of the totals palette */
 .hl-cols--day .hl-col--rev { background: #fbe3a9; }
 .hl-cols--day .hl-col--exp { background: #f8c9c3; }
 .hl-cols--day .hl-col--net { background: #c9ecd5; }
+/* Mix/category legend boxes can outnumber a single row — wrap instead of squeezing */
+.hl-cols--wrap { flex-wrap: wrap; }
+.hl-cols--wrap .hl-col { flex: 1 1 140px; }
 @media (max-width: 480px) {
   .hl-cols { flex-direction: column; }
   .hl-col { display: flex; justify-content: space-between; align-items: center; text-align: left; }
 }
 
-/* Side-by-side split bars (channel + payment on one row) */
+/* Side-by-side split boxes (channel + payment on one row) */
 .hl-bar-row { display: flex; gap: 8px; }
-.hl-bar-row .hl-bar { flex: 1; min-width: 0; }
 .hl-bar-row .hl-mix-block { flex: 1; min-width: 0; }
 @media (max-width: 640px) {
   .hl-bar-row { flex-direction: column; gap: 0; }
 }
-
-.hl-bar {
-  display: flex;
-  border-radius: 999px;
-  overflow: hidden;
-  height: 30px;
-  margin: 6px 0;
-  font-weight: 600;
-  font-size: 0.8125rem;
-}
-.hl-seg {
-  display: block;
-  line-height: 30px;
-  text-align: center;
-  padding: 0 10px;
-  white-space: nowrap;
-  color: #16202e;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-num);
-  font-variant-numeric: tabular-nums;
-}
-@media (max-width: 480px) {
-  .hl-seg { font-size: 0.6875rem; padding: 0 4px; }
-}
-.hl-seg--exp    { background: #ef8a80; }
-.hl-seg--net    { background: #8fd8a8; }
-.hl-seg--blue   { background: #93b8f0; }
-.hl-seg--slate  { background: #b7c3d4; }
-.hl-seg--teal   { background: #7fd4cd; }
-.hl-seg--orange { background: #f0a568; }
-.hl-seg--yellow { background: #f6d365; }
 
 .hl-items-title { margin: 10px 0 4px; font-size: 0.8125rem; color: var(--text-secondary); }
 .hl-items-title b { color: var(--text-primary); font-family: var(--font-num); }

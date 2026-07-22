@@ -4,23 +4,17 @@ import { getEl, fmt, fmtKHR } from '../utils.js';
 import { t, getLang } from '../i18n.js';
 import { periodLabel } from '../dateFilter.js';
 import { joinSplit, buildInsights, localizedCategoryLabel } from '../report-insights.js';
-import { emptyStateHTML, errorStateHTML, legendRowsHTML } from '../ui.js';
+import { emptyStateHTML, errorStateHTML } from '../ui.js';
 
-// Highlights card for the Summary Report: grouped money columns, proportional
-// ratio/mix bars (incl. items sold by category), rules-based analyst notes,
-// and a data-quality banner — all from one GET /api/reports/highlights fetch.
-// Also fills five .section-bullet strips elsewhere on the page (bulletTrend/
-// bulletDining/bulletPayment/bulletTopProducts/bulletExpense).
+// Highlights card for the Summary Report: grouped money columns, ratio/mix
+// splits (incl. items sold by category) rendered as hlMoneyCols-style
+// colored boxes, rules-based analyst notes, and a data-quality banner — all
+// from one GET /api/reports/highlights fetch. Also fills five .section-bullet
+// strips elsewhere on the page (bulletTrend/bulletDining/bulletPayment/
+// bulletTopProducts/bulletExpense).
 
-// Palette order for the category bar; "Other" always renders slate.
+// Palette order for the category boxes; "Other" always renders slate.
 const CAT_PALETTE = ['teal', 'orange', 'blue', 'yellow', 'slate'];
-
-// Mirrors the .hl-seg--* background colors in style.css — legendRowsHTML
-// needs a real color string, not a CSS class name.
-const ACCENT_HEX = {
-  exp: '#ef8a80', net: '#8fd8a8', blue: '#93b8f0', slate: '#b7c3d4',
-  teal: '#7fd4cd', orange: '#f0a568', yellow: '#f6d365',
-};
 
 export function createHighlights() {
   let data; // undefined = loading, null = fetch failed
@@ -38,11 +32,12 @@ export function createHighlights() {
     </div>`;
   }
 
-  // Inline labels disappear below minPct so narrow segments stay clean;
-  // zero-share segments are skipped entirely (padding would leave a sliver).
-  function segHTML(accent, pct, label, minPct = 12) {
-    if (pct <= 0) return '';
-    return `<div class="hl-seg hl-seg--${accent}" style="width:${pct}%">${pct >= minPct ? label : ''}</div>`;
+  // Same box style as colHTML, but for pre-translated legend labels.
+  function legendColHTML(accent, label, val) {
+    return `<div class="hl-col hl-col--${accent}">
+      <div class="hl-col-lbl">${label}</div>
+      <div class="hl-col-val">${val}</div>
+    </div>`;
   }
 
   function renderMoney() {
@@ -67,24 +62,17 @@ export function createHighlights() {
     const el = getEl('hlRatioBar');
     if (!el) return;
     if (data.totals.revenue <= 0) { el.innerHTML = ''; return; }
-    const bar = `<div class="hl-bar">
-      ${segHTML('exp', data.expenseRatioPct, t('summary.hl.marginBarExpense', { pct: data.expenseRatioPct }))}
-      ${segHTML('net', data.netMarginPct, t('summary.hl.marginBarNet', { pct: data.netMarginPct }))}
-    </div>`;
-    const rows = [];
-    if (data.expenseRatioPct > 0) rows.push({ label: t('summary.hl.rowExpenses'),  color: ACCENT_HEX.exp, amount: fmtKHR(data.totals.expenses), pct: data.expenseRatioPct });
-    if (data.netMarginPct > 0)    rows.push({ label: t('summary.hl.rowNetMargin'), color: ACCENT_HEX.net, amount: signedKHR(data.totals.net),    pct: data.netMarginPct });
-    el.innerHTML = bar + legendRowsHTML(rows);
+    const boxes = [];
+    if (data.expenseRatioPct > 0) boxes.push(legendColHTML('exp', t('summary.hl.rowExpenses'),  `${fmtKHR(data.totals.expenses)} (${data.expenseRatioPct}%)`));
+    if (data.netMarginPct > 0)    boxes.push(legendColHTML('net', t('summary.hl.rowNetMargin'), `${signedKHR(data.totals.net)} (${data.netMarginPct}%)`));
+    el.innerHTML = boxes.length ? `<div class="hl-cols">${boxes.join('')}</div>` : '';
   }
 
   function mixBarHTML(parts, palette) {
     const withAccent = parts.map((p, i) => ({ ...p, accent: palette[Math.min(i, palette.length - 1)] }));
-    const bar = `<div class="hl-bar">${withAccent.map(p =>
-      segHTML(p.accent, p.pct, `${p.label} ${p.pct}%`)).join('')}</div>`;
-    const rows = withAccent.filter(p => p.pct > 0).map(p => ({
-      label: p.label, color: ACCENT_HEX[p.accent], amount: fmtKHR(p.revenue), pct: p.pct,
-    }));
-    return `<div class="hl-mix-block">${bar}${legendRowsHTML(rows)}</div>`;
+    const boxes = withAccent.filter(p => p.pct > 0)
+      .map(p => legendColHTML(p.accent, p.label, `${fmtKHR(p.revenue)} (${p.pct}%)`));
+    return `<div class="hl-mix-block"><div class="hl-cols">${boxes.join('')}</div></div>`;
   }
 
   function renderMixBars() {
@@ -116,11 +104,9 @@ export function createHighlights() {
       return;
     }
     const parts = categoryParts();
-    const bar = `<div class="hl-bar">${parts.map(p => segHTML(p.accent, p.pct, `${p.lbl} ${p.pct}%`, 0)).join('')}</div>`;
-    const rows = legendRowsHTML(parts.filter(p => p.pct > 0).map(p => ({
-      label: p.lbl, color: ACCENT_HEX[p.accent], amount: fmt(p.units), pct: p.pct,
-    })));
-    el.innerHTML = title + bar + rows;
+    const boxes = parts.filter(p => p.pct > 0)
+      .map(p => legendColHTML(p.accent, p.lbl, `${fmt(p.units)} (${p.pct}%)`));
+    el.innerHTML = title + `<div class="hl-cols hl-cols--wrap">${boxes.join('')}</div>`;
   }
 
   function renderNotes() {

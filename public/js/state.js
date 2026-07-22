@@ -5,6 +5,7 @@ const FILTER_KEYS = [
   'currentPeriod', 'currentStartDate', 'currentEndDate', 'branchId',
   'expenseFilterPeriod', 'expenseFilterStartDate', 'expenseFilterEndDate', 'expenseFilterBranchId',
   'inventoryFilterBranchId',
+  'summaryAnchorStart', 'summaryAnchorEnd', 'summaryActiveBlock',
 ];
 const SNAPSHOT_KEY = 'pos_filter_state';
 
@@ -34,6 +35,11 @@ const initialState = {
   expenseFilterEndDate:   saved.expenseFilterEndDate ?? '',
   expenseFilterBranchId: saved.expenseFilterBranchId ?? null,
   inventoryFilterBranchId: saved.inventoryFilterBranchId ?? null,
+  // Summary Report's own anchor + block-tab selection (separate from
+  // currentPeriod/StartDate/EndDate, which only hold the *resolved* range).
+  summaryAnchorStart:   saved.summaryAnchorStart ?? '',
+  summaryAnchorEnd:     saved.summaryAnchorEnd ?? '',
+  summaryActiveBlock:   saved.summaryActiveBlock ?? null,
   charts:               {},
 };
 

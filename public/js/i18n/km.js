@@ -337,8 +337,6 @@ export const km = {
   'summary.hl.colNetDay': 'ចំណេញ / ថ្ងៃ',
   'summary.hl.itemsByCategory': '🛒 លក់ចេញសរុប {n} ឯកតា តាមប្រភេទ',
   'common.other': 'ផ្សេងៗ',
-  'summary.hl.marginBarExpense': 'ចំណាយ {pct}%',
-  'summary.hl.marginBarNet': 'កម្រៃសុទ្ធ {pct}%',
   'summary.hl.rowExpenses': 'ចំណាយ',
   'summary.hl.rowNetMargin': 'កម្រៃសុទ្ធ',
   'summary.hl.comparePeriod': 'ធៀបនឹង {start} → {end}',

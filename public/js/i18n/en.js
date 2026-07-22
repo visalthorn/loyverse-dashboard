@@ -337,8 +337,6 @@ export const en = {
   'summary.hl.colNetDay': 'Profit / day',
   'summary.hl.itemsByCategory': '🛒 Items sold {n} units, by category',
   'common.other': 'Other',
-  'summary.hl.marginBarExpense': 'Expenses {pct}%',
-  'summary.hl.marginBarNet': 'Net margin {pct}%',
   'summary.hl.rowExpenses': 'Expenses',
   'summary.hl.rowNetMargin': 'Net margin',
   'summary.hl.comparePeriod': 'vs {start} → {end}',

@@ -81,6 +81,7 @@ export function selectBlock(block) {
   const r = blockRange(block);
   if (r.start > r.end) return;
   applyDateFilter({ period: 'range', start: r.start, end: r.end });
+  state.summaryActiveBlock = block;
   document.querySelectorAll('#blockTabs .period-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.block === block));
   const label = getEl('blockRangeLabel');
@@ -102,6 +103,8 @@ export function applyCustom() {
   if (!start || !end) { showToast(t('common.errorMissingDates'), 'error'); return; }
   if (start > end)    { showToast(t('common.errorDateOrder'), 'error'); return; }
   anchor = { start, end };
+  state.summaryAnchorStart = start;
+  state.summaryAnchorEnd   = end;
   updateBlockTabs();
   selectBlock('full');
 }
@@ -120,8 +123,19 @@ export function applyDateFilter({ period, start, end }) {
 
 export function init() {
   sections.loadTopProductsCategories();
-  const start = defaultMonthStart();
-  anchor = { start, end: addDays(start, 29) };
+  // Restore the anchor + block-tab remembered from a previous filter session
+  // (see state.js) instead of always snapping back to the default month —
+  // otherwise every theme/language/currency switch (a full page reload)
+  // would silently reset the range the user had selected.
+  const restored = state.summaryAnchorStart && state.summaryAnchorEnd;
+  const start = restored ? state.summaryAnchorStart : defaultMonthStart();
+  anchor = { start, end: restored ? state.summaryAnchorEnd : addDays(start, 29) };
+  state.summaryAnchorStart = anchor.start;
+  state.summaryAnchorEnd   = anchor.end;
+  const customStart = getEl('customStart');
+  const customEnd   = getEl('customEnd');
+  if (customStart) customStart.value = anchor.start;
+  if (customEnd)   customEnd.value   = anchor.end;
   // Bound the custom pickers to the days the summary tables actually cover.
   fetchJSON('/api/reports/coverage').then(cov => {
     if (!cov) return;
@@ -134,7 +148,7 @@ export function init() {
     });
   });
   updateBlockTabs();
-  selectBlock('full');
+  selectBlock(['b1', 'b2', 'b3', 'full'].includes(state.summaryActiveBlock) ? state.summaryActiveBlock : 'full');
   // Pin the sticky bar right below the (sticky) app header, whatever its height.
   const setStickyTop = () => {
     const h = document.querySelector('.app-header')?.offsetHeight ?? 56;
