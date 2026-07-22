@@ -10,10 +10,16 @@ const { analyzeIngredient } = require('./inventoryAnalysis');
 //   2. A per-ingredient fingerprint (input_hash) skips the API for ingredients
 //      whose data hasn't changed — cached results are served from inv_ai_analyses.
 //   3. All changed ingredients go in ONE batched request; nothing changed = no call.
-//   4. claude-haiku-4-5, max_tokens 1500, temperature 0.
+//   4. claude-haiku-4-5, max_tokens scaled to batch size, temperature 0.
 
 const MODEL          = 'claude-haiku-4-5';
-const MAX_TOKENS     = 1500;
+// Output budget must scale with the batch: each ingredient entry carries an
+// English + Khmer summary (Khmer script is token-heavy), anomalies, and refill
+// advice — a fixed cap truncated the JSON mid-object once ~4+ ingredients
+// changed at once, failing the whole batch while still billing the tokens.
+const MAX_TOKENS_BASE    = 300;   // JSON envelope + slack
+const MAX_TOKENS_PER_ING = 550;   // bilingual entry allowance
+const MAX_TOKENS_CEILING = 16000; // 25-item cap fits; Haiku 4.5 allows up to 64k
 const API_URL        = 'https://api.anthropic.com/v1/messages';
 const COOLDOWN_MS    = 2 * 60 * 1000;  // API-calling runs: max 1 per 2 minutes
 const MAX_PER_RUN    = 25;             // hard cap; overflow processed next run
@@ -93,7 +99,7 @@ function selectMostUrgent(items, cap = MAX_PER_RUN) {
 function buildRequestBody(statsList, retry = false) {
   return {
     model: MODEL,
-    max_tokens: MAX_TOKENS,
+    max_tokens: Math.min(MAX_TOKENS_CEILING, MAX_TOKENS_BASE + statsList.length * MAX_TOKENS_PER_ING),
     temperature: 0,
     system: SYSTEM_PROMPT,
     messages: [{
@@ -136,7 +142,8 @@ function parseAiText(text) {
 async function callAnthropic(body) {
   if (!anthropicApiKey) throw new AiAnalysisError('AI analysis is not configured (missing ANTHROPIC_API_KEY).', 503);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60_000);
+  // Generous: a full 25-ingredient batch can stream ~14k output tokens.
+  const timer = setTimeout(() => controller.abort(), 180_000);
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -286,12 +293,22 @@ async function runAiAnalysis({ username = null, apiCall = callAnthropic, now = D
     usage.output_tokens += r?.usage?.output_tokens || 0;
   };
 
+  // Truncation (stop_reason max_tokens) also lands here as a parse failure —
+  // log it distinctly, since the JSON-only retry can't fix a too-small budget.
+  const warnIfTruncated = r => {
+    if (r?.stop_reason === 'max_tokens') {
+      console.warn(`🤖 [ai-analyze] response truncated at max_tokens=${buildRequestBody(statsList).max_tokens} for ${statsList.length} ingredients`);
+    }
+  };
+
   let response = await apiCall(buildRequestBody(statsList));
   addUsage(response);
+  warnIfTruncated(response);
   let byId = parseAiText(response?.content?.find(b => b.type === 'text')?.text);
   if (!byId) {
     response = await apiCall(buildRequestBody(statsList, true));
     addUsage(response);
+    warnIfTruncated(response);
     byId = parseAiText(response?.content?.find(b => b.type === 'text')?.text);
   }
   lastApiRunAt = now();
