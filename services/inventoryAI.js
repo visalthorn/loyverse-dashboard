@@ -10,16 +10,16 @@ const { analyzeIngredient } = require('./inventoryAnalysis');
 //   2. A per-ingredient fingerprint (input_hash) skips the API for ingredients
 //      whose data hasn't changed — cached results are served from inv_ai_analyses.
 //   3. All changed ingredients go in ONE batched request; nothing changed = no call.
-//   4. claude-haiku-4-5, max_tokens scaled to batch size, temperature 0.
+//   4. claude-sonnet-5, max_tokens scaled to batch size, temperature 0.
 
-const MODEL          = 'claude-haiku-4-5';
+const MODEL          = 'claude-sonnet-5';
 // Output budget must scale with the batch: each ingredient entry carries an
 // English + Khmer summary (Khmer script is token-heavy), anomalies, and refill
 // advice — a fixed cap truncated the JSON mid-object once ~4+ ingredients
 // changed at once, failing the whole batch while still billing the tokens.
 const MAX_TOKENS_BASE    = 300;   // JSON envelope + slack
 const MAX_TOKENS_PER_ING = 550;   // bilingual entry allowance
-const MAX_TOKENS_CEILING = 16000; // 25-item cap fits; Haiku 4.5 allows up to 64k
+const MAX_TOKENS_CEILING = 16000; // 25-item cap fits well within the model's output limit
 const API_URL        = 'https://api.anthropic.com/v1/messages';
 const COOLDOWN_MS    = 2 * 60 * 1000;  // API-calling runs: max 1 per 2 minutes
 const MAX_PER_RUN    = 25;             // hard cap; overflow processed next run
