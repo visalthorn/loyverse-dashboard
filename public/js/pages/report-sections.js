@@ -361,12 +361,10 @@ export function createReportSections(api, opts = {}) {
     }
 
     container.innerHTML = data.map((group, i) => `
-      <div class="report-cat-group${i > 0 ? ' mt-6 pt-5 border-t border-[color:var(--border)]' : ''}">
-        <div class="report-cat-title">${esc(group.report_category)}</div>
-        <div class="grid md:grid-cols-2 gap-6 items-center">
-          <div id="reportCatLegend${i}" class="space-y-3"></div>
-          <div class="chart-container"><canvas id="reportCatChart${i}"></canvas></div>
-        </div>
+      <div class="report-cat-card">
+        <div class="report-cat-title" title="${esc(group.report_category)}">${esc(group.report_category)}</div>
+        <div class="chart-container-sm"><canvas id="reportCatChart${i}"></canvas></div>
+        <div id="reportCatLegend${i}" class="space-y-2 mt-3"></div>
         <div class="section-bullet">${t('summary.hl.itemsSold', { n: fmt(group.items_sold) })}</div>
       </div>`).join('');
 

@@ -322,6 +322,29 @@
   font-weight: 600;
   margin-bottom: 0.5rem;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Report Category chart grid — small multiples, one card per category.
+   1 col mobile, 2 col from tablet up (capped at 2 — 3 made cards too
+   cramped); each card is self-contained so it never fights a neighbor
+   for width the way a single wide row would. */
+.report-cat-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 640px) {
+  .report-cat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.report-cat-card {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  min-width: 0;
 }
 
 /* Top-products / slow-movers tables: header labels never wrap, item names
