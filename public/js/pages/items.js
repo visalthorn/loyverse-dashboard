@@ -284,7 +284,5 @@ export function toggleCategoriesPanel() {
 }
 
 export function init() {
-  const modal = getEl('renameModal');
-  if (modal) modal.style.display = 'none';   // ensure hidden despite inline flex
   loadAll();
 }
