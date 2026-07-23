@@ -58,16 +58,6 @@ export function createHighlights() {
       </div>`;
   }
 
-  function renderRatioBar() {
-    const el = getEl('hlRatioBar');
-    if (!el) return;
-    if (data.totals.revenue <= 0) { el.innerHTML = ''; return; }
-    const boxes = [];
-    if (data.expenseRatioPct > 0) boxes.push(legendColHTML('exp', t('summary.hl.rowExpenses'),  `${fmtKHR(data.totals.expenses)} (${data.expenseRatioPct}%)`));
-    if (data.netMarginPct > 0)    boxes.push(legendColHTML('net', t('summary.hl.rowNetMargin'), `${signedKHR(data.totals.net)} (${data.netMarginPct}%)`));
-    el.innerHTML = boxes.length ? `<div class="hl-cols">${boxes.join('')}</div>` : '';
-  }
-
   function mixBarHTML(parts, palette) {
     const withAccent = parts.map((p, i) => ({ ...p, accent: palette[Math.min(i, palette.length - 1)] }));
     const boxes = withAccent.filter(p => p.pct > 0)
@@ -169,7 +159,6 @@ export function createHighlights() {
 
     showState('');
     renderMoney();
-    renderRatioBar();
     renderMixBars();
     renderItemsCategory();
     renderDataQuality();

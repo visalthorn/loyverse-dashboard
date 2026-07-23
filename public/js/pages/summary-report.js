@@ -19,7 +19,8 @@ const api = {
   topItems:  (limit, category) =>
     fetchJSON(`/api/reports/top-items?${rq()}&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
   revenueExpenses: () => fetchJSON(`/api/reports/revenue-expenses?${rq()}`),
-  topItemsByReportCategory: () => fetchJSON(`/api/reports/top-items-by-report-category?${rq()}`),
+  topItemsByReportCategory: (limit, reportCategory) =>
+    fetchJSON(`/api/reports/top-items-by-report-category?${rq()}&limit=${limit}${reportCategory ? `&reportCategory=${encodeURIComponent(reportCategory)}` : ''}`),
 };
 
 const highlights = createHighlights();
@@ -31,9 +32,11 @@ const SECTIONS_OPTS = {
 
 const sections = createReportSections(api, SECTIONS_OPTS);
 
-export const setTopProductsLimit    = sections.setTopProductsLimit;
-export const setTopProductsCategory = sections.setTopProductsCategory;
-export const loadAll                = sections.loadAll;
+export const setTopProductsLimit     = sections.setTopProductsLimit;
+export const setTopProductsCategory  = sections.setTopProductsCategory;
+export const setReportCategoryLimit  = sections.setReportCategoryLimit;
+export const setReportCategoryFilter = sections.setReportCategoryFilter;
+export const loadAll                 = sections.loadAll;
 export const copyHighlights = () => highlights.copy();
 
 // ─── Anchor range + block tabs ───────────────────────────────────────────────
@@ -123,6 +126,7 @@ export function applyDateFilter({ period, start, end }) {
 
 export function init() {
   sections.loadTopProductsCategories();
+  sections.loadReportCategoriesList();
   // Restore the anchor + block-tab remembered from a previous filter session
   // (see state.js) instead of always snapping back to the default month —
   // otherwise every theme/language/currency switch (a full page reload)

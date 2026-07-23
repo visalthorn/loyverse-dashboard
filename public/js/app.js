@@ -162,9 +162,11 @@ window.reportSetTopProductsCategory = Report.setTopProductsCategory;
 // Summary Report (permanent summary data)
 window.summaryReportSetTopProductsLimit    = SummaryReport.setTopProductsLimit;
 window.summaryReportSetTopProductsCategory = SummaryReport.setTopProductsCategory;
-window.summaryReportToggleCustom           = SummaryReport.toggleCustom;
-window.summaryReportApplyCustom            = SummaryReport.applyCustom;
-window.summaryReportSelectBlock            = SummaryReport.selectBlock;
+window.summaryReportSetReportCategoryLimit  = SummaryReport.setReportCategoryLimit;
+window.summaryReportSetReportCategoryFilter = SummaryReport.setReportCategoryFilter;
+window.summaryReportToggleCustom            = SummaryReport.toggleCustom;
+window.summaryReportApplyCustom             = SummaryReport.applyCustom;
+window.summaryReportSelectBlock             = SummaryReport.selectBlock;
 window.summaryReportCopyHighlights         = SummaryReport.copyHighlights;
 
 // Users

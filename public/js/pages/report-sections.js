@@ -40,6 +40,8 @@ export function createReportSections(api, opts = {}) {
 
   let topProductsLimit    = 5;
   let topProductsCategory = '';
+  let reportCategoryLimit  = 5;
+  let reportCategoryFilter = '';
   let reportCategoryChartIds = [];
 
   const rangeLabel = () => periodLabel(state.currentPeriod, state.currentStartDate, state.currentEndDate);
@@ -326,31 +328,46 @@ export function createReportSections(api, opts = {}) {
     });
   }
 
+  async function loadReportCategoriesList() {
+    const sel = getEl('reportCategoryFilterCategory');
+    if (!sel) return;
+    const data = await fetchJSON('/api/items/report-categories') || [];
+    data.forEach(row => {
+      const opt = document.createElement('option');
+      opt.value = row.name;
+      opt.textContent = row.name;
+      sel.appendChild(opt);
+    });
+  }
+
   // ── Section 3d: Top Products by Report Category (Summary Report only) ────
   async function loadTopItemsByReportCategory() {
     const container = getEl('reportCategoryCharts');
     if (!container) return;
-    const data = await api.topItemsByReportCategory();
+    const data = await api.topItemsByReportCategory(reportCategoryLimit, reportCategoryFilter);
 
     reportCategoryChartIds.forEach(id => destroyChart(id));
     reportCategoryChartIds = [];
 
     if (!data) {
-      container.innerHTML = `<div class="col-span-full">${errorStateHTML({ vars: { range: rangeLabel() } })}</div>`;
+      container.innerHTML = errorStateHTML({ vars: { range: rangeLabel() } });
       return;
     }
     if (!data.length) {
-      container.innerHTML = `<div class="col-span-full">${emptyStateHTML({
+      container.innerHTML = emptyStateHTML({
         titleKey: 'report.emptyNoReportCategories', hintKey: 'report.emptyHintReportCategories',
-      })}</div>`;
+      });
       return;
     }
 
     container.innerHTML = data.map((group, i) => `
-      <div class="report-cat-card">
+      <div class="report-cat-group${i > 0 ? ' mt-6 pt-5 border-t border-[color:var(--border)]' : ''}">
         <div class="report-cat-title">${esc(group.report_category)}</div>
-        <div class="chart-container-sm"><canvas id="reportCatChart${i}"></canvas></div>
-        <div id="reportCatLegend${i}" class="mt-2 space-y-1"></div>
+        <div class="grid md:grid-cols-2 gap-6 items-center">
+          <div id="reportCatLegend${i}" class="space-y-3"></div>
+          <div class="chart-container"><canvas id="reportCatChart${i}"></canvas></div>
+        </div>
+        <div class="section-bullet">${t('summary.hl.itemsSold', { n: fmt(group.items_sold) })}</div>
       </div>`).join('');
 
     data.forEach((group, i) => {
@@ -535,5 +552,18 @@ export function createReportSections(api, opts = {}) {
     loadTopProducts();
   }
 
-  return { loadAll, setTopProductsLimit, setTopProductsCategory, loadTopProductsCategories };
+  function setReportCategoryLimit(val) {
+    reportCategoryLimit = parseInt(val) || 5;
+    loadTopItemsByReportCategory();
+  }
+
+  function setReportCategoryFilter(val) {
+    reportCategoryFilter = val;
+    loadTopItemsByReportCategory();
+  }
+
+  return {
+    loadAll, setTopProductsLimit, setTopProductsCategory, loadTopProductsCategories,
+    loadReportCategoriesList, setReportCategoryLimit, setReportCategoryFilter,
+  };
 }

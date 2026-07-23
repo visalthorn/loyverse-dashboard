@@ -331,33 +331,39 @@ router.get('/top-items', requireAuth, async (req, res) => {
 router.get('/top-items-by-report-category', requireAuth, async (req, res) => {
   const range = parseRange(req, res);
   if (!range) return;
+  const limit         = Math.min(parseInt(req.query.limit) || 5, 50);
+  const reportCategory = req.query.reportCategory || '';
+  const rcClause = reportCategory ? 'AND ic.report_category = $3' : '';
+  const params = reportCategory ? [range.start, range.end, reportCategory] : [range.start, range.end];
   try {
     const result = await pool.query(`
-      SELECT report_category, sku, item_name, qty, revenue FROM (
+      SELECT report_category, sku, item_name, qty, revenue, total_qty FROM (
         SELECT ic.report_category, dis.sku, MAX(dis.item_name) AS item_name,
                SUM(dis.qty) AS qty, COALESCE(SUM(dis.revenue), 0) AS revenue,
+               SUM(SUM(dis.qty)) OVER (PARTITION BY ic.report_category) AS total_qty,
                ROW_NUMBER() OVER (
                  PARTITION BY ic.report_category
                  ORDER BY COALESCE(SUM(dis.revenue), 0) DESC
                ) AS rn
         FROM daily_item_summary dis
         JOIN item_categories ic ON ic.sku = dis.sku
-        WHERE dis.day BETWEEN $1 AND $2 AND ic.report_category IS NOT NULL
+        WHERE dis.day BETWEEN $1 AND $2 AND ic.report_category IS NOT NULL ${rcClause}
         GROUP BY ic.report_category, dis.sku
       ) ranked
-      WHERE rn <= 5
+      WHERE rn <= ${limit}
       ORDER BY report_category, revenue DESC
-    `, [range.start, range.end]);
+    `, params);
 
     const groups = new Map();
     for (const row of result.rows) {
-      if (!groups.has(row.report_category)) groups.set(row.report_category, []);
-      groups.get(row.report_category).push({
+      if (!groups.has(row.report_category))
+        groups.set(row.report_category, { items: [], items_sold: parseInt(row.total_qty) });
+      groups.get(row.report_category).items.push({
         sku: row.sku, item_name: row.item_name,
         qty: parseInt(row.qty), revenue: parseFloat(row.revenue),
       });
     }
-    res.json([...groups].map(([report_category, items]) => ({ report_category, items })));
+    res.json([...groups].map(([report_category, g]) => ({ report_category, items: g.items, items_sold: g.items_sold })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

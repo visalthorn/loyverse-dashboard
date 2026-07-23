@@ -337,8 +337,6 @@ export const en = {
   'summary.hl.colNetDay': 'Profit / day',
   'summary.hl.itemsByCategory': '🛒 Items sold {n} units, by category',
   'common.other': 'Other',
-  'summary.hl.rowExpenses': 'Expenses',
-  'summary.hl.rowNetMargin': 'Net margin',
   'summary.hl.comparePeriod': 'vs {start} → {end}',
   'summary.hl.dataQualityNotice': '{n} of {m} days in this period have no recorded expenses — profit may be overstated for those days.',
   'summary.hl.insight.marginDrop': 'Net margin fell from {prev}% to {curr}% — expense growth outpaced revenue.',
