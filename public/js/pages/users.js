@@ -43,10 +43,10 @@ function renderUsersTable() {
   tbody.innerHTML = usersList.map((u, i) => {
     const roleBadge   = u.role === 'admin'
       ? `<span class="badge" style="background:var(--accent-soft);color:var(--accent-strong)">${t('users.badgeAdmin')}</span>`
-      : `<span class="badge" style="background:rgba(59,130,246,.12);color:#60a5fa">${t('users.badgeManager')}</span>`;
+      : `<span class="badge" style="background:color-mix(in srgb, var(--chart-2) 14%, transparent);color:var(--chart-2)">${t('users.badgeManager')}</span>`;
     const statusBadge = u.is_active
-      ? `<span class="badge" style="background:rgba(34,197,94,.12);color:#4ade80">${t('staff.badgeActive')}</span>`
-      : `<span class="badge" style="background:rgba(100,116,139,.14);color:#94a3b8">${t('staff.badgeInactive')}</span>`;
+      ? `<span class="badge" style="background:var(--gain-soft);color:var(--gain)">${t('staff.badgeActive')}</span>`
+      : `<span class="badge" style="background:color-mix(in srgb, var(--text-muted) 14%, transparent);color:var(--text-muted)">${t('staff.badgeInactive')}</span>`;
     const toggleColor = u.is_active ? 'text-[color:var(--text-muted)] hover:text-[color:var(--loss)]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--gain)]';
 
     return `<tr class="border-b border-[color:var(--border)] hover:bg-[color:var(--hover-tint)]">

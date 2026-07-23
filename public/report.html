@@ -86,7 +86,7 @@
 
     <!-- Section 2: Revenue Trend with Growth % -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="report.trendTitle">📈 Revenue Trend &amp; Growth</h2>
         <span id="revTrendLabel" class="period-badge"></span>
       </div>
@@ -109,7 +109,7 @@
 
     <!-- Section 3b: Top Product Performance -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="report.topProductsTitle">🥧 Top Product Performance</h2>
         <div class="flex items-center gap-2">
           <select id="topProductsCategory" class="filter-select" onchange="reportSetTopProductsCategory(this.value)">
@@ -131,7 +131,7 @@
 
     <!-- Section 5: Expense Trend -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="report.expensesVsRevenueTitle">💸 Revenue vs Expenses</h2>
         <div id="expenseSummaryChip" class="text-xs text-[color:var(--text-secondary)]"></div>
       </div>
@@ -140,9 +140,9 @@
 
     <!-- Section 6: POS Device Performance -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="report.deviceTitle">🖥️ POS Device Performance</h2>
-        <span class="text-xs text-[color:var(--text-secondary)]" data-i18n="report.deviceSub">Revenue · Orders per device · amber = top device</span>
+        <span class="legend-caption text-xs text-[color:var(--text-secondary)]" data-i18n="report.deviceSub">Revenue · Orders per device · amber = top device</span>
       </div>
       <div class="chart-container"><canvas id="devicePerfChart"></canvas></div>
     </section>

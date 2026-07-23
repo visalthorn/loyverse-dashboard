@@ -19,7 +19,7 @@
   --text-primary: #eae6da;
   --text-secondary: #a5a396;
   --text-muted: #8a887c;
-  --text-dim: #4e5a72;
+  --text-dim: #7887a3;   /* was #4e5a72 — failed WCAG AA (~2.4:1); now ~4.5:1+ on all surfaces */
   --text-label: #7d8db4;
 
   /* accent — warm amber */
@@ -67,16 +67,16 @@
   --text-primary: #1e2433;
   --text-secondary: #4d5163;
   --text-muted: #6d6a5f;
-  --text-dim: #a49d8b;
-  --text-label: #948c78;
+  --text-dim: #736c5b;    /* was #a49d8b — failed WCAG AA (~2.4:1); now ~4.5:1+ on all surfaces */
+  --text-label: #696353;  /* was #948c78 — failed WCAG AA (~2.9:1); now ~5.2:1+ on all surfaces */
 
   --accent: #f59e0b;
-  --accent-strong: #b45309;
+  --accent-strong: #b15109;  /* was #b45309 — borderline (~4.1-4.4:1); now ~4.5:1+ on all surfaces */
   --accent-soft: rgba(245,158,11,.16);
   --accent-ring: rgba(180,83,9,.45);
   --accent-contrast: #1e2433;
 
-  --gain: #2e7d4f;
+  --gain: #2d7b4e;  /* was #2e7d4f — borderline (~4.1-4.4:1); now ~4.5:1+ on all surfaces */
   --gain-soft: rgba(46,125,79,.1);
   --loss: #b7493d;
   --loss-soft: rgba(183,73,61,.1);
@@ -254,6 +254,11 @@
   letter-spacing: 0.09em;
   color: var(--text-label);
   line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .kpi-avg-val {
   font-family: var(--font-num);
@@ -272,23 +277,35 @@
 }
 
 .section-title {
-  font-size: 1rem;
+  font-size: clamp(0.8125rem, 0.72rem + 0.5vw, 1rem);
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Period Buttons */
 .period-btn, .trend-btn {
   padding: 4px 12px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: clamp(0.6875rem, 0.62rem + 0.3vw, 0.75rem);
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
   border: none;
   background: transparent;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
+.period-selector {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.period-selector::-webkit-scrollbar { display: none; }
 .period-btn:hover, .trend-btn:hover { color: var(--text-primary); }
 .period-btn.active, .trend-btn.active {
   background: var(--accent);
@@ -305,6 +322,19 @@
   font-weight: 600;
   margin-bottom: 0.5rem;
   color: var(--text-primary);
+}
+
+/* Top-products / slow-movers tables: header labels never wrap, item names
+   ellipsize instead of squeezing the numeric columns onto two lines. */
+.product-table th { white-space: nowrap; }
+.product-table td .font-medium {
+  max-width: 34vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (min-width: 640px) {
+  .product-table td .font-medium { max-width: 220px; }
 }
 
 /* Skeleton */
@@ -331,6 +361,18 @@
   padding: 8px 11px;
   box-shadow: inset 0 1px 2px rgba(0,0,0,.15);
   transition: border-color .15s, box-shadow .15s;
+  flex-shrink: 0;
+}
+
+/* Short descriptive captions that sit beside a fixed-width control (select,
+   badge) in a non-wrapping flex row — shrink and ellipsize instead of
+   wrapping the sentence across multiple lines. */
+.legend-caption {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 [data-theme="light"] .field-input, [data-theme="light"] .filter-select, [data-theme="light"] .field-select {
   box-shadow: inset 0 1px 2px rgba(30,36,51,.06);
@@ -517,9 +559,9 @@ dialog.app-dialog[open] .app-dialog-card {
 }
 
 /* inline growth markers (report KPI subs) */
-.growth-up   { color: var(--gain); font-weight: 600; font-variant-numeric: tabular-nums; }
-.growth-down { color: var(--loss); font-weight: 600; font-variant-numeric: tabular-nums; }
-.growth-nil  { color: var(--text-muted); }
+.growth-up   { color: var(--gain); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+.growth-down { color: var(--loss); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+.growth-nil  { color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
 
 /* Legend — ledger rows: dashed rules between entries, mono figures */
 .legend-row {
@@ -537,9 +579,11 @@ dialog.app-dialog[open] .app-dialog-card {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex: 1 1 auto;
 }
-.legend-amount { font-weight: 500; white-space: nowrap; }
-.legend-pct { color: var(--text-muted); font-size: 11px; }
+.legend-name > .truncate { flex: 1 1 auto; min-width: 0; }
+.legend-amount { font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+.legend-pct { color: var(--text-muted); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 .legend-dot {
   width: 10px; height: 10px;
   border-radius: 50%;
@@ -724,8 +768,13 @@ body.app-shell {
   color: var(--accent-strong);
   padding: 2px 8px;
   border-radius: 9999px;
-  font-size: 0.75rem;
+  font-size: clamp(0.625rem, 0.55rem + 0.3vw, 0.75rem);
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── user menu dropdown (avatar-triggered) ───────────────── */
@@ -849,9 +898,9 @@ body.app-shell {
 /* Summary Report highlights card + per-section deck bullets */
 .highlights-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
 .highlights-list li { font-size: .9rem; color: var(--text-secondary); }
-.highlights-list li::before { content: '▸ '; color: var(--accent); }
+.highlights-list li::before { content: '▸ '; color: var(--accent-strong); }
 .section-bullet { margin-top: .75rem; font-size: .85rem; color: var(--text-secondary); }
-.section-bullet::before { content: '▸ '; color: var(--accent); }
+.section-bullet::before { content: '▸ '; color: var(--accent-strong); }
 .section-bullet:empty { display: none; }
 
 /* Block tabs disabled when their slice falls outside the applied range */
@@ -936,7 +985,7 @@ body.app-shell {
   padding-left: 1.1em;
   position: relative;
 }
-.hl-insights li::before { content: '▸ '; color: #60a5fa; position: absolute; left: 0; }
+.hl-insights li::before { content: '▸ '; color: var(--chart-2); position: absolute; left: 0; }
 
 /* Highlights card: data-quality notice — friendly amber banner */
 .hl-data-quality-notice {
@@ -944,7 +993,7 @@ body.app-shell {
   padding: 9px 12px;
   border-radius: 10px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-strong);
   font-size: 0.8125rem;
   line-height: 1.5;
   display: flex;

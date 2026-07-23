@@ -32,7 +32,7 @@ function renderBranches() {
     <tr class="border-b border-[color:var(--border-subtle)]">
       <td class="py-2.5 pr-3 text-[color:var(--text-secondary)]">${i + 1}</td>
       <td class="py-2.5 pr-3">
-        <div class="font-medium">${esc(b.name)}${b.is_default ? ` <span class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style="background:var(--accent-soft);color:var(--accent)">${t('branches.defaultBadge')}</span>` : ''}${b.google_maps_url ? ` <a href="${esc(b.google_maps_url)}" target="_blank" rel="noopener" title="Google Maps">📍</a>` : ''}</div>
+        <div class="font-medium">${esc(b.name)}${b.is_default ? ` <span class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style="background:var(--accent-soft);color:var(--accent-strong)">${t('branches.defaultBadge')}</span>` : ''}${b.google_maps_url ? ` <a href="${esc(b.google_maps_url)}" target="_blank" rel="noopener" title="Google Maps">📍</a>` : ''}</div>
         ${b.address ? `<div class="text-xs text-[color:var(--text-muted)] truncate" style="max-width:240px">${esc(b.address)}</div>` : ''}
       </td>
       <td class="py-2.5 pr-3 text-center">${b.device_count}</td>

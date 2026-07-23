@@ -43,7 +43,7 @@ export function renderDateFilter(mountEl, { presets, defaultPreset, onChange, in
 
   function render(activeKey, showCustom) {
     const chip = applied ? `
-        <span class="date-filter-chip inline-flex items-center gap-1.5 rounded-full bg-[color:var(--accent-soft)] text-[color:var(--accent)] text-xs font-medium pl-2.5 pr-1 py-1">
+        <span class="date-filter-chip inline-flex items-center gap-1.5 rounded-full bg-[color:var(--accent-soft)] text-[color:var(--accent-strong)] text-xs font-medium pl-2.5 pr-1 py-1">
           <span aria-hidden="true">●</span>
           <span>${t('common.showing')}: ${applied.start} → ${applied.end}</span>
           <button type="button" class="date-filter-clear rounded-full w-5 h-5 leading-none hover:bg-[color:var(--hover-tint)]" aria-label="${t('common.clearDateFilter')}">✕</button>

@@ -66,7 +66,7 @@
 
     <!-- Gross Income Trend -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="dashboard.grossIncomeChartTitle">📈 Gross Income and Expenses</h2>
         <span id="grossIncomeLabel" class="period-badge" data-i18n="dashboard.grossIncomeChartSub">Period matched to global filter</span>
       </div>
@@ -89,17 +89,17 @@
 
     <!-- Top Products -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="dashboard.topProductsTitle">🛒 Top Products</h2>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-[color:var(--text-secondary)]" data-i18n="dashboard.topProductsSub">Top 20 by revenue · green = growing · red = declining</span>
+          <span class="legend-caption hidden sm:inline text-xs text-[color:var(--text-secondary)]" data-i18n="dashboard.topProductsSub">Top 20 by revenue · green = growing · red = declining</span>
           <select id="topProductsCategory" class="filter-select" onchange="dashboardSetTopProductsCategory(this.value)">
             <option value="" selected data-i18n="dashboard.categoryAll">All</option>
           </select>
         </div>
       </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+        <table class="w-full text-sm product-table">
           <thead>
             <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left">
               <th class="pb-2 pr-3" data-i18n="dashboard.table.rank">#</th>
@@ -123,7 +123,7 @@
           <span id="slowMoversArrow">▶</span>
         </button>
         <div id="slowMoversSection" class="hidden mt-3 overflow-x-auto">
-          <table class="w-full text-sm">
+          <table class="w-full text-sm product-table">
             <thead>
               <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left">
                 <th class="pb-2 pr-3" data-i18n="dashboard.table.rank">#</th>
@@ -144,7 +144,7 @@
 
     <!-- Stock Watch (live estimate — not driven by the period filter) -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="dashboard.stockWatchTitle">🥬 Stock Watch</h2>
         <span class="text-xs text-[color:var(--text-secondary)] cursor-help" data-i18n="dashboard.stockWatchSub" data-i18n-title="dashboard.stockWatchTooltip" title="Live estimate based on restocks + linked-item sales. Not affected by the date filter above.">Live estimate ⓘ</span>
       </div>
@@ -175,7 +175,7 @@
 
     <!-- Cancelled Orders -->
     <section class="card card--loss">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title text-[color:var(--loss)]" data-i18n="dashboard.cancelledTitle">🚨 Cancelled Orders</h2>
         <div id="cancelSummary" class="flex gap-4 text-sm"></div>
       </div>

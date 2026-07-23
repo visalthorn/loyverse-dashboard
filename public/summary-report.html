@@ -66,7 +66,7 @@
 
     <!-- Highlights: money columns, ratio/mix bars, category split, analyst notes -->
     <section class="card" id="reportHighlights">
-      <div class="flex items-center justify-between gap-3 mb-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h2 class="section-title"><span data-i18n="summary.highlightsTitle">📋 Highlights</span> <span id="highlightsRangeLabel" class="period-badge"></span></h2>
         <button type="button" id="copyHighlightsBtn" class="period-btn" onclick="summaryReportCopyHighlights()" data-i18n="summary.copy">Copy</button>
       </div>
@@ -115,7 +115,7 @@
 
     <!-- Section 2: Revenue Trend with Growth % -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="report.trendTitle">📈 Revenue Trend &amp; Growth</h2>
         <span id="revTrendLabel" class="period-badge"></span>
       </div>
@@ -125,7 +125,7 @@
 
     <!-- Section 3b: Top Product Performance -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="report.topProductsTitle">🥧 Top Product Performance</h2>
         <div class="flex items-center gap-2">
           <select id="topProductsCategory" class="filter-select" onchange="summaryReportSetTopProductsCategory(this.value)">
@@ -145,7 +145,7 @@
       </div>
       <div class="section-bullet" id="bulletTopProducts"></div>
       <div class="mt-5 pt-4 border-t border-[color:var(--border)]">
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h3 class="text-sm font-semibold" data-i18n="report.byReportCategoryTitle">📊 By Report Category</h3>
           <div class="flex items-center gap-2">
             <select id="reportCategoryFilterCategory" class="filter-select" onchange="summaryReportSetReportCategoryFilter(this.value)">
@@ -181,7 +181,7 @@
 
     <!-- Section 5: Expense Trend -->
     <section class="card">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 class="section-title" data-i18n="report.expensesVsRevenueTitle">💸 Revenue vs Expenses</h2>
         <div id="expenseSummaryChip" class="text-xs text-[color:var(--text-secondary)]"></div>
       </div>
