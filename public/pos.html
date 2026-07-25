@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css"/>
+<title>POS Till</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    height: 100%; margin: 0; overflow: hidden;
+    background: var(--bg-canvas); color: var(--text-primary);
+    font-family: var(--font-sans);
+  }
+  button { font-family: inherit; }
+
+  #posApp { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── Top strip: open orders ─────────────────────────────────────── */
+  #topStrip {
+    display: flex; align-items: center; gap: 10px;
+    height: 64px; flex: 0 0 64px;
+    padding: 0 16px; overflow-x: auto;
+    background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  }
+  #topStrip .brand {
+    font-weight: 700; font-size: 15px; color: var(--accent-strong);
+    white-space: nowrap; margin-right: 8px;
+  }
+  .order-chip {
+    position: relative; flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start;
+    min-width: 110px; padding: 6px 34px 6px 14px; border-radius: 10px;
+    background: var(--bg-surface-alt); border: 1px solid var(--border);
+    cursor: pointer; min-height: 48px; justify-content: center;
+  }
+  .order-chip:active { background: var(--accent-soft); border-color: var(--accent); }
+  .order-chip .chip-title { font-size: 13px; font-weight: 700; }
+  .order-chip .chip-sub    { font-size: 11px; color: var(--text-secondary); }
+  .chip-reprint {
+    position: absolute; top: 8px; right: 6px; width: 26px; height: 26px;
+    border-radius: 7px; border: 1px solid var(--border); background: var(--bg-surface);
+    color: var(--text-secondary); font-size: 13px; cursor: pointer; padding: 0;
+  }
+  #newOrderBtn, #settingsBtn {
+    flex: 0 0 auto; height: 48px; padding: 0 18px;
+    border-radius: 10px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface-alt); color: var(--text-primary);
+    font-weight: 600; font-size: 13px; cursor: pointer;
+  }
+  #settingsBtn { margin-left: auto; width: 48px; padding: 0; font-size: 18px; }
+
+  /* ── Main two-column layout ─────────────────────────────────────── */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #leftPanel  { flex: 0 0 65%; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border); }
+  #rightPanel { flex: 0 0 35%; display: flex; flex-direction: column; min-width: 0; }
+
+  /* Categories + search */
+  #categoryBar { display: flex; gap: 8px; padding: 10px 12px; overflow-x: auto; flex: 0 0 auto; }
+  .cat-tab {
+    flex: 0 0 auto; height: 52px; padding: 0 18px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-surface);
+    color: var(--text-primary); font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .cat-tab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+
+  #searchBar { padding: 0 12px 10px; flex: 0 0 auto; }
+  #itemSearch {
+    width: 100%; height: 48px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 15px;
+  }
+
+  #itemGrid {
+    flex: 1; overflow-y: auto; padding: 4px 12px 16px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;
+    align-content: start;
+  }
+  .item-btn {
+    min-height: 80px; min-width: 100px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--bg-surface);
+    color: var(--text-primary); cursor: pointer; padding: 10px 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    text-align: center;
+  }
+  .item-btn:active { background: var(--accent-soft); border-color: var(--accent); }
+  .item-btn .item-name  { font-size: 13px; font-weight: 600; line-height: 1.25; }
+  .item-btn .item-price { font-size: 13px; color: var(--accent-strong); font-family: var(--font-num); font-weight: 600; }
+  .item-btn .item-qty-badge {
+    position: relative; top: -4px; background: var(--accent); color: var(--accent-contrast);
+    border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 8px;
+  }
+  #emptyGridMsg { grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 40px 0; }
+
+  /* Right panel */
+  #rightPanel { padding: 14px; gap: 12px; overflow: hidden; }
+
+  .segmented { display: flex; gap: 8px; }
+  .seg-btn {
+    flex: 1; height: 52px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--text-primary); font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .seg-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+
+  #tableNumber {
+    width: 100%; height: 48px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 16px;
+    font-family: var(--font-num);
+  }
+  .field-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--text-secondary); margin-bottom: 6px;
+  }
+
+  #orderBadge { font-size: 12px; color: var(--text-secondary); }
+  #orderBadge b { color: var(--accent-strong); }
+
+  #cartList { flex: 1; overflow-y: auto; min-height: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .cart-line {
+    display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid var(--border-subtle);
+    min-height: 48px;
+  }
+  .cart-line.sent { opacity: 0.7; }
+  .cart-line .cl-info { flex: 1; min-width: 0; cursor: pointer; }
+  .cart-line .cl-name { font-size: 13px; font-weight: 600; }
+  .cart-line .cl-note  { font-size: 11px; color: var(--accent-strong); }
+  .cart-line .cl-price { font-size: 12px; color: var(--text-secondary); font-family: var(--font-num); }
+  .cart-line .cl-total { font-size: 13px; font-weight: 700; font-family: var(--font-num); width: 76px; text-align: right; }
+  .qty-stepper { display: flex; align-items: center; gap: 4px; }
+  .qty-stepper button {
+    width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg-surface-alt); color: var(--text-primary); font-size: 16px; cursor: pointer;
+  }
+  .qty-stepper .qty-val { min-width: 22px; text-align: center; font-weight: 700; font-family: var(--font-num); }
+  .cl-remove {
+    width: 32px; height: 32px; border-radius: 8px; border: none; background: none;
+    color: var(--loss); font-size: 16px; cursor: pointer;
+  }
+  #emptyCartMsg { text-align: center; color: var(--text-secondary); padding: 24px 0; font-size: 13px; }
+
+  #discountRow { display: flex; align-items: center; gap: 8px; }
+  #discountInput {
+    width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 15px;
+    font-family: var(--font-num);
+  }
+
+  #totalsBox { display: flex; flex-direction: column; gap: 2px; }
+  #totalsBox .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+  #totalsBox .grand { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; }
+  #totalsBox .grand .label { font-size: 15px; font-weight: 700; }
+  #totalsBox .grand .value { font-size: 30px; font-weight: 800; font-family: var(--font-num); color: var(--accent-strong); }
+
+  .action-row { display: flex; gap: 10px; }
+  .btn-big {
+    flex: 1; height: 60px; border-radius: 12px; border: none; cursor: pointer;
+    font-size: 17px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  #sendToKitchenBtn { background: var(--bg-surface-alt); border: 2px solid var(--accent); color: var(--accent-strong); }
+  #payBtn { background: linear-gradient(135deg, var(--accent), #d97706); color: var(--accent-contrast); }
+  #cancelOrderBtn {
+    height: 44px; border-radius: 10px; border: 1px solid var(--loss); background: none;
+    color: var(--loss); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  /* ── Pay modal ───────────────────────────────────────────────────── */
+  #payModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
+    align-items: center; justify-content: center; z-index: 500;
+  }
+  #payModal.open { display: flex; }
+  #payModalCard {
+    width: 100%; max-width: 420px; background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; box-shadow: var(--shadow-lift);
+  }
+  #payModalCard h2 { margin: 0 0 4px; font-size: 18px; }
+  #payModalTotal { font-size: 34px; font-weight: 800; font-family: var(--font-num); color: var(--accent-strong); margin-bottom: 16px; }
+  #payMethodButtons { display: flex; gap: 10px; margin-bottom: 16px; }
+  .pay-method-btn {
+    flex: 1; height: 56px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-surface-alt); color: var(--text-primary); font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .pay-method-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+  #cashSection { display: none; margin-bottom: 16px; }
+  #cashSection.show { display: block; }
+  #cashReceivedInput {
+    width: 100%; height: 52px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-canvas); color: var(--text-primary); padding: 0 14px; font-size: 20px;
+    font-family: var(--font-num); margin-bottom: 8px;
+  }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+  .keypad button {
+    height: 48px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface-alt);
+    color: var(--text-primary); font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  #changeRow { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+  #changeRow .value { font-weight: 700; font-family: var(--font-num); color: var(--gain); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 8px; }
+  .modal-actions button { flex: 1; height: 52px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  #payCancelBtn { border: 1px solid var(--border-strong); background: none; color: var(--text-primary); }
+  #payConfirmBtn { border: none; background: var(--accent); color: var(--accent-contrast); }
+  #payConfirmBtn:disabled { opacity: .5; cursor: not-allowed; }
+
+  #paySuccessView { display: none; }
+  .pay-success-title { font-size: 22px; font-weight: 800; text-align: center; color: var(--gain); margin-bottom: 10px; }
+  #paySuccessOrderNo { text-align: center; font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; }
+  #paySuccessChange { text-align: center; font-size: 26px; font-weight: 800; font-family: var(--font-num); color: var(--accent-strong); margin-bottom: 16px; min-height: 32px; }
+  #paySuccessReprintBtn { border: 1px solid var(--border-strong); background: none; color: var(--text-primary); }
+  #paySuccessDoneBtn { border: none; background: var(--accent); color: var(--accent-contrast); }
+
+  /* ── Settings modal ──────────────────────────────────────────────── */
+  #settingsModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
+    align-items: center; justify-content: center; z-index: 500;
+  }
+  #settingsModal.open { display: flex; }
+  #settingsModalCard {
+    width: 100%; max-width: 420px; background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; box-shadow: var(--shadow-lift);
+  }
+  #settingsModalCard h2 { margin: 0 0 12px; font-size: 18px; }
+  #bridgeUrlInput {
+    width: 100%; height: 48px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-canvas); color: var(--text-primary); padding: 0 14px; font-size: 14px;
+    margin-bottom: 8px;
+  }
+  #settingsHint { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; }
+  #settingsCloseBtn { border: 1px solid var(--border-strong); background: none; color: var(--text-primary); }
+  #settingsSaveBtn { border: none; background: var(--accent); color: var(--accent-contrast); }
+
+  /* ── Offline banner ──────────────────────────────────────────────── */
+  #offlineBanner {
+    display: none; align-items: center; justify-content: center;
+    flex: 0 0 auto; height: 32px; font-size: 13px; font-weight: 700;
+    background: var(--accent); color: var(--accent-contrast);
+  }
+</style>
+</head>
+<body>
+<div id="posApp">
+
+  <div id="offlineBanner"></div>
+
+  <div id="topStrip">
+    <span class="brand">🧾 POS Till</span>
+    <div id="openOrdersStrip" style="display:flex;gap:10px;"></div>
+    <button id="settingsBtn" onclick="window.posOpenSettings()" title="Printer settings">⚙</button>
+    <button id="newOrderBtn" onclick="window.posNewOrder()">+ New Order</button>
+  </div>
+
+  <div id="main">
+    <div id="leftPanel">
+      <div id="categoryBar"></div>
+      <div id="searchBar">
+        <input id="itemSearch" type="text" placeholder="Search items…" oninput="window.posOnSearch(this.value)"/>
+      </div>
+      <div id="itemGrid"></div>
+    </div>
+
+    <div id="rightPanel">
+      <div id="orderBadge"></div>
+
+      <div>
+        <div class="field-label">Dining</div>
+        <div id="diningOptions" class="segmented"></div>
+      </div>
+
+      <div>
+        <div class="field-label">Table</div>
+        <input id="tableNumber" type="text" inputmode="numeric" placeholder="Table #" oninput="window.posOnTableNumber(this.value)"/>
+      </div>
+
+      <div id="cartList"></div>
+
+      <div id="discountRow">
+        <span class="field-label" style="margin:0;white-space:nowrap;">Discount ៛</span>
+        <input id="discountInput" type="number" min="0" step="500" value="0" oninput="window.posOnDiscount(this.value)"/>
+      </div>
+
+      <div id="totalsBox">
+        <div class="row"><span>Subtotal</span><span id="subtotalValue">៛0</span></div>
+        <div class="grand"><span class="label">TOTAL</span><span class="value" id="totalValue">៛0</span></div>
+      </div>
+
+      <div class="action-row">
+        <button id="sendToKitchenBtn" class="btn-big" onclick="window.posSendToKitchen()">🔥 Send to Kitchen</button>
+        <button id="payBtn" class="btn-big" onclick="window.posOpenPayModal()">💳 Pay</button>
+      </div>
+
+      <button id="cancelOrderBtn" style="display:none;" onclick="window.posCancelOrder()">Cancel Order</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="payModal">
+  <div id="payModalCard">
+    <div id="payModalBody">
+      <h2>Payment</h2>
+      <div id="payModalTotal">៛0</div>
+      <div id="payMethodButtons"></div>
+      <div id="cashSection">
+        <input id="cashReceivedInput" type="number" min="0" placeholder="Cash received" oninput="window.posOnCashReceived(this.value)"/>
+        <div class="keypad">
+          <button type="button" onclick="window.posCashQuick(1000)">+1,000</button>
+          <button type="button" onclick="window.posCashQuick(5000)">+5,000</button>
+          <button type="button" onclick="window.posCashQuick(10000)">+10,000</button>
+          <button type="button" onclick="window.posCashQuick(20000)">+20,000</button>
+          <button type="button" onclick="window.posCashQuick(50000)">+50,000</button>
+          <button type="button" onclick="window.posCashExact()">Exact</button>
+        </div>
+        <div id="changeRow"><span>Change</span><span class="value" id="changeValue">៛0</span></div>
+      </div>
+      <div class="modal-actions">
+        <button id="payCancelBtn" type="button" onclick="window.posClosePayModal()">Cancel</button>
+        <button id="payConfirmBtn" type="button" onclick="window.posConfirmPay()" disabled>Confirm Payment</button>
+      </div>
+    </div>
+    <div id="paySuccessView">
+      <div class="pay-success-title">✅ Paid</div>
+      <div id="paySuccessOrderNo"></div>
+      <div id="paySuccessChange"></div>
+      <div class="modal-actions">
+        <button id="paySuccessReprintBtn" type="button" onclick="window.posReprintReceipt()">🖨 Reprint Receipt</button>
+        <button id="paySuccessDoneBtn" type="button" onclick="window.posDonePay()">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="settingsModal">
+  <div id="settingsModalCard">
+    <h2>Printer Settings</h2>
+    <input id="bridgeUrlInput" type="text" placeholder="http://192.168.1.50:9977 (leave empty for browser printing)"/>
+    <div id="settingsHint">Set this to your print-bridge's LAN address for silent thermal printing. Leave empty to print via the browser instead.</div>
+    <div class="modal-actions">
+      <button id="settingsCloseBtn" type="button" onclick="window.posCloseSettings()">Close</button>
+      <button id="settingsSaveBtn" type="button" onclick="window.posSaveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/js/pos.js"></script>
+</body>
+</html>

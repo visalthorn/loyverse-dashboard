@@ -4,8 +4,11 @@ const jwt    = require('jsonwebtoken');
 const pool   = require('../db');
 const { jwtSecret, jwtExpires } = require('../config');
 const { requireAuth } = require('../middleware/auth');
+const { rateLimit } = require('../middleware/rateLimit');
 
-router.post('/login', async (req, res) => {
+const loginRateLimit = rateLimit({ windowMs: 60 * 1000, max: 5 });
+
+router.post('/login', loginRateLimit, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password)
     return res.status(400).json({ message: 'Username and password are required.' });

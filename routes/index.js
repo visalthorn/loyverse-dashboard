@@ -16,6 +16,9 @@ const telegramRouter    = require('./telegram');
 const itemsRouter       = require('./items');
 const inventoryRouter   = require('./inventory');
 const branchesRouter    = require('./branches');
+const posRouter         = require('./pos');
+const terminalAuthRouter = require('./terminalAuth');
+const terminalsRouter    = require('./terminals');
 
 router.use('/api/auth',        authRouter);
 router.use('/api',             analyticsRouter);
@@ -32,8 +35,13 @@ router.use('/api/telegram',    telegramRouter);
 router.use('/api/items',       itemsRouter);
 router.use('/api/inventory',   inventoryRouter);
 router.use('/api/branches',    branchesRouter);
+router.use('/api/pos',         posRouter);
+router.use('/api/terminal',    terminalAuthRouter);
+router.use('/api',             terminalsRouter);
 
 router.get('/login',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
+router.get('/pos',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'pos.html')));
+router.get('/kds',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'kds.html')));
 router.get('/',            (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 router.get('/users',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'users.html')));
 router.get('/inventory',   (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'inventory.html')));

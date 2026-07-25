@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css"/>
+<title>Kitchen Display</title>
+<script>
+  // KDS is a dedicated kitchen screen — always dark, regardless of the
+  // logged-in user's saved theme preference on other pages.
+  document.documentElement.dataset.theme = 'dark';
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    height: 100%; margin: 0; overflow: hidden;
+    background: var(--bg-canvas); color: var(--text-primary);
+    font-family: var(--font-sans);
+  }
+  button { font-family: inherit; }
+
+  #kdsApp { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── Top bar ─────────────────────────────────────────────────────── */
+  #topBar {
+    flex: 0 0 56px; display: flex; align-items: center; gap: 16px;
+    padding: 0 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  }
+  #topBar .brand { font-weight: 700; font-size: 16px; color: var(--accent-strong); }
+  #clock { font-family: var(--font-num); font-size: 18px; font-weight: 600; margin-left: auto; }
+  #connDot {
+    width: 12px; height: 12px; border-radius: 50%; background: var(--loss);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--loss) 25%, transparent);
+    transition: background .2s, box-shadow .2s;
+  }
+  #connDot.online {
+    background: var(--gain);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gain) 25%, transparent);
+  }
+
+  /* ── Board ───────────────────────────────────────────────────────── */
+  #board {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-wrap: wrap; align-content: flex-start; gap: 16px;
+  }
+  #emptyBoardMsg { width: 100%; text-align: center; color: var(--text-secondary); padding: 80px 0; font-size: 18px; }
+
+  .order-card {
+    width: 300px; border-radius: 14px; border: 1px solid var(--border);
+    background: var(--bg-surface); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .order-card.elapsed-warn  { border-color: var(--accent); }
+  .order-card.elapsed-danger { border-color: var(--loss); }
+
+  .oc-head {
+    display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .oc-number { font-size: 18px; font-weight: 800; font-family: var(--font-num); }
+  .oc-badge {
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+    background: var(--bg-surface-alt); color: var(--text-secondary); text-transform: uppercase;
+  }
+  .oc-elapsed {
+    margin-left: auto; font-family: var(--font-num); font-size: 15px; font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .elapsed-warn   .oc-elapsed { color: var(--accent-strong); }
+  .elapsed-danger .oc-elapsed { color: var(--loss); }
+
+  .oc-items { flex: 1; padding: 6px 0; }
+  .oc-item {
+    display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px; min-height: 48px;
+    cursor: pointer; border-bottom: 1px solid var(--border-subtle);
+  }
+  .oc-item:last-child { border-bottom: none; }
+  .oc-item:active { background: var(--bg-surface-alt); }
+  .oc-item .qty { font-weight: 800; font-family: var(--font-num); min-width: 28px; }
+  .oc-item .name { flex: 1; font-size: 15px; font-weight: 600; }
+  .oc-item .note { display: block; font-size: 12px; font-style: italic; color: var(--accent-strong); margin-top: 2px; }
+  .oc-item.status-pending   .name, .oc-item.status-pending .qty   { color: var(--text-primary); }
+  .oc-item.status-preparing .name, .oc-item.status-preparing .qty { color: var(--accent-strong); }
+  .oc-item.status-done      .name, .oc-item.status-done .qty      { color: var(--gain); text-decoration: line-through; }
+
+  .oc-ready-btn {
+    margin: 12px; height: 56px; border-radius: 12px; border: none; cursor: pointer;
+    background: var(--gain); color: #06210f; font-size: 18px; font-weight: 800;
+  }
+  .oc-ready-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+  /* ── Ready strip ─────────────────────────────────────────────────── */
+  #readyStrip {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; background: var(--bg-surface); border-top: 1px solid var(--border);
+    overflow-x: auto; min-height: 68px;
+  }
+  #readyStrip .strip-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--text-secondary); white-space: nowrap;
+  }
+  .ready-chip {
+    flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+    min-width: 130px; min-height: 48px; padding: 6px 14px; border-radius: 10px; cursor: pointer;
+    background: var(--gain); color: #06210f;
+  }
+  .ready-chip .rc-title { font-weight: 800; font-size: 14px; }
+  .ready-chip .rc-sub { font-size: 11px; opacity: .8; }
+  #emptyReadyMsg { font-size: 12px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div id="kdsApp">
+  <div id="topBar">
+    <span class="brand">🍳 Kitchen Display</span>
+    <span id="connDot" title="Live connection"></span>
+    <span id="clock">--:--:--</span>
+  </div>
+
+  <div id="board"></div>
+
+  <div id="readyStrip">
+    <span class="strip-label">Ready for pickup</span>
+  </div>
+</div>
+
+<script type="module" src="/js/kds.js"></script>
+</body>
+</html>

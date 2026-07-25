@@ -183,6 +183,12 @@ window.startEditBranch     = Branches.startEditBranch;
 window.cancelEditBranch    = Branches.cancelEditBranch;
 window.confirmDeleteBranch = Branches.confirmDeleteBranch;
 window.changeDeviceBranch  = Branches.changeDeviceBranch;
+window.onTerminalBranchChange   = Branches.onTerminalBranchChange;
+window.switchTerminalTab        = Branches.switchTerminalTab;
+window.toggleTerminalActive     = Branches.toggleTerminalActive;
+window.resetTerminalPasscode    = Branches.resetTerminalPasscode;
+window.openCreateTerminalModal  = Branches.openCreateTerminalModal;
+window.openCategoriesModal      = Branches.openCategoriesModal;
 
 // Items
 window.onItemSearch          = Items.onItemSearch;
