@@ -54,7 +54,7 @@ const RECEIPT_STYLE = `
   .grand { font-size: 16px; font-weight: 800; }
 `;
 
-function receiptHTML(order) {
+export function receiptHTML(order) {
   const itemRows = (order.items || []).map(it => `
     <div class="row"><span>${it.quantity} × ${esc(it.item_name)}</span><span>${khr(it.price * it.quantity)}</span></div>
     ${it.note ? `<div class="note">${esc(it.note)}</div>` : ''}

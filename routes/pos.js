@@ -71,7 +71,7 @@ async function loadCatalog() {
       ORDER BY name
     `),
     pool.query(`
-      SELECT id, COALESCE(custom_name, name) AS name, price,
+      SELECT id, COALESCE(custom_name, name) AS name, price, image_url,
              COALESCE(custom_category_id, category_id) AS category_id
       FROM items
       WHERE deleted_at IS NULL AND price > 0
@@ -83,6 +83,7 @@ async function loadCatalog() {
     categories: categoriesRes.rows.map((c, i) => ({ id: c.id, name: c.name, sort: i })),
     items: itemsRes.rows.map(it => ({
       id: it.id, name: it.name, price: Number(it.price), category_id: it.category_id,
+      image_url: it.image_url || null,
     })),
   };
 }
@@ -234,12 +235,13 @@ router.get('/orders/:id', requireTerminalAuth(['pos']), async (req, res) => {
 });
 
 router.post('/orders', requireTerminalAuth(['pos']), async (req, res) => {
-  const { dining_option, table_number, discount, items } = req.body;
+  const { dining_option, table_number, discount, items, name } = req.body;
   if (!dining_option) return res.status(400).json({ message: 'dining_option is required.' });
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ message: 'At least one item is required.' });
   }
   if (tooLong(table_number, 20)) return res.status(400).json({ message: 'table_number is too long (max 20 characters).' });
+  if (tooLong(name, 100)) return res.status(400).json({ message: 'name is too long (max 100 characters).' });
   if (discount !== undefined && !Number.isFinite(Number(discount))) {
     return res.status(400).json({ message: 'discount must be a number.' });
   }
@@ -261,12 +263,15 @@ router.post('/orders', requireTerminalAuth(['pos']), async (req, res) => {
     const orderNumber = await generateOrderNumber(client);
     const now = toCambodiaTime(new Date());
 
+    // Saved as 'open' -- not yet visible to KDS. The client immediately
+    // follows up with POST /orders/:id/send-to-kitchen; if that fails, the
+    // order is still safely saved and can be retried or added to later.
     const orderRes = await client.query(`
       INSERT INTO pos_orders
-        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id)
-      VALUES ($1,'sent_to_kitchen',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10)
+        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name)
+      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11)
       RETURNING *
-    `, [orderNumber, dining_option, table_number || null, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id]);
+    `, [orderNumber, dining_option, table_number || null, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, name || null]);
 
     const order = orderRes.rows[0];
 
@@ -281,10 +286,6 @@ router.post('/orders', requireTerminalAuth(['pos']), async (req, res) => {
       `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'created',$2,$3)`,
       [order.id, req.terminal.terminal_id, now]
     );
-    await client.query(
-      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'sent_to_kitchen',$2,$3)`,
-      [order.id, req.terminal.terminal_id, now]
-    );
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
@@ -296,6 +297,104 @@ router.post('/orders', requireTerminalAuth(['pos']), async (req, res) => {
     res.status(status).json({ message: err.message });
   } finally {
     client.release();
+  }
+});
+
+// Separated from creation so the client can auto-attempt this right after
+// saving, but retry it independently (manually or via the offline queue) if
+// just this step fails -- the order itself is never lost.
+router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid order id.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
+    const order = orderRes.rows[0];
+    if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
+
+    // Idempotent: a retried send against an order that's already past
+    // 'open' (e.g. the previous attempt actually succeeded but its response
+    // was lost) just returns the current order instead of erroring.
+    if (order.status !== 'open') {
+      if (order.status === 'cancelled') throw httpError(409, 'Cannot send a cancelled order to the kitchen.');
+      await client.query('COMMIT');
+      return res.json({ order: await fetchOrder(id) });
+    }
+
+    const now = toCambodiaTime(new Date());
+    await client.query(`UPDATE pos_orders SET status = 'sent_to_kitchen', updated_at = $1 WHERE id = $2`, [now, id]);
+    await client.query(
+      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'sent_to_kitchen',$2,$3)`,
+      [id, req.terminal.terminal_id, now]
+    );
+
+    await client.query('COMMIT');
+    broadcastOrdersChanged();
+    res.json({ order: await fetchOrder(id) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    const status = err.statusCode || 500;
+    if (status >= 500) console.error('POS send-to-kitchen error:', err);
+    res.status(status).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+router.patch('/orders/:id/name', requireTerminalAuth(['pos']), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid order id.' });
+  const { name } = req.body;
+  if (tooLong(name, 100)) return res.status(400).json({ message: 'name is too long (max 100 characters).' });
+
+  try {
+    const result = await pool.query(
+      `UPDATE pos_orders SET name = $1, updated_at = $2 WHERE id = $3 AND branch_id = $4 RETURNING id`,
+      [(name || '').trim() || null, toCambodiaTime(new Date()), id, req.terminal.branch_id]
+    );
+    if (!result.rowCount) return res.status(404).json({ message: 'Order not found.' });
+    res.json({ order: await fetchOrder(id) });
+  } catch (err) {
+    console.error('POS order rename error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dining option is changeable any time the order isn't already finished --
+// e.g. a cashier building a saved order can still switch dine-in/takeaway
+// after items are already on it.
+router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid order id.' });
+  const { dining_option } = req.body;
+  if (!dining_option) return res.status(400).json({ message: 'dining_option is required.' });
+
+  const validDining = await getValidDiningOptions();
+  if (!validDining.has(dining_option)) {
+    return res.status(400).json({ message: 'Unknown dining_option.' });
+  }
+
+  try {
+    const orderRes = await pool.query('SELECT status, branch_id FROM pos_orders WHERE id = $1', [id]);
+    if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+    if (TERMINAL.has(orderRes.rows[0].status)) {
+      return res.status(409).json({ message: `Cannot change dining option on a ${orderRes.rows[0].status} order.` });
+    }
+
+    await pool.query(
+      `UPDATE pos_orders SET dining_option = $1, updated_at = $2 WHERE id = $3`,
+      [dining_option, toCambodiaTime(new Date()), id]
+    );
+    res.json({ order: await fetchOrder(id) });
+  } catch (err) {
+    console.error('POS dining-option error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -438,15 +537,43 @@ router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), async (req, res)
 
 // ── Kitchen Display System (Phase 4) ────────────────────────────────────
 
+async function loadKdsCategoryIds(kdsTerminalId) {
+  const catRes = await pool.query(
+    `SELECT category_id FROM kds_terminal_categories WHERE kds_terminal_id = $1`,
+    [kdsTerminalId]
+  );
+  return catRes.rows.map(r => r.category_id);
+}
+
+// Only items whose (custom-overridden) category is assigned to this KDS
+// station -- an order can appear on multiple stations at once, each showing
+// a different subset of its items. Orders with no matching items at all are
+// dropped entirely (nothing on this board belongs to this station).
+async function attachFilteredItems(orders, categoryIds) {
+  const ids = orders.map(o => o.id);
+  const itemsByOrder = {};
+  if (ids.length) {
+    const itemsRes = await pool.query(
+      `SELECT poi.*
+       FROM pos_order_items poi
+       JOIN items i ON i.id = poi.source_item_id::uuid
+       WHERE poi.order_id = ANY($1)
+         AND COALESCE(i.custom_category_id, i.category_id) = ANY($2::uuid[])
+       ORDER BY poi.id`,
+      [ids, categoryIds]
+    );
+    for (const it of itemsRes.rows) {
+      (itemsByOrder[it.order_id] ??= []).push(it);
+    }
+  }
+  return orders.map(o => ({ ...o, items: itemsByOrder[o.id] || [] })).filter(o => o.items.length > 0);
+}
+
 router.get('/kds/active', requireTerminalAuth(['kds']), async (req, res) => {
   try {
     // Zero categories assigned means this station hasn't been configured yet
     // -- show a friendly empty state, never "all orders" as a fallback.
-    const catRes = await pool.query(
-      `SELECT category_id FROM kds_terminal_categories WHERE kds_terminal_id = $1`,
-      [req.terminal.id]
-    );
-    const categoryIds = catRes.rows.map(r => r.category_id);
+    const categoryIds = await loadKdsCategoryIds(req.terminal.id);
     if (!categoryIds.length) {
       return res.json({ server_now: toCambodiaTime(new Date()), orders: [], no_categories_assigned: true });
     }
@@ -457,34 +584,37 @@ router.get('/kds/active', requireTerminalAuth(['kds']), async (req, res) => {
        ORDER BY created_at ASC`,
       [req.terminal.branch_id]
     );
-    const ids = ordersRes.rows.map(o => o.id);
-
-    const itemsByOrder = {};
-    if (ids.length) {
-      // Only items whose (custom-overridden) category is assigned to this
-      // KDS station -- an order can appear on multiple stations at once,
-      // each showing a different subset of its items.
-      const itemsRes = await pool.query(
-        `SELECT poi.*
-         FROM pos_order_items poi
-         JOIN items i ON i.id = poi.source_item_id::uuid
-         WHERE poi.order_id = ANY($1)
-           AND COALESCE(i.custom_category_id, i.category_id) = ANY($2::uuid[])
-         ORDER BY poi.id`,
-        [ids, categoryIds]
-      );
-      for (const it of itemsRes.rows) {
-        (itemsByOrder[it.order_id] ??= []).push(it);
-      }
-    }
-
-    const orders = ordersRes.rows
-      .map(o => ({ ...o, items: itemsByOrder[o.id] || [] }))
-      .filter(o => o.items.length > 0);
-
+    const orders = await attachFilteredItems(ordersRes.rows, categoryIds);
     res.json({ server_now: toCambodiaTime(new Date()), orders });
   } catch (err) {
     console.error('POS kds active GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Read-only lookback at recently completed (served) orders for this
+// station -- lets kitchen staff double-check what already went out without
+// cluttering the live board. Most-recent-first, capped rather than
+// date-bounded (updated_at is stored Cambodia-naive, not real UTC, so it
+// can't safely be compared against SQL NOW()).
+router.get('/kds/finished', requireTerminalAuth(['kds']), async (req, res) => {
+  try {
+    const categoryIds = await loadKdsCategoryIds(req.terminal.id);
+    if (!categoryIds.length) {
+      return res.json({ server_now: toCambodiaTime(new Date()), orders: [], no_categories_assigned: true });
+    }
+
+    const ordersRes = await pool.query(
+      `SELECT * FROM pos_orders
+       WHERE status = 'served' AND branch_id = $1
+       ORDER BY updated_at DESC
+       LIMIT 30`,
+      [req.terminal.branch_id]
+    );
+    const orders = await attachFilteredItems(ordersRes.rows, categoryIds);
+    res.json({ server_now: toCambodiaTime(new Date()), orders });
+  } catch (err) {
+    console.error('POS kds finished GET error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -13,6 +13,7 @@ let selectedId  = null;
 let isLoading   = false;
 let filterStart = '';
 let filterEnd   = '';
+let receiptSource = 'loyverse'; // 'loyverse' | 'own'
 
 // ─── Formatters (receipts-specific) ─────────────────────────────────────────
 
@@ -43,13 +44,13 @@ export async function loadReceipts() {
   const end   = filterEnd;
   const type  = getEl('filterType')?.value || '';
 
-  const params = new URLSearchParams({ per_page: 500 });
+  const params = new URLSearchParams({ per_page: 500, source: receiptSource });
   if (start) params.set('start', start);
   if (end)   params.set('end',   end);
   if (type)  params.set('type',  type);
 
   const data = await fetchJSON(`/api/receipts?${params}`);
-  allReceipts = data ? (data.receipts ?? []) : filterDemoData(start, end, type);
+  allReceipts = data ? (data.receipts ?? []) : (receiptSource === 'loyverse' ? filterDemoData(start, end, type) : []);
 
   isLoading   = false;
   currentPage = 1;
@@ -77,6 +78,18 @@ function renderStats() {
 }
 
 // ─── Search / Filter ─────────────────────────────────────────────────────────
+
+export function switchReceiptSource(source) {
+  if (source === receiptSource) return;
+  receiptSource = source;
+  currentPage = 1;
+  selectedId  = null;
+  getEl('receiptTabLoyverse')?.classList.toggle('active', source === 'loyverse');
+  getEl('receiptTabOwn')?.classList.toggle('active', source === 'own');
+  const empty = getEl('detailEmpty'), content = getEl('detailContent'), panel = getEl('detailPanel');
+  if (empty && content && panel) { empty.classList.remove('hidden'); content.classList.add('hidden'); panel.classList.remove('active'); }
+  loadReceipts();
+}
 
 export function onApiFilterChange() { loadReceipts(); }
 

@@ -1,9 +1,9 @@
-import { getTerminalToken, getTerminalInfo, showTerminalLogin } from './terminalAuth.js';
+import { getTerminalToken, getTerminalInfo, showTerminalLogin, terminalLogout, clearDeviceTerminalId } from './terminalAuth.js';
 import { fetchTerminalJSON as fetchJSON } from './terminalAuth.js';
 import { getEl } from './utils.js';
 import { showConfirm } from './dialog.js';
 import { showToast } from './toast.js';
-import { printReceipt, printKitchenTicket, getBridgeUrl, setBridgeUrl } from './print.js';
+import { printReceipt, printKitchenTicket, getBridgeUrl, setBridgeUrl, receiptHTML } from './print.js';
 import { mutate, onQueueChange, onReplaySuccess, nextLocalOrderNumber, startOfflineQueue } from './offlineQueue.js';
 
 const CATALOG_VERSION_POLL_MS = 5 * 60 * 1000;
@@ -24,15 +24,29 @@ let currentOrder = null;
 
 let diningOption = null;
 let tableNumber  = '';
-let discount     = 0;
 
 let selectedPayMethod = null;
 let cashReceived       = 0;
 let lastPaidOrder      = null;
 
+// Saved-order name: auto-filled with the time the order was started, freely
+// editable (e.g. to "Table 5") before or after saving.
+let orderName = '';
+
 function khr(n) {
   const num = Number(n) || 0;
   return '៛' + num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function defaultOrderName() {
+  const time = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Phnom_Penh', hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(new Date());
+  return `Order ${time}`;
 }
 
 // Same "YYYY-MM-DD HH:mm:ss" naive-Cambodia-local shape the server writes
@@ -112,6 +126,9 @@ function renderItemGrid() {
     return `
       <button class="item-btn" data-item-id="${it.id}">
         ${qty > 0 ? `<span class="item-qty-badge">×${qty}</span>` : ''}
+        ${it.image_url
+          ? `<img class="item-img" src="${esc(it.image_url)}" alt="" loading="lazy" onerror="this.remove()"/>`
+          : ''}
         <span class="item-name">${it.name}</span>
         <span class="item-price">${khr(it.price)}</span>
       </button>`;
@@ -160,7 +177,9 @@ function editCartNote(idx) {
 
 function computeTotals() {
   const persistedSubtotal = currentOrder ? Number(currentOrder.subtotal) : 0;
-  const persistedDiscount = currentOrder ? Number(currentOrder.discount) : Math.max(0, Number(discount) || 0);
+  // Discount can no longer be applied from the POS UI -- only respected here
+  // so totals still render correctly for older orders that already have one.
+  const persistedDiscount = currentOrder ? Number(currentOrder.discount) : 0;
   const pendingSubtotal   = cart.reduce((sum, l) => sum + l.price * l.quantity, 0);
   const subtotal = persistedSubtotal + pendingSubtotal;
   const total    = Math.max(0, subtotal - persistedDiscount);
@@ -214,15 +233,19 @@ function renderCart() {
 
   const badge = getEl('orderBadge');
   badge.innerHTML = currentOrder
-    ? `Order <b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}`
+    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}`
     : 'New order (not yet sent)';
 
   getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status)) ? 'block' : 'none';
 
-  getEl('discountInput').disabled = !!currentOrder;
+  // Saved but not yet sent (either the auto-send on save failed, or this is
+  // a previously-saved order reopened from the strip) -- offer a manual
+  // retry right where the cashier is already looking.
+  const retryBtn = getEl('sendToKitchenRetryBtn');
+  if (retryBtn) retryBtn.style.display = (currentOrder && currentOrder.status === 'open') ? 'flex' : 'none';
 }
 
-// ─── Dining option / table number / discount ───────────────────────────────
+// ─── Dining option / table number ──────────────────────────────────────────
 
 function renderDiningOptions() {
   const box = getEl('diningOptions');
@@ -230,17 +253,38 @@ function renderDiningOptions() {
     <button class="seg-btn ${diningOption === opt ? 'active' : ''}" data-opt="${opt}">${opt}</button>
   `).join('');
   box.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (currentOrder) return; // dining option locked once the order is persisted
-      diningOption = btn.dataset.opt;
-      renderDiningOptions();
-    });
+    btn.addEventListener('click', () => onDiningOptionSelect(btn.dataset.opt));
   });
+}
+
+// Changeable any time, including after the order's been saved -- persists
+// the change server-side when there's a real order to update.
+async function onDiningOptionSelect(opt) {
+  if (opt === diningOption) return;
+  diningOption = opt;
+  renderDiningOptions();
+  if (!currentOrder || currentOrder._queued) return;
+  const { ok, data } = await mutate(`/api/pos/orders/${currentOrder.id}/dining-option`, 'PATCH', { dining_option: opt });
+  if (ok && data.order) { currentOrder = data.order; renderCart(); }
 }
 
 function onSearch(value)      { searchTerm = value; renderItemGrid(); }
 function onTableNumber(value) { tableNumber = value; }
-function onDiscount(value)    { discount = Math.max(0, Number(value) || 0); renderCart(); }
+
+let renameTimer = null;
+function onOrderName(value) {
+  orderName = value;
+  if (!currentOrder || currentOrder._queued) return; // nothing to persist yet -- included in the save/create call instead
+  clearTimeout(renameTimer);
+  renameTimer = setTimeout(async () => {
+    const orderId = currentOrder.id;
+    const { ok, data } = await mutate(`/api/pos/orders/${orderId}/name`, 'PATCH', { name: orderName });
+    if (ok && data.order && currentOrder && currentOrder.id === orderId) {
+      currentOrder = data.order;
+      renderCart();
+    }
+  }, 600);
+}
 
 // ─── Order lifecycle ───────────────────────────────────────────────────────
 
@@ -249,9 +293,9 @@ function resetPanel() {
   cart = [];
   diningOption = config.dining_options[0] || null;
   tableNumber  = '';
-  discount     = 0;
+  orderName    = defaultOrderName();
   getEl('tableNumber').value  = '';
-  getEl('discountInput').value = '0';
+  getEl('orderNameInput').value = orderName;
   renderDiningOptions();
   renderCart();
   renderItemGrid();
@@ -269,13 +313,11 @@ function buildLocalOrder(localId, lines) {
     id: null, source_item_id: l.source_item_id, item_name: l.name, price: l.price,
     quantity: l.quantity, note: l.note, kitchen_status: 'pending',
   }));
-  const subtotal   = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const discountAmt = Math.max(0, Number(discount) || 0);
-  const total      = Math.max(0, subtotal - discountAmt);
+  const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   return {
-    id: null, order_number: localId, status: 'sent_to_kitchen',
+    id: null, order_number: localId, status: 'open', name: orderName || null,
     dining_option: diningOption, table_number: tableNumber || null,
-    subtotal, discount: discountAmt, total,
+    subtotal, discount: 0, total: subtotal,
     created_at: cambodiaNaiveNow(), items, _queued: true,
   };
 }
@@ -294,7 +336,7 @@ async function persistCart() {
     const lines = cart.slice();
     const { ok, data, queued } = await mutate('/api/pos/orders', 'POST', {
       dining_option: diningOption, table_number: tableNumber || null,
-      discount, items: pendingLinesPayload(),
+      items: pendingLinesPayload(), name: orderName || null,
     }, localId);
 
     if (queued) {
@@ -334,29 +376,57 @@ async function persistCart() {
   return { ok: true, queued: false };
 }
 
-async function sendToKitchen() {
+// Every new order is saved as 'open' first. Attempts to move it on to
+// 'sent_to_kitchen' right away; if that specific step fails (network hiccup,
+// KDS-side issue), the order itself is never lost -- it just stays 'open'
+// and the manual retry button (shown whenever currentOrder.status==='open')
+// lets the cashier force it without re-entering anything.
+async function attemptSendToKitchen(order) {
+  if (!order || order.status !== 'open') return order;
+  const { ok, data, queued } = await mutate(`/api/pos/orders/${order.id}/send-to-kitchen`, 'POST', {});
+  if (queued || !ok) return order;
+  return data.order;
+}
+
+async function saveOrder() {
   const wasNew = !currentOrder;
   const result = await persistCart();
-  if (!result.ok) { showToast(result.message || 'Failed to send.', 'error'); return; }
+  if (!result.ok) { showToast(result.message || 'Failed to save.', 'error'); return; }
 
-  const sentOrder = currentOrder;
+  let savedOrder = currentOrder;
 
   if (result.queued) {
-    showToast(`Offline — order queued as ${sentOrder.order_number}. Will sync automatically.`, 'error');
-  } else if (wasNew) {
-    showToast(`Sent to kitchen — ${sentOrder.order_number}`);
-  } else {
-    showToast('Items sent to kitchen.');
+    // Fully offline -- can't attempt the send-to-kitchen call yet since
+    // there's no real order id. reconcileLocalOrder() picks this up once
+    // the create itself syncs.
+    showToast(`Offline — order queued as ${savedOrder.order_number}. Will sync and send automatically.`, 'error');
+    renderCart();
+    loadOpenOrders();
+    return;
   }
 
-  printKitchenTicket(sentOrder);
+  savedOrder = await attemptSendToKitchen(savedOrder);
+  currentOrder = savedOrder;
 
-  if (wasNew && !result.queued) {
-    // Otherwise currentOrder stays pinned to the order that was just sent,
-    // and the next items rung up silently append onto it instead of
-    // starting a new order -- looks like "sending a new order" does nothing.
+  if (savedOrder.status !== 'open') {
+    showToast(wasNew ? `Sent to kitchen — ${savedOrder.order_number}` : 'Items sent to kitchen.');
+    if (wasNew) resetPanel(); else renderCart();
+  } else {
+    showToast(`Saved as ${savedOrder.order_number} — couldn't reach the kitchen. Tap "Send to Kitchen" to retry.`, 'error');
+    renderCart();
+  }
+  loadOpenOrders();
+}
+
+async function retrySendToKitchen() {
+  if (!currentOrder || currentOrder.status !== 'open') return;
+  const sent = await attemptSendToKitchen(currentOrder);
+  currentOrder = sent;
+  if (sent.status !== 'open') {
+    showToast(`Sent to kitchen — ${sent.order_number}`);
     resetPanel();
   } else {
+    showToast('Still could not reach the kitchen. Try again.', 'error');
     renderCart();
   }
   loadOpenOrders();
@@ -455,7 +525,7 @@ async function confirmPay() {
   if (!ok) { showToast(data.message || 'Payment failed.', 'error'); return; }
 
   showToast(`Paid — ${data.order.order_number}`);
-  printReceipt(data.order);
+  printReceipt(data.order); // the one auto-print left: a completed sale should always hand over a receipt
   showPaySuccess(data.order, data.change);
   loadOpenOrders();
 }
@@ -466,6 +536,9 @@ function showPaySuccess(order, change) {
   getEl('paySuccessView').style.display = 'block';
   getEl('paySuccessOrderNo').textContent = `${order.order_number} · ${order.payment_method}`;
   getEl('paySuccessChange').textContent = change ? `Change ${khr(change)}` : '';
+  // No printing happens automatically -- this is a viewable receipt only;
+  // "Print Receipt" below sends it to the printer/bridge on demand.
+  getEl('paySuccessReceiptFrame').srcdoc = receiptHTML(order);
 }
 
 function reprintReceipt() {
@@ -507,9 +580,9 @@ function applyOrderToPanel(order) {
   cart = [];
   diningOption = order.dining_option;
   tableNumber  = order.table_number || '';
-  discount     = Number(order.discount);
+  orderName    = order.name || '';
   getEl('tableNumber').value   = tableNumber;
-  getEl('discountInput').value = discount;
+  getEl('orderNameInput').value = orderName;
   renderDiningOptions();
   renderCart();
   renderItemGrid();
@@ -529,8 +602,9 @@ async function loadOpenOrders() {
   orders.forEach(o => {
     const chip = document.createElement('div');
     chip.className = 'order-chip';
+    const title = o.name ? esc(o.name) : (o.table_number ? 'Table ' + o.table_number : o.order_number);
     chip.innerHTML = `
-      <span class="chip-title">${o.table_number ? 'Table ' + o.table_number : o.order_number}</span>
+      <span class="chip-title">${title}</span>
       <span class="chip-sub">${khr(o.total)} · ${(o.status || '').replace(/_/g, ' ')}${o._queued ? ' · offline' : ''}</span>
       <button class="chip-reprint" type="button" title="Reprint kitchen ticket">🖨</button>
     `;
@@ -556,12 +630,19 @@ async function loadOrderIntoPanel(id) {
 
 // ─── Offline queue wiring ───────────────────────────────────────────────────
 
-function reconcileLocalOrder(localId, realOrder) {
+async function reconcileLocalOrder(localId, realOrder) {
+  // The create call itself just came back online -- now that there's a real
+  // id, follow through on the same auto-send-to-kitchen attempt the online
+  // path makes right after saving.
+  const order = await attemptSendToKitchen(realOrder);
+
   if (currentOrder && currentOrder.order_number === localId) {
-    currentOrder = realOrder;
+    currentOrder = order;
     renderCart();
   }
-  showToast(`Order synced — ${realOrder.order_number}`);
+  showToast(order.status === 'open'
+    ? `Order synced as ${order.order_number} — couldn't reach the kitchen, tap "Send to Kitchen" to retry.`
+    : `Order synced — ${order.order_number}`);
   loadOpenOrders();
 }
 
@@ -599,12 +680,29 @@ function saveSettings() {
   closeSettings();
 }
 
+// ─── Switch terminal ────────────────────────────────────────────────────────
+
+async function switchTerminal() {
+  const message = cart.length
+    ? "You have unsaved items in the cart — they'll be lost. Switch terminal anyway?"
+    : 'Log out of this terminal and switch to a different one?';
+  const ok = await showConfirm(message, { danger: cart.length > 0, confirmText: 'Switch Terminal' });
+  if (!ok) return;
+
+  // Forget the remembered terminal_id too -- switching implies logging into
+  // a DIFFERENT terminal, so the next login screen should ask for it fresh
+  // rather than pre-filling the one we're leaving.
+  clearDeviceTerminalId();
+  terminalLogout(); // clears the token and fires 'terminal-logged-out', which shows the login screen
+}
+
 // ─── Bootstrap ──────────────────────────────────────────────────────────────
 
 window.posOnSearch        = onSearch;
 window.posOnTableNumber   = onTableNumber;
-window.posOnDiscount      = onDiscount;
-window.posSendToKitchen   = sendToKitchen;
+window.posOnOrderName     = onOrderName;
+window.posSaveOrder       = saveOrder;
+window.posRetrySendToKitchen = retrySendToKitchen;
 window.posOpenPayModal    = openPayModal;
 window.posClosePayModal   = closePayModal;
 window.posOnCashReceived  = onCashReceived;
@@ -618,6 +716,7 @@ window.posNewOrder        = () => resetPanel();
 window.posOpenSettings    = openSettings;
 window.posCloseSettings   = closeSettings;
 window.posSaveSettings    = saveSettings;
+window.posSwitchTerminal  = switchTerminal;
 
 let appStarted = false;
 
@@ -625,10 +724,17 @@ async function startApp(terminal) {
   const info = terminal || getTerminalInfo();
   const brandEl = document.querySelector('#topStrip .brand');
   if (brandEl && info) {
-    const tag = document.createElement('span');
-    tag.style.cssText = 'font-size:11px;color:var(--text-secondary);white-space:nowrap;';
+    // Re-used across switch-terminal cycles rather than inserted fresh each
+    // time, otherwise logging into a new terminal stacks another tag next
+    // to the previous one(s).
+    let tag = document.getElementById('terminalNameTag');
+    if (!tag) {
+      tag = document.createElement('span');
+      tag.id = 'terminalNameTag';
+      tag.style.cssText = 'font-size:11px;color:var(--text-secondary);white-space:nowrap;';
+      brandEl.insertAdjacentElement('afterend', tag);
+    }
     tag.textContent = info.name || info.terminal_id;
-    brandEl.insertAdjacentElement('afterend', tag);
   }
 
   const configData = await fetchJSON('/api/pos/config');

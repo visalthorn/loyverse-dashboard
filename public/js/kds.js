@@ -3,13 +3,18 @@ import {
   fetchTerminalJSON as fetchJSON, terminalApiPatch as apiPatch, terminalApiPost as apiPost,
 } from './terminalAuth.js';
 
-const NEXT_STATUS = { pending: 'preparing', preparing: 'done', done: 'pending' };
+// Tapping an item just strikes it (done) or un-strikes it (back to pending)
+// -- 'preparing' is no longer a manually-reachable click state, though the
+// order-level sent_to_kitchen -> preparing bump (server side) is unaffected
+// since it only checks for "not pending".
+const NEXT_STATUS = { pending: 'done', preparing: 'done', done: 'pending' };
 const WARN_MS   = 10 * 60 * 1000;
 const DANGER_MS = 20 * 60 * 1000;
 const SAFETY_POLL_MS = 30 * 1000;
 
 let orders = [];        // raw orders from /kds/active (sent_to_kitchen | preparing | ready)
 let clockOffsetMs = 0;  // (server "now" ms) - (Date.now() at fetch time)
+let finishedModalOpen = false; // finished-orders lookback shows in a dialog, never replaces the active board
 
 // server_now arrives as a naive "YYYY-MM-DD HH:mm:ss" string (no zone), but
 // order.created_at goes through Express's JSON serialization of a Date
@@ -105,6 +110,63 @@ function render() {
   tickElapsed();
 }
 
+// Finished (served) orders open in a dialog on top of the active board so
+// checking one doesn't interrupt the live board underneath -- it's just a
+// quick reconcile-with-the-order lookup, not a separate mode to switch into.
+async function openFinishedModal() {
+  finishedModalOpen = true;
+  document.getElementById('finishedModal').classList.add('open');
+  await refreshFinishedModal();
+}
+
+function closeFinishedModal() {
+  finishedModalOpen = false;
+  document.getElementById('finishedModal').classList.remove('open');
+}
+
+async function refreshFinishedModal() {
+  const data = await fetchJSON('/api/pos/kds/finished');
+  const body = document.getElementById('finishedModalBody');
+  if (!data) return;
+
+  body.innerHTML = '';
+  if (data.no_categories_assigned) {
+    body.innerHTML = '<div id="emptyBoardMsg">No categories assigned — ask a manager to configure this station.</div>';
+  } else if (!data.orders.length) {
+    body.innerHTML = '<div id="emptyBoardMsg">No finished orders yet.</div>';
+  } else {
+    for (const order of data.orders) body.appendChild(renderFinishedCard(order));
+  }
+}
+
+function renderFinishedCard(order) {
+  const card = document.createElement('div');
+  card.className = 'order-card finished';
+
+  const head = document.createElement('div');
+  head.className = 'oc-head';
+  head.innerHTML = `
+    <span class="oc-number">${order.order_number}</span>
+    <span class="oc-badge">${badgeText(order)}</span>
+  `;
+  card.appendChild(head);
+
+  const itemsEl = document.createElement('div');
+  itemsEl.className = 'oc-items';
+  for (const item of order.items) {
+    const row = document.createElement('div');
+    row.className = 'oc-item status-done';
+    row.innerHTML = `
+      <span class="qty">${item.quantity}×</span>
+      <span class="name">${item.item_name}${item.note ? `<span class="note">${item.note}</span>` : ''}</span>
+    `;
+    itemsEl.appendChild(row);
+  }
+  card.appendChild(itemsEl);
+
+  return card;
+}
+
 function renderCard(order) {
   const card = document.createElement('div');
   card.className = 'order-card';
@@ -163,7 +225,10 @@ function tickElapsed() {
 let refreshTimer = null;
 function scheduleRefresh() {
   clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(refresh, 120);
+  refreshTimer = setTimeout(() => {
+    refresh();
+    if (finishedModalOpen) refreshFinishedModal();
+  }, 120);
 }
 
 async function cycleItemStatus(itemId, currentStatus) {
@@ -233,6 +298,9 @@ async function startApp(terminal) {
     setInterval(() => { tickElapsed(); tickClock(); }, 1000);
   }
 }
+
+window.kdsOpenFinished  = openFinishedModal;
+window.kdsCloseFinished = closeFinishedModal;
 
 function requireLogin() {
   showTerminalLogin({ label: 'KDS Terminal Login', onSuccess: startApp });

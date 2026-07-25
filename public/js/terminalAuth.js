@@ -99,8 +99,9 @@ export function showTerminalLogin({ label, onSuccess }) {
   const overlay = document.createElement('div');
   overlay.id = 'terminalLoginOverlay';
   overlay.style.cssText = `
-    position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center;
+    position: fixed; inset: 0; z-index: 9999; display: flex; align-items: safe center; justify-content: center;
     background: var(--bg-canvas); color: var(--text-primary); font-family: var(--font-sans);
+    overflow-y: auto; padding: 16px; box-sizing: border-box;
   `;
   document.body.appendChild(overlay);
 

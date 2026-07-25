@@ -49,13 +49,14 @@
     border-radius: 7px; border: 1px solid var(--border); background: var(--bg-surface);
     color: var(--text-secondary); font-size: 13px; cursor: pointer; padding: 0;
   }
-  #newOrderBtn, #settingsBtn {
+  #newOrderBtn, #settingsBtn, #switchTerminalBtn {
     flex: 0 0 auto; height: 48px; padding: 0 18px;
     border-radius: 10px; border: 1px solid var(--border-strong);
     background: var(--bg-surface-alt); color: var(--text-primary);
     font-weight: 600; font-size: 13px; cursor: pointer;
   }
-  #settingsBtn { margin-left: auto; width: 48px; padding: 0; font-size: 18px; }
+  #switchTerminalBtn { margin-left: auto; width: 48px; padding: 0; font-size: 18px; }
+  #settingsBtn { width: 48px; padding: 0; font-size: 18px; }
 
   /* ── Main two-column layout ─────────────────────────────────────── */
   #main { flex: 1; display: flex; min-height: 0; }
@@ -90,6 +91,10 @@
     text-align: center;
   }
   .item-btn:active { background: var(--accent-soft); border-color: var(--accent); }
+  .item-btn .item-img {
+    width: 56px; height: 56px; border-radius: 10px; object-fit: cover;
+    background: var(--bg-surface-alt);
+  }
   .item-btn .item-name  { font-size: 13px; font-weight: 600; line-height: 1.25; }
   .item-btn .item-price { font-size: 13px; color: var(--accent-strong); font-family: var(--font-num); font-weight: 600; }
   .item-btn .item-qty-badge {
@@ -112,6 +117,15 @@
     width: 100%; height: 48px; border-radius: 10px; border: 1px solid var(--border);
     background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 16px;
     font-family: var(--font-num);
+  }
+  #orderNameInput {
+    width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 14px;
+  }
+  #sendToKitchenRetryBtn {
+    width: 100%; height: 48px; border-radius: 10px; border: 2px solid var(--accent); background: var(--accent-soft);
+    color: var(--accent-strong); font-size: 14px; font-weight: 700; cursor: pointer;
+    align-items: center; justify-content: center; margin-bottom: 8px;
   }
   .field-label {
     font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
@@ -144,13 +158,6 @@
   }
   #emptyCartMsg { text-align: center; color: var(--text-secondary); padding: 24px 0; font-size: 13px; }
 
-  #discountRow { display: flex; align-items: center; gap: 8px; }
-  #discountInput {
-    width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--border);
-    background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 15px;
-    font-family: var(--font-num);
-  }
-
   #totalsBox { display: flex; flex-direction: column; gap: 2px; }
   #totalsBox .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
   #totalsBox .grand { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; }
@@ -162,7 +169,7 @@
     flex: 1; height: 60px; border-radius: 12px; border: none; cursor: pointer;
     font-size: 17px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;
   }
-  #sendToKitchenBtn { background: var(--bg-surface-alt); border: 2px solid var(--accent); color: var(--accent-strong); }
+  #saveOrderBtn { background: var(--bg-surface-alt); border: 2px solid var(--accent); color: var(--accent-strong); }
   #payBtn { background: linear-gradient(135deg, var(--accent), #d97706); color: var(--accent-contrast); }
   #cancelOrderBtn {
     height: 44px; border-radius: 10px; border: 1px solid var(--loss); background: none;
@@ -210,7 +217,11 @@
   #paySuccessView { display: none; }
   .pay-success-title { font-size: 22px; font-weight: 800; text-align: center; color: var(--gain); margin-bottom: 10px; }
   #paySuccessOrderNo { text-align: center; font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; }
-  #paySuccessChange { text-align: center; font-size: 26px; font-weight: 800; font-family: var(--font-num); color: var(--accent-strong); margin-bottom: 16px; min-height: 32px; }
+  #paySuccessChange { text-align: center; font-size: 26px; font-weight: 800; font-family: var(--font-num); color: var(--accent-strong); margin-bottom: 12px; min-height: 32px; }
+  #paySuccessReceiptFrame {
+    width: 100%; height: 340px; border: 1px solid var(--border); border-radius: 10px;
+    background: #fff; margin-bottom: 16px;
+  }
   #paySuccessReprintBtn { border: 1px solid var(--border-strong); background: none; color: var(--text-primary); }
   #paySuccessDoneBtn { border: none; background: var(--accent); color: var(--accent-contrast); }
 
@@ -240,6 +251,22 @@
     flex: 0 0 auto; height: 32px; font-size: 13px; font-weight: 700;
     background: var(--accent); color: var(--accent-contrast);
   }
+
+  /* ── Narrow screens: stack the two-column layout ──────────────────── */
+  @media (max-width: 900px) {
+    html, body { overflow-y: auto; }
+    #posApp { height: auto; min-height: 100vh; }
+    #main { flex-direction: column; overflow-y: visible; }
+    #leftPanel {
+      flex: none; width: 100%; border-right: none; border-bottom: 1px solid var(--border);
+    }
+    #rightPanel { flex: none; width: 100%; }
+    #itemGrid { max-height: 45vh; }
+    #cartList { max-height: 30vh; }
+  }
+
+  /* Pay/Settings modals: never let content get taller than the viewport */
+  #payModalCard, #settingsModalCard { max-height: 90vh; overflow-y: auto; }
 </style>
 </head>
 <body>
@@ -250,6 +277,7 @@
   <div id="topStrip">
     <span class="brand">🧾 POS Till</span>
     <div id="openOrdersStrip" style="display:flex;gap:10px;"></div>
+    <button id="switchTerminalBtn" onclick="window.posSwitchTerminal()" title="Switch terminal">🔀</button>
     <button id="settingsBtn" onclick="window.posOpenSettings()" title="Printer settings">⚙</button>
     <button id="newOrderBtn" onclick="window.posNewOrder()">+ New Order</button>
   </div>
@@ -276,12 +304,12 @@
         <input id="tableNumber" type="text" inputmode="numeric" placeholder="Table #" oninput="window.posOnTableNumber(this.value)"/>
       </div>
 
-      <div id="cartList"></div>
-
-      <div id="discountRow">
-        <span class="field-label" style="margin:0;white-space:nowrap;">Discount ៛</span>
-        <input id="discountInput" type="number" min="0" step="500" value="0" oninput="window.posOnDiscount(this.value)"/>
+      <div>
+        <div class="field-label">Order Name</div>
+        <input id="orderNameInput" type="text" maxlength="100" placeholder="Order name" oninput="window.posOnOrderName(this.value)"/>
       </div>
+
+      <div id="cartList"></div>
 
       <div id="totalsBox">
         <div class="row"><span>Subtotal</span><span id="subtotalValue">៛0</span></div>
@@ -289,10 +317,11 @@
       </div>
 
       <div class="action-row">
-        <button id="sendToKitchenBtn" class="btn-big" onclick="window.posSendToKitchen()">🔥 Send to Kitchen</button>
+        <button id="saveOrderBtn" class="btn-big" onclick="window.posSaveOrder()">💾 Save Order</button>
         <button id="payBtn" class="btn-big" onclick="window.posOpenPayModal()">💳 Pay</button>
       </div>
 
+      <button id="sendToKitchenRetryBtn" style="display:none;" onclick="window.posRetrySendToKitchen()">📤 Send to Kitchen</button>
       <button id="cancelOrderBtn" style="display:none;" onclick="window.posCancelOrder()">Cancel Order</button>
     </div>
   </div>
@@ -326,8 +355,9 @@
       <div class="pay-success-title">✅ Paid</div>
       <div id="paySuccessOrderNo"></div>
       <div id="paySuccessChange"></div>
+      <iframe id="paySuccessReceiptFrame" title="Receipt"></iframe>
       <div class="modal-actions">
-        <button id="paySuccessReprintBtn" type="button" onclick="window.posReprintReceipt()">🖨 Reprint Receipt</button>
+        <button id="paySuccessReprintBtn" type="button" onclick="window.posReprintReceipt()">🖨 Print Receipt</button>
         <button id="paySuccessDoneBtn" type="button" onclick="window.posDonePay()">Done</button>
       </div>
     </div>

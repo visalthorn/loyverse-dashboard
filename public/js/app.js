@@ -104,6 +104,7 @@ window.exportExpensesCSV    = Expenses.exportExpensesCSV;
 
 // Receipts
 window.loadReceipts       = Receipts.loadReceipts;
+window.switchReceiptSource = Receipts.switchReceiptSource;
 window.onApiFilterChange  = Receipts.onApiFilterChange;
 window.onSearchChange     = Receipts.onSearchChange;
 window.resetFilters       = Receipts.resetFilters;

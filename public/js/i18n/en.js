@@ -153,6 +153,8 @@ export const en = {
   // ── receipts ────────────────────────────────────────────
   'receipts.title': 'Receipts',
   'receipts.subtitle': 'View and search receipt records',
+  'receipts.tabLoyverse': 'Loyverse Receipts',
+  'receipts.tabOwn': 'Own Receipts',
   'receipts.statAllReceipts': 'All Receipts',
   'receipts.statSales': 'Sales',
   'receipts.statRefunds': 'Refunds',

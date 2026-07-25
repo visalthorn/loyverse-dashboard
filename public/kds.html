@@ -29,6 +29,10 @@
     padding: 0 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
   }
   #topBar .brand { font-weight: 700; font-size: 16px; color: var(--accent-strong); }
+  #finishedBtn {
+    height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface-alt); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
   #clock { font-family: var(--font-num); font-size: 18px; font-weight: 600; margin-left: auto; }
   #connDot {
     width: 12px; height: 12px; border-radius: 50%; background: var(--loss);
@@ -53,6 +57,7 @@
   }
   .order-card.elapsed-warn  { border-color: var(--accent); }
   .order-card.elapsed-danger { border-color: var(--loss); }
+  .order-card.finished { opacity: 0.75; }
 
   .oc-head {
     display: flex; align-items: center; gap: 8px; padding: 12px 14px;
@@ -108,6 +113,33 @@
   .ready-chip .rc-title { font-weight: 800; font-size: 14px; }
   .ready-chip .rc-sub { font-size: 11px; opacity: .8; }
   #emptyReadyMsg { font-size: 12px; color: var(--text-dim); }
+
+  /* ── Finished orders dialog ─────────────────────────────────────────
+     Opens on top of the active board (which keeps running underneath,
+     untouched) purely to reconcile a completed order -- never a mode
+     switch away from the live board. ── */
+  #finishedModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 800; padding: 24px;
+  }
+  #finishedModal.open { display: flex; }
+  #finishedModalCard {
+    width: 100%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column;
+    background: var(--bg-canvas); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+  }
+  #finishedModalHead {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 16px 20px;
+    background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  }
+  #finishedModalHead h2 { margin: 0; font-size: 16px; font-weight: 800; }
+  #finishedModalCloseBtn {
+    margin-left: auto; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface-alt); color: var(--text-primary); font-size: 16px; cursor: pointer;
+  }
+  #finishedModalBody {
+    flex: 1; overflow-y: auto; padding: 16px 20px;
+    display: flex; flex-wrap: wrap; align-content: flex-start; gap: 16px;
+  }
 </style>
 </head>
 <body>
@@ -115,6 +147,7 @@
   <div id="topBar">
     <span class="brand">🍳 Kitchen Display</span>
     <span id="connDot" title="Live connection"></span>
+    <button id="finishedBtn" onclick="window.kdsOpenFinished()">✅ Finished</button>
     <span id="clock">--:--:--</span>
   </div>
 
@@ -122,6 +155,16 @@
 
   <div id="readyStrip">
     <span class="strip-label">Ready for pickup</span>
+  </div>
+</div>
+
+<div id="finishedModal">
+  <div id="finishedModalCard">
+    <div id="finishedModalHead">
+      <h2>✅ Finished Orders</h2>
+      <button id="finishedModalCloseBtn" onclick="window.kdsCloseFinished()">✕</button>
+    </div>
+    <div id="finishedModalBody"></div>
   </div>
 </div>
 

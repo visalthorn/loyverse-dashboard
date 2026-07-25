@@ -150,6 +150,13 @@
     padding: 1.25rem;
   }
   .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+
+  /* ---- Receipt source tabs ---- */
+  .receipt-source-tab {
+    padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600;
+    background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer;
+  }
+  .receipt-source-tab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 </style>
 </head>
 <body class="app-shell min-h-screen">
@@ -175,6 +182,12 @@
   </header>
 
   <main class="p-4 md:p-6 space-y-5 w-full max-w-screen-xl mx-auto">
+
+    <!-- Receipt source tabs -->
+    <div class="flex gap-2" id="receiptSourceTabs">
+      <button id="receiptTabLoyverse" onclick="switchReceiptSource('loyverse')" class="receipt-source-tab active" data-i18n="receipts.tabLoyverse">Loyverse Receipts</button>
+      <button id="receiptTabOwn" onclick="switchReceiptSource('own')" class="receipt-source-tab" data-i18n="receipts.tabOwn">Own Receipts</button>
+    </div>
 
     <!-- Summary stats -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="statsRow">

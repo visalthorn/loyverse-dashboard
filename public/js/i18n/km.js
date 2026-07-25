@@ -152,6 +152,8 @@ export const km = {
 
   // ── receipts ────────────────────────────────────────────
   'receipts.title': 'បង្កាន់ដៃ',
+  'receipts.tabLoyverse': 'បង្កាន់ដៃ Loyverse',
+  'receipts.tabOwn': 'បង្កាន់ដៃផ្ទាល់ខ្លួន',
   'receipts.subtitle': 'មើល និងស្វែងរកកំណត់ត្រាបង្កាន់ដៃ',
   'receipts.statAllReceipts': 'បង្កាន់ដៃទាំងអស់',
   'receipts.statSales': 'ការលក់',
