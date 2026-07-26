@@ -245,8 +245,21 @@ function scheduleRefresh() {
 
 async function cycleItemStatus(itemId, currentStatus) {
   const next = NEXT_STATUS[currentStatus] || 'pending';
+  // Optimistic: update locally and re-render immediately so the tap feels
+  // instant, rather than waiting on a full network round trip.
+  for (const order of orders) {
+    const item = order.items.find(i => i.id === itemId);
+    if (item) { item.kitchen_status = next; break; }
+  }
+  render();
+
   const res = await apiPatch(`/api/pos/order-items/${itemId}/kitchen-status`, { status: next });
-  if (res.ok) scheduleRefresh();
+  if (!res.ok) {
+    showToast(res.data.message || 'Failed to update item.', 'error');
+    refresh(); // reconcile with server truth -- the optimistic update above was wrong
+    return;
+  }
+  scheduleRefresh();
 }
 
 async function markReady(orderId) {
@@ -267,6 +280,7 @@ async function markReady(orderId) {
 async function markServed(orderId) {
   const res = await apiPost(`/api/pos/orders/${orderId}/served`, {});
   if (res.ok) scheduleRefresh();
+  else showToast(res.data.message || 'Failed to mark served.', 'error');
 }
 
 let stream = null;
