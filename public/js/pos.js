@@ -28,6 +28,7 @@ let tableNumber  = '';
 let selectedPayMethod = null;
 let cashReceived       = 0;
 let lastPaidOrder      = null;
+let orderLoading       = false;
 
 // Saved-order name: auto-filled with the time the order was started, freely
 // editable (e.g. to "Table 5") before or after saving.
@@ -551,6 +552,7 @@ function donePay() {
 }
 
 async function cancelOrder() {
+  if (orderLoading) { showToast('Still loading the order — try again in a moment.', 'error'); return; }
   if (!currentOrder) return;
   if (currentOrder._queued) {
     showToast("This order hasn't synced yet — it'll retry automatically.", 'error');
@@ -623,7 +625,9 @@ async function loadOpenOrders() {
 }
 
 async function loadOrderIntoPanel(id) {
+  orderLoading = true;
   const data = await fetchJSON(`/api/pos/orders/${id}`);
+  orderLoading = false;
   if (!data) return;
   applyOrderToPanel(data.order);
 }

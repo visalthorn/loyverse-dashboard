@@ -26,6 +26,14 @@ function ensureDialog() {
 
 function openDialog({ message, title, confirmText, cancelText, danger, showCancel }) {
   const d = ensureDialog();
+  // A prior invocation's dialog can still be open if this is called again
+  // before it resolved (e.g. a second action fired while the first dialog
+  // was still up) -- showModal() on an already-open <dialog> throws
+  // InvalidStateError, which silently rejects the returned promise with no
+  // visible error to the user. Force-close any stale instance first so its
+  // pending promise resolves (as cancelled) instead of hanging or throwing.
+  if (d.open) d.close('');
+
   const titleEl   = d.querySelector('.app-dialog-title');
   const msgEl     = d.querySelector('.app-dialog-message');
   const iconEl    = d.querySelector('.app-dialog-icon');
