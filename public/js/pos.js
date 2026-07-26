@@ -176,6 +176,26 @@ function editCartNote(idx) {
   renderCart();
 }
 
+async function changeSentItemQty(itemId, delta) {
+  if (!currentOrder) return;
+  const item = currentOrder.items.find(i => i.id === itemId);
+  if (!item) return;
+  const newQty = item.quantity + delta;
+  if (newQty < 1) { removeSentItem(itemId); return; }
+  const { ok, data } = await mutate(`/api/pos/order-items/${itemId}`, 'PATCH', { quantity: newQty });
+  if (ok && data.order) { currentOrder = data.order; renderCart(); }
+  else if (!ok) showToast(data.message || 'Failed to update item.', 'error');
+}
+
+async function removeSentItem(itemId) {
+  if (!currentOrder) return;
+  const ok = await showConfirm('Remove this item from the order?', { danger: true, confirmText: 'Remove' });
+  if (!ok) return;
+  const { ok: success, data } = await mutate(`/api/pos/order-items/${itemId}`, 'DELETE', null);
+  if (success && data.order) { currentOrder = data.order; renderCart(); }
+  else if (!success) showToast(data.message || 'Failed to remove item.', 'error');
+}
+
 function computeTotals() {
   const persistedSubtotal = currentOrder ? Number(currentOrder.subtotal) : 0;
   // Discount can no longer be applied from the POS UI -- only respected here
@@ -194,15 +214,35 @@ function renderCart() {
   if (!persisted.length && !cart.length) {
     list.innerHTML = '<div id="emptyCartMsg">Cart is empty — tap items to add.</div>';
   } else {
-    const persistedHTML = persisted.map(it => `
-      <div class="cart-line sent">
-        <div class="cl-info">
-          <div class="cl-name">${it.item_name}</div>
-          <div class="cl-price">${khr(it.price)} × ${it.quantity}${it.note ? ` · ${it.note}` : ''}</div>
+    const persistedHTML = persisted.map(it => {
+      const editable = it.kitchen_status !== 'done' && !(currentOrder && currentOrder._queued);
+      if (!editable) {
+        return `
+          <div class="cart-line sent">
+            <div class="cl-info">
+              <div class="cl-name">${esc(it.item_name)}</div>
+              <div class="cl-price">${khr(it.price)} × ${it.quantity}${it.note ? ` · ${esc(it.note)}` : ''}</div>
+            </div>
+            <div class="cl-total">${khr(it.price * it.quantity)}</div>
+          </div>
+        `;
+      }
+      return `
+        <div class="cart-line sent">
+          <div class="cl-info">
+            <div class="cl-name">${esc(it.item_name)}</div>
+            <div class="cl-price">${khr(it.price)}${it.note ? ` · <span class="cl-note">${esc(it.note)}</span>` : ''}</div>
+          </div>
+          <div class="qty-stepper">
+            <button type="button" data-sent-dec="${it.id}">−</button>
+            <span class="qty-val">${it.quantity}</span>
+            <button type="button" data-sent-inc="${it.id}">+</button>
+          </div>
+          <div class="cl-total">${khr(it.price * it.quantity)}</div>
+          <button class="cl-remove" type="button" data-sent-remove="${it.id}">✕</button>
         </div>
-        <div class="cl-total">${khr(it.price * it.quantity)}</div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     const cartHTML = cart.map((l, idx) => `
       <div class="cart-line">
@@ -226,6 +266,9 @@ function renderCart() {
     list.querySelectorAll('[data-dec]').forEach(b => b.addEventListener('click', () => changeCartQty(parseInt(b.dataset.dec), -1)));
     list.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => removeCartLine(parseInt(b.dataset.remove))));
     list.querySelectorAll('[data-note-idx]').forEach(el => el.addEventListener('click', () => editCartNote(parseInt(el.dataset.noteIdx))));
+    list.querySelectorAll('[data-sent-inc]').forEach(b => b.addEventListener('click', () => changeSentItemQty(parseInt(b.dataset.sentInc, 10), 1)));
+    list.querySelectorAll('[data-sent-dec]').forEach(b => b.addEventListener('click', () => changeSentItemQty(parseInt(b.dataset.sentDec, 10), -1)));
+    list.querySelectorAll('[data-sent-remove]').forEach(b => b.addEventListener('click', () => removeSentItem(parseInt(b.dataset.sentRemove, 10))));
   }
 
   const { subtotal, total } = computeTotals();
