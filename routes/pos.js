@@ -327,7 +327,7 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), async (
     }
 
     const now = toCambodiaTime(new Date());
-    await client.query(`UPDATE pos_orders SET status = 'sent_to_kitchen', updated_at = $1 WHERE id = $2`, [now, id]);
+    await client.query(`UPDATE pos_orders SET status = 'sent_to_kitchen', sent_to_kitchen_at = $1, updated_at = $1 WHERE id = $2`, [now, id]);
     await client.query(
       `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'sent_to_kitchen',$2,$3)`,
       [id, req.terminal.terminal_id, now]
