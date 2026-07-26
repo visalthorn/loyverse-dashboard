@@ -2,6 +2,7 @@ import {
   getTerminalToken, getTerminalInfo, showTerminalLogin,
   fetchTerminalJSON as fetchJSON, terminalApiPatch as apiPatch, terminalApiPost as apiPost,
 } from './terminalAuth.js';
+import { showToast } from './toast.js';
 
 // Tapping an item just strikes it (done) or un-strikes it (back to pending)
 // -- 'preparing' is no longer a manually-reachable click state, though the
@@ -251,8 +252,15 @@ async function cycleItemStatus(itemId, currentStatus) {
 async function markReady(orderId) {
   const res = await apiPost(`/api/pos/orders/${orderId}/ready`, {});
   if (res.ok) {
-    beep();
+    if (res.data.fully_ready) {
+      beep();
+      showToast('Order ready!');
+    } else {
+      showToast('Your items are ready — waiting on other station(s).');
+    }
     scheduleRefresh();
+  } else {
+    showToast(res.data.message || 'Failed to mark ready.', 'error');
   }
 }
 
