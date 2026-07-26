@@ -276,7 +276,8 @@ function renderCart() {
     ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}`
     : 'New order (not yet sent)';
 
-  getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status)) ? 'block' : 'none';
+  const hasDoneItem = !!(currentOrder && currentOrder.items && currentOrder.items.some(it => it.kitchen_status === 'done'));
+  getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status) && !hasDoneItem) ? 'block' : 'none';
 
   // Saved but not yet sent (either the auto-send on save failed, or this is
   // a previously-saved order reopened from the strip) -- offer a manual

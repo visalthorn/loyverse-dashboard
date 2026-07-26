@@ -657,6 +657,14 @@ router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), async (req, res)
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
     if (!canTransition(order.status, 'cancelled')) throw httpError(409, `Cannot cancel a ${order.status} order.`);
 
+    const doneItemsRes = await client.query(
+      `SELECT 1 FROM pos_order_items WHERE order_id = $1 AND kitchen_status = 'done' LIMIT 1`,
+      [id]
+    );
+    if (doneItemsRes.rows.length) {
+      throw httpError(409, 'Cannot cancel — some items are already prepared. Use a refund from the dashboard instead.');
+    }
+
     const now = toCambodiaTime(new Date());
     await client.query(
       `UPDATE pos_orders SET status = 'cancelled', cancelled_at = $1, cancel_reason = $2, updated_at = $1 WHERE id = $3`,
