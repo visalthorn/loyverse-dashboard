@@ -2,9 +2,12 @@ import { fetchJSON } from '../api.js';
 import { getEl, fmtRaw, fmtKHR, downloadCSV, TZ } from '../utils.js';
 import { t } from '../i18n.js';
 import { renderDateFilter } from '../dateFilter.js';
+import { renderBranchFilter } from '../branchFilter.js';
 import { showToast } from '../toast.js';
 
 const PAGE_SIZE = 25;
+
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 let allReceipts = [];
 let displayed   = [];
@@ -14,6 +17,7 @@ let isLoading   = false;
 let filterStart = '';
 let filterEnd   = '';
 let receiptSource = 'loyverse'; // 'loyverse' | 'own'
+let ownBranchId = null;
 
 // ─── Formatters (receipts-specific) ─────────────────────────────────────────
 
@@ -48,6 +52,7 @@ export async function loadReceipts() {
   if (start) params.set('start', start);
   if (end)   params.set('end',   end);
   if (type)  params.set('type',  type);
+  if (receiptSource === 'own' && ownBranchId) params.set('branch', ownBranchId);
 
   const data = await fetchJSON(`/api/receipts?${params}`);
   allReceipts = data ? (data.receipts ?? []) : (receiptSource === 'loyverse' ? filterDemoData(start, end, type) : []);
@@ -86,9 +91,24 @@ export function switchReceiptSource(source) {
   selectedId  = null;
   getEl('receiptTabLoyverse')?.classList.toggle('active', source === 'loyverse');
   getEl('receiptTabOwn')?.classList.toggle('active', source === 'own');
+  getEl('ownBranchFilterRow')?.classList.toggle('hidden', source !== 'own');
+  getEl('liveOrdersCard')?.classList.toggle('hidden', source !== 'own');
   const empty = getEl('detailEmpty'), content = getEl('detailContent'), panel = getEl('detailPanel');
   if (empty && content && panel) { empty.classList.remove('hidden'); content.classList.add('hidden'); panel.classList.remove('active'); }
+  if (source === 'own') {
+    mountOwnBranchFilter();
+    loadLiveOrders();
+    startLiveOrdersPoll();
+  } else {
+    stopLiveOrdersPoll();
+  }
   loadReceipts();
+}
+
+function mountOwnBranchFilter() {
+  renderBranchFilter(getEl('ownBranchFilterMount'), {
+    onChange: (branchId) => { ownBranchId = branchId; loadReceipts(); },
+  });
 }
 
 export function onApiFilterChange() { loadReceipts(); }
@@ -379,6 +399,48 @@ const DEMO_RECEIPTS = [
     items:[],
   })),
 ];
+
+// ─── Own-POS: Live Orders ───────────────────────────────────────────────────
+
+let liveOrdersTimer = null;
+
+function elapsedLabel(createdAt) {
+  const ms = Date.now() - new Date(createdAt).getTime();
+  const mins = Math.max(0, Math.floor(ms / 60000));
+  return `${mins}m`;
+}
+
+async function loadLiveOrders() {
+  const data = await fetchJSON('/api/receipts/own/live');
+  const list = getEl('liveOrdersList');
+  const count = getEl('liveOrdersCount');
+  if (!data) return;
+  const orders = data.orders || [];
+  if (count) count.textContent = `${orders.length} active`;
+  if (!list) return;
+  if (!orders.length) {
+    list.innerHTML = `<div class="empty-state">No live orders right now.</div>`;
+    return;
+  }
+  list.innerHTML = orders.map(o => `
+    <div class="detail-item-row">
+      <div>
+        <div class="detail-item-name">${esc(o.branch_name) || '—'} · ${esc(o.order_number)}${o.name ? ' · ' + esc(o.name) : ''}</div>
+        <div class="detail-item-qty">${esc((o.status || '').replace(/_/g, ' '))} · ${elapsedLabel(o.created_at)} · ${esc(o.terminal_name) || '—'}</div>
+      </div>
+      <div class="detail-item-price">${fmtKHR(o.total)}</div>
+    </div>
+  `).join('');
+}
+
+function startLiveOrdersPoll() {
+  stopLiveOrdersPoll();
+  liveOrdersTimer = setInterval(loadLiveOrders, 30000);
+}
+
+function stopLiveOrdersPoll() {
+  if (liveOrdersTimer) { clearInterval(liveOrdersTimer); liveOrdersTimer = null; }
+}
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 

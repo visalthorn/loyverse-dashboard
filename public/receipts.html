@@ -189,6 +189,20 @@
       <button id="receiptTabOwn" onclick="switchReceiptSource('own')" class="receipt-source-tab" data-i18n="receipts.tabOwn">Own Receipts</button>
     </div>
 
+    <!-- Own-POS: branch filter (shown only on the Own tab) -->
+    <div id="ownBranchFilterRow" class="hidden">
+      <div id="ownBranchFilterMount" style="display:flex;justify-content:flex-end;"></div>
+    </div>
+
+    <!-- Own-POS: live orders (shown only on the Own tab) -->
+    <div id="liveOrdersCard" class="card hidden">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="section-title">🔴 Live Orders</h2>
+        <span class="text-xs text-[color:var(--text-secondary)]" id="liveOrdersCount">—</span>
+      </div>
+      <div id="liveOrdersList" class="space-y-2"></div>
+    </div>
+
     <!-- Summary stats -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="statsRow">
       <div class="stat-card">
