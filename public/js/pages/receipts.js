@@ -415,6 +415,8 @@ function elapsedLabel(createdAt) {
   return `${mins}m`;
 }
 
+let expandedLiveOrderId = null;
+
 async function loadLiveOrders() {
   const data = await fetchJSON('/api/receipts/own/live');
   const list = getEl('liveOrdersList');
@@ -427,15 +429,31 @@ async function loadLiveOrders() {
     list.innerHTML = `<div class="empty-state">No live orders right now.</div>`;
     return;
   }
-  list.innerHTML = orders.map(o => `
-    <div class="detail-item-row">
-      <div>
-        <div class="detail-item-name">${esc(o.branch_name) || '—'} · ${esc(o.order_number)}${o.name ? ' · ' + esc(o.name) : ''}</div>
-        <div class="detail-item-qty">${esc((o.status || '').replace(/_/g, ' '))} · ${elapsedLabel(o.created_at)} · ${esc(o.terminal_name) || '—'}</div>
+  list.innerHTML = orders.map(o => {
+    const items = Array.isArray(o.items) ? o.items : [];
+    const expanded = expandedLiveOrderId === o.id;
+    const itemsHtml = expanded ? `
+      <div class="live-order-items">
+        ${items.map(it => `<div class="detail-item-row"><span>${it.qty} × ${esc(it.item_name)}</span><span>${fmtKHR(it.total_price)}</span></div>`).join('') || '<div class="detail-item-row">No items</div>'}
+      </div>` : '';
+    return `
+      <div class="detail-item-row live-order-row" data-live-order-id="${o.id}" style="cursor:pointer;">
+        <div>
+          <div class="detail-item-name">${esc(o.branch_name) || '—'} · ${esc(o.order_number)}${o.name ? ' · ' + esc(o.name) : ''}</div>
+          <div class="detail-item-qty">${esc((o.status || '').replace(/_/g, ' '))} · ${elapsedLabel(o.created_at)} · by ${esc(o.terminal_name) || '—'}</div>
+        </div>
+        <div class="detail-item-price">${fmtKHR(o.total)}</div>
       </div>
-      <div class="detail-item-price">${fmtKHR(o.total)}</div>
-    </div>
-  `).join('');
+      ${itemsHtml}
+    `;
+  }).join('');
+  list.querySelectorAll('[data-live-order-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = parseInt(el.dataset.liveOrderId, 10);
+      expandedLiveOrderId = expandedLiveOrderId === id ? null : id;
+      loadLiveOrders();
+    });
+  });
 }
 
 function startLiveOrdersPoll() {

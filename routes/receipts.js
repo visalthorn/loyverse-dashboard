@@ -181,7 +181,9 @@ router.get('/own/live', requireAuth, async (req, res) => {
     const { rows } = await pool.query(`
       SELECT po.id, po.order_number, po.name, po.status, po.dining_option, po.table_number,
              po.total, po.created_at, po.updated_at,
-             b.name AS branch_name, COALESCE(pt.name, pt.terminal_id) AS terminal_name
+             b.name AS branch_name, COALESCE(pt.name, pt.terminal_id) AS terminal_name,
+             (SELECT jsonb_agg(jsonb_build_object('item_name',poi.item_name,'qty',poi.quantity,'unit_price',poi.price,'total_price',poi.price * poi.quantity))
+              FROM pos_order_items poi WHERE poi.order_id = po.id) AS items
       FROM pos_orders po
       LEFT JOIN branches b ON b.id = po.branch_id
       LEFT JOIN pos_terminals pt ON pt.id = po.terminal_id
