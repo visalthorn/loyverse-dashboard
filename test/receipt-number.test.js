@@ -51,7 +51,7 @@ test('generates POS-YYMMDD-#### with a sequential suffix', async () => {
     await client.query('BEGIN');
     const first = await generateReceiptNumber(client);
     const yymmdd = dayjs().tz('Asia/Phnom_Penh').format('YYMMDD');
-    assert.match(first, new RegExp(`^POS-${yymmdd}-\\d{4}$`));
+    assert.match(first, new RegExp(`^RCP-${yymmdd}-\\d{4}$`));
     await client.query('ROLLBACK'); // don't actually insert a receipt row
   } finally {
     client.release();
