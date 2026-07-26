@@ -13,6 +13,25 @@
 -- so it's excluded from revenue while still visible to cancelled_at IS NOT NULL
 -- queries (the cancelled/refund panel).
 --
+-- DEPLOY ORDER: on any environment with pre-existing pos_orders rows already
+-- status='paid' before the completion transaction started writing pos_receipts
+-- (013 + the routes/pos.js change that landed alongside it), run
+-- `node scripts/backfill-pos-receipts.js --confirm` for that environment
+-- BEFORE applying this migration. The instant this migration runs, every
+-- report reads exclusively from pos_receipts -- an orphaned paid order with
+-- no receipt becomes invisible to every report with no error. The trailing
+-- sanity check below surfaces this count; it must be 0 before you walk away.
+--
+-- CONFIRMED BEHAVIOR CHANGE: cancelled (never-paid) own-POS orders are NOT
+-- included in v_receipts_all/v_receipt_items_all after this repoint. The
+-- pre-revision view (010) read `pos_orders WHERE status IN ('paid','cancelled')`,
+-- so a cancelled order still surfaced in the cancelled-orders panel. pos_receipts
+-- rows only ever exist for completed sales (and refund-copies of them) -- a
+-- cancelled-before-payment order never gets one. This was confirmed as the
+-- intended behavior going forward (pos_receipts is the sole reporting source
+-- of truth now, not pos_orders): a cancelled-never-paid order was never real
+-- revenue, and no replacement visibility mechanism was added.
+--
 -- Idempotent: CREATE OR REPLACE VIEW is safe to run more than once.
 
 BEGIN;
@@ -69,4 +88,6 @@ COMMIT;
 SELECT
   (SELECT COUNT(*) FROM v_receipts_all)         AS v_receipts_all_count,
   (SELECT COUNT(*) FROM v_receipt_items_all)    AS v_receipt_items_all_count,
-  (SELECT COUNT(*) FROM v_receipt_payments_all) AS v_receipt_payments_all_count;
+  (SELECT COUNT(*) FROM v_receipt_payments_all) AS v_receipt_payments_all_count,
+  (SELECT COUNT(*) FROM pos_orders WHERE status = 'paid' AND receipt_id IS NULL)
+    AS orphaned_paid_orders_should_be_zero_before_this_migration;
