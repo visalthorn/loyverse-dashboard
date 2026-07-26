@@ -697,6 +697,7 @@ async function attachFilteredItems(orders, categoryIds) {
 
 router.get('/kds/active', requireTerminalAuth(['kds']), async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     // Zero categories assigned means this station hasn't been configured yet
     // -- show a friendly empty state, never "all orders" as a fallback.
     const categoryIds = await loadKdsCategoryIds(req.terminal.id);
@@ -725,6 +726,7 @@ router.get('/kds/active', requireTerminalAuth(['kds']), async (req, res) => {
 // can't safely be compared against SQL NOW()).
 router.get('/kds/finished', requireTerminalAuth(['kds']), async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const categoryIds = await loadKdsCategoryIds(req.terminal.id);
     if (!categoryIds.length) {
       return res.json({ server_now: toCambodiaTime(new Date()), orders: [], no_categories_assigned: true });
