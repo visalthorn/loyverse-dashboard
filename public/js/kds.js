@@ -213,7 +213,11 @@ function renderCard(order) {
 }
 
 function tickElapsed() {
-  document.querySelectorAll('.order-card').forEach(card => {
+  // :not(.finished) -- renderFinishedCard() never sets dataset.createdAt, so
+  // without this scope parseNaive(undefined) -> NaN -> both threshold
+  // comparisons false -> elapsedClass's fallback ('elapsed-ok') paints a
+  // misleading green "on time" border on cards outside the live timer.
+  document.querySelectorAll('.order-card:not(.finished)').forEach(card => {
     const elapsedMs = nowMs() - parseNaive(card.dataset.createdAt);
     const cls = elapsedClass(elapsedMs);
     card.classList.toggle('elapsed-ok',     cls === 'elapsed-ok');
