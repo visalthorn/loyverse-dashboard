@@ -197,6 +197,11 @@ export const en = {
   'receipts.printQty': 'Qty',
   'receipts.printUnitPrice': 'Unit Price',
   'receipts.printThankYou': 'Thank you!',
+  'receipts.refundBtn': '↩ Refund',
+  'receipts.refundConfirm': 'Refund this receipt? This cannot be undone.',
+  'receipts.refundReasonPlaceholder': 'Refund reason (optional)',
+  'receipts.refundSuccess': 'Receipt refunded.',
+  'receipts.refundFailed': 'Failed to refund this receipt.',
 
   // ── staff ───────────────────────────────────────────────
   'staff.title': 'Staff',

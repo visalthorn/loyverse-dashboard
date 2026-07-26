@@ -1,9 +1,10 @@
-import { fetchJSON } from '../api.js';
+import { fetchJSON, apiPost } from '../api.js';
 import { getEl, fmtRaw, fmtKHR, downloadCSV, TZ } from '../utils.js';
 import { t } from '../i18n.js';
 import { renderDateFilter } from '../dateFilter.js';
 import { renderBranchFilter } from '../branchFilter.js';
 import { showToast } from '../toast.js';
+import { showConfirm } from '../dialog.js';
 import { state } from '../state.js';
 
 const PAGE_SIZE = 25;
@@ -302,7 +303,23 @@ export function selectReceipt(id) {
       <div class="border-t border-[color:var(--border)] pt-3">
         <button onclick="exportReceiptPDF()" class="w-full bg-[color:var(--bg-surface-alt)] hover:bg-[color:var(--border)] text-[color:var(--text-primary)] text-xs font-semibold py-2 rounded flex items-center justify-center gap-1.5">${t('receipts.exportPdf')}</button>
       </div>
+      ${receiptSource === 'own' && r.refundable && state.userPermissions.receipts?.can_write ? `
+      <div class="border-t border-[color:var(--border)] pt-3">
+        <input id="refundReasonInput" type="text" maxlength="200" placeholder="${t('receipts.refundReasonPlaceholder')}" class="field-input w-full mb-2"/>
+        <button onclick="refundReceipt(${r.id})" class="w-full text-[color:var(--loss)] border border-[color:var(--loss)] hover:bg-[color:var(--loss)] hover:text-white text-xs font-semibold py-2 rounded flex items-center justify-center gap-1.5">${t('receipts.refundBtn')}</button>
+      </div>` : ''}
     </div>`;
+}
+
+export async function refundReceipt(id) {
+  const ok = await showConfirm(t('receipts.refundConfirm'), { danger: true, confirmText: t('receipts.refundBtn') });
+  if (!ok) return;
+  const reason = (getEl('refundReasonInput')?.value || '').trim();
+  const res = await apiPost(`/api/receipts/${id}/refund`, { reason });
+  if (!res.ok) { showToast(res.data.message || t('receipts.refundFailed'), 'error'); return; }
+  showToast(t('receipts.refundSuccess'));
+  selectedId = null;
+  await loadReceipts();
 }
 
 // ─── Exports ─────────────────────────────────────────────────────────────────

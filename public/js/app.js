@@ -112,6 +112,7 @@ window.changePage         = Receipts.changePage;
 window.selectReceipt      = Receipts.selectReceipt;
 window.exportReceiptsCSV  = Receipts.exportReceiptsCSV;
 window.exportReceiptPDF   = Receipts.exportReceiptPDF;
+window.refundReceipt      = Receipts.refundReceipt;
 
 // Staff
 window.submitStaff        = Staff.submitStaff;

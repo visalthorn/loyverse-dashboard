@@ -197,6 +197,11 @@ export const km = {
   'receipts.printQty': 'ចំនួន',
   'receipts.printUnitPrice': 'តម្លៃឯកតា',
   'receipts.printThankYou': 'សូមអរគុណ!',
+  'receipts.refundBtn': '↩ សងប្រាក់វិញ',
+  'receipts.refundConfirm': 'សងប្រាក់វិញសម្រាប់វិក្កយបត្រនេះឬ? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
+  'receipts.refundReasonPlaceholder': 'មូលហេតុសងប្រាក់វិញ (មិនចាំបាច់)',
+  'receipts.refundSuccess': 'បានសងប្រាក់វិញរួចរាល់។',
+  'receipts.refundFailed': 'បរាជ័យក្នុងការសងប្រាក់វិញ។',
 
   // ── staff ───────────────────────────────────────────────
   'staff.title': 'បុគ្គលិក',
