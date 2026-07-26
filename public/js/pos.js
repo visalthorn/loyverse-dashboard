@@ -95,7 +95,7 @@ async function pollCatalogVersion() {
 function renderCategories() {
   const select = getEl('categoryBar');
   const tabs = [{ id: 'all', name: 'All' }, ...catalog.categories];
-  select.innerHTML = tabs.map(c => `<option value="${c.id}" ${activeCategory === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  select.innerHTML = tabs.map(c => `<option value="${esc(c.id)}" ${activeCategory === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
   select.onchange = () => { activeCategory = select.value; renderItemGrid(); };
 }
 
@@ -211,7 +211,7 @@ function renderCart() {
     list.innerHTML = '<div id="emptyCartMsg">Cart is empty — tap items to add.</div>';
   } else {
     const persistedHTML = persisted.map(it => {
-      const editable = it.kitchen_status !== 'done' && !(currentOrder && currentOrder._queued);
+      const editable = it.id != null && it.kitchen_status !== 'done' && !(currentOrder && currentOrder._queued);
       if (!editable) {
         return `
           <div class="cart-line sent">
@@ -243,8 +243,8 @@ function renderCart() {
     const cartHTML = cart.map((l, idx) => `
       <div class="cart-line">
         <div class="cl-info" data-note-idx="${idx}">
-          <div class="cl-name">${l.name}</div>
-          <div class="cl-price">${khr(l.price)}${l.note ? ` · <span class="cl-note">${l.note}</span>` : ''}</div>
+          <div class="cl-name">${esc(l.name)}</div>
+          <div class="cl-price">${khr(l.price)}${l.note ? ` · <span class="cl-note">${esc(l.note)}</span>` : ''}</div>
         </div>
         <div class="qty-stepper">
           <button type="button" data-dec="${idx}">−</button>
