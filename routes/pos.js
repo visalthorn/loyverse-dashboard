@@ -448,6 +448,99 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), async (req, res) 
   }
 });
 
+router.patch('/order-items/:id', requireTerminalAuth(['pos']), async (req, res) => {
+  const id = parseId(req.params.id);
+  const qty = parseInt(req.body.quantity, 10);
+  if (!id) return res.status(400).json({ message: 'Invalid item id.' });
+  if (!Number.isInteger(qty) || qty < 1 || qty > 100) {
+    return res.status(400).json({ message: 'quantity must be a number between 1 and 100.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const itemRes = await client.query('SELECT * FROM pos_order_items WHERE id = $1 FOR UPDATE', [id]);
+    if (!itemRes.rows.length) throw httpError(404, 'Order item not found.');
+    const item = itemRes.rows[0];
+
+    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [item.order_id]);
+    const order = orderRes.rows[0];
+    if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order item not found.');
+    if (TERMINAL.has(order.status)) throw httpError(409, `Cannot edit items on a ${order.status} order.`);
+    if (item.kitchen_status === 'done') throw httpError(409, "This item has already been prepared and can't be changed.");
+
+    await client.query('UPDATE pos_order_items SET quantity = $1 WHERE id = $2', [qty, id]);
+
+    const itemsRes  = await client.query('SELECT price, quantity FROM pos_order_items WHERE order_id = $1', [order.id]);
+    const newSubtotal = itemsRes.rows.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
+    const newTotal     = Math.max(0, newSubtotal - Number(order.discount));
+    const now = toCambodiaTime(new Date());
+    await client.query(
+      `UPDATE pos_orders SET subtotal = $1, total = $2, updated_at = $3 WHERE id = $4`,
+      [newSubtotal, newTotal, now, order.id]
+    );
+
+    await client.query('COMMIT');
+    broadcastOrdersChanged();
+    res.json({ order: await fetchOrder(order.id) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    const status = err.statusCode || 500;
+    if (status >= 500) console.error('POS order-item quantity error:', err);
+    res.status(status).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/order-items/:id', requireTerminalAuth(['pos']), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid item id.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const itemRes = await client.query('SELECT * FROM pos_order_items WHERE id = $1 FOR UPDATE', [id]);
+    if (!itemRes.rows.length) throw httpError(404, 'Order item not found.');
+    const item = itemRes.rows[0];
+
+    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [item.order_id]);
+    const order = orderRes.rows[0];
+    if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order item not found.');
+    if (TERMINAL.has(order.status)) throw httpError(409, `Cannot edit items on a ${order.status} order.`);
+    if (item.kitchen_status === 'done') throw httpError(409, "This item has already been prepared and can't be removed.");
+
+    const countRes = await client.query('SELECT COUNT(*) AS n FROM pos_order_items WHERE order_id = $1', [order.id]);
+    if (parseInt(countRes.rows[0].n, 10) <= 1) {
+      throw httpError(409, 'Cannot remove the last item — cancel the order instead.');
+    }
+
+    await client.query('DELETE FROM pos_order_items WHERE id = $1', [id]);
+
+    const itemsRes  = await client.query('SELECT price, quantity FROM pos_order_items WHERE order_id = $1', [order.id]);
+    const newSubtotal = itemsRes.rows.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
+    const newTotal     = Math.max(0, newSubtotal - Number(order.discount));
+    const now = toCambodiaTime(new Date());
+    await client.query(
+      `UPDATE pos_orders SET subtotal = $1, total = $2, updated_at = $3 WHERE id = $4`,
+      [newSubtotal, newTotal, now, order.id]
+    );
+
+    await client.query('COMMIT');
+    broadcastOrdersChanged();
+    res.json({ order: await fetchOrder(order.id) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    const status = err.statusCode || 500;
+    if (status >= 500) console.error('POS order-item delete error:', err);
+    res.status(status).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 async function completeOrder(req, res) {
   const id = parseId(req.params.id);
   const { payment_method, cash_received } = req.body;
