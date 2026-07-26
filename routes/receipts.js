@@ -136,7 +136,10 @@ async function getOwnReceipts(req, res) {
     let i = 1;
     if (req.query.start)  { filters.push(`DATE(r.receipt_date) >= $${i++}`); params.push(req.query.start); }
     if (req.query.end)    { filters.push(`DATE(r.receipt_date) <= $${i++}`); params.push(req.query.end); }
-    if (req.query.branch) { filters.push(`r.branch_id = $${i++}`); params.push(parseInt(req.query.branch, 10)); }
+    if (req.query.branch) {
+      const branchId = parseInt(req.query.branch, 10);
+      if (Number.isInteger(branchId)) { filters.push(`r.branch_id = $${i++}`); params.push(branchId); }
+    }
     if (req.query.type && req.query.type.toUpperCase() === 'REFUND') { filters.push(`r.cancelled_at IS NOT NULL`); }
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';

@@ -800,7 +800,16 @@ router.post('/orders/:id/served', requireTerminalAuth(['kds']), async (req, res)
 
 router.get('/receipts', requireTerminalAuth(['pos']), async (req, res) => {
   try {
-    const date  = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : null;
+    let date = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '')) {
+      // The regex only checks shape -- a value like 2026-13-45 still needs
+      // Date to confirm it's a real calendar date before it reaches SQL,
+      // where an out-of-range date/time value raises a raw pg error (22008).
+      const parsed = new Date(`${req.query.date}T00:00:00Z`);
+      if (!isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === req.query.date) {
+        date = req.query.date;
+      }
+    }
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const params = [req.terminal.branch_id];
     let where = 'WHERE r.branch_id = $1';
