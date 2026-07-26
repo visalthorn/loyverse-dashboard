@@ -158,6 +158,23 @@ router.post('/:id/kds-terminals', async (req, res) => {
   }
 });
 
+router.get('/:id/kds-terminal-categories', async (req, res) => {
+  const branchId = parseId(req.params.id);
+  if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
+  try {
+    const result = await pool.query(`
+      SELECT ktc.category_id, kt.id AS kds_terminal_id, kt.terminal_id, kt.name
+      FROM kds_terminal_categories ktc
+      JOIN kds_terminals kt ON kt.id = ktc.kds_terminal_id
+      WHERE ktc.branch_id = $1 AND kt.deleted_at IS NULL
+    `, [branchId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('kds-terminal-categories GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(`
