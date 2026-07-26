@@ -37,6 +37,11 @@ function formatElapsed(ms) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function formatClock(ts) {
+  const d = new Date(parseNaive(ts));
+  return d.toLocaleTimeString('en-GB', { hour12: false, timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
+}
+
 function beep() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -74,7 +79,7 @@ function badgeText(order) {
 function elapsedClass(ms) {
   if (ms >= DANGER_MS) return 'elapsed-danger';
   if (ms >= WARN_MS) return 'elapsed-warn';
-  return '';
+  return 'elapsed-ok';
 }
 
 function render() {
@@ -170,13 +175,14 @@ function renderFinishedCard(order) {
 function renderCard(order) {
   const card = document.createElement('div');
   card.className = 'order-card';
-  card.dataset.createdAt = order.created_at;
+  card.dataset.createdAt = order.sent_to_kitchen_at || order.created_at;
 
   const head = document.createElement('div');
   head.className = 'oc-head';
   head.innerHTML = `
     <span class="oc-number">${order.order_number}</span>
     <span class="oc-badge">${badgeText(order)}</span>
+    <span class="oc-arrived">${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
     <span class="oc-elapsed">0:00</span>
   `;
   card.appendChild(head);
@@ -210,7 +216,8 @@ function tickElapsed() {
   document.querySelectorAll('.order-card').forEach(card => {
     const elapsedMs = nowMs() - parseNaive(card.dataset.createdAt);
     const cls = elapsedClass(elapsedMs);
-    card.classList.toggle('elapsed-warn', cls === 'elapsed-warn');
+    card.classList.toggle('elapsed-ok',     cls === 'elapsed-ok');
+    card.classList.toggle('elapsed-warn',   cls === 'elapsed-warn');
     card.classList.toggle('elapsed-danger', cls === 'elapsed-danger');
     const label = card.querySelector('.oc-elapsed');
     if (label) label.textContent = formatElapsed(elapsedMs);

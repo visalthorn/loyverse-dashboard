@@ -55,6 +55,7 @@
     width: 300px; border-radius: 14px; border: 1px solid var(--border);
     background: var(--bg-surface); display: flex; flex-direction: column; overflow: hidden;
   }
+  .order-card.elapsed-ok { border-color: var(--gain); }
   .order-card.elapsed-warn  { border-color: var(--accent); }
   .order-card.elapsed-danger { border-color: var(--loss); }
   .order-card.finished { opacity: 0.75; }
@@ -68,10 +69,15 @@
     font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
     background: var(--bg-surface-alt); color: var(--text-secondary); text-transform: uppercase;
   }
+  .oc-arrived {
+    font-family: var(--font-num); font-size: 11px; color: var(--text-secondary);
+    margin-left: 6px; white-space: nowrap;
+  }
   .oc-elapsed {
     margin-left: auto; font-family: var(--font-num); font-size: 15px; font-weight: 700;
     color: var(--text-secondary);
   }
+  .elapsed-ok     .oc-elapsed { color: var(--gain); }
   .elapsed-warn   .oc-elapsed { color: var(--accent-strong); }
   .elapsed-danger .oc-elapsed { color: var(--loss); }
 
