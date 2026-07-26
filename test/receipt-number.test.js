@@ -45,7 +45,7 @@ after(async () => {
   await pool.end();
 });
 
-test('generates POS-YYMMDD-#### with a sequential suffix', async () => {
+test('generates RCP-YYMMDD-#### with a sequential suffix', async () => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
