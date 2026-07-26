@@ -4,6 +4,8 @@ import {
 } from './terminalAuth.js';
 import { showToast } from './toast.js';
 
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 // Tapping an item just strikes it (done) or un-strikes it (back to pending)
 // -- 'preparing' is no longer a manually-reachable click state, though the
 // order-level sent_to_kitchen -> preparing bump (server side) is unaffected
@@ -107,7 +109,7 @@ function render() {
     for (const order of ready) {
       const chip = document.createElement('div');
       chip.className = 'ready-chip';
-      chip.innerHTML = `<span class="rc-title">${order.order_number}</span><span class="rc-sub">${badgeText(order)}</span>`;
+      chip.innerHTML = `<span class="rc-title">${esc(order.order_number)}</span><span class="rc-sub">${esc(badgeText(order))}</span>`;
       chip.onclick = () => markServed(order.id);
       strip.appendChild(chip);
     }
@@ -152,8 +154,8 @@ function renderFinishedCard(order) {
   const head = document.createElement('div');
   head.className = 'oc-head';
   head.innerHTML = `
-    <span class="oc-number">${order.order_number}</span>
-    <span class="oc-badge">${badgeText(order)}</span>
+    <span class="oc-number">${esc(order.order_number)}</span>
+    <span class="oc-badge">${esc(badgeText(order))}</span>
   `;
   card.appendChild(head);
 
@@ -164,7 +166,7 @@ function renderFinishedCard(order) {
     row.className = 'oc-item status-done';
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name">${item.item_name}${item.note ? `<span class="note">${item.note}</span>` : ''}</span>
+      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}</span>
     `;
     itemsEl.appendChild(row);
   }
@@ -181,8 +183,8 @@ function renderCard(order) {
   const head = document.createElement('div');
   head.className = 'oc-head';
   head.innerHTML = `
-    <span class="oc-number">${order.order_number}</span>
-    <span class="oc-badge">${badgeText(order)}</span>
+    <span class="oc-number">${esc(order.order_number)}</span>
+    <span class="oc-badge">${esc(badgeText(order))}</span>
     <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
     <span class="oc-elapsed">⏱ 0:00</span>
   `;
@@ -195,7 +197,7 @@ function renderCard(order) {
     row.className = `oc-item status-${item.kitchen_status}`;
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name">${item.item_name}${item.note ? `<span class="note">${item.note}</span>` : ''}</span>
+      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}</span>
     `;
     row.onclick = () => cycleItemStatus(item.id, item.kitchen_status);
     itemsEl.appendChild(row);
