@@ -93,14 +93,10 @@ async function pollCatalogVersion() {
 }
 
 function renderCategories() {
-  const bar = getEl('categoryBar');
+  const select = getEl('categoryBar');
   const tabs = [{ id: 'all', name: 'All' }, ...catalog.categories];
-  bar.innerHTML = tabs.map(c => `
-    <button class="cat-tab ${activeCategory === c.id ? 'active' : ''}" data-cat="${c.id}">${c.name}</button>
-  `).join('');
-  bar.querySelectorAll('.cat-tab').forEach(btn => {
-    btn.addEventListener('click', () => { activeCategory = btn.dataset.cat; renderCategories(); renderItemGrid(); });
-  });
+  select.innerHTML = tabs.map(c => `<option value="${c.id}" ${activeCategory === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  select.onchange = () => { activeCategory = select.value; renderItemGrid(); };
 }
 
 function cartQtyFor(itemId) {
