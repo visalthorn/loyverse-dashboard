@@ -856,6 +856,11 @@ async function startApp(terminal) {
   const info = terminal || getTerminalInfo();
   const nameEl = getEl('navMenuTerminalName');
   if (nameEl && info) nameEl.textContent = info.name || info.terminal_id;
+  const brandEl = getEl('posBrand');
+  if (info) {
+    if (brandEl) brandEl.textContent = `🧾 ${info.name || info.terminal_id}`;
+    document.title = info.name || info.terminal_id;
+  }
 
   const configData = await fetchJSON('/api/pos/config');
   if (configData) config = configData;
