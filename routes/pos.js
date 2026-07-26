@@ -796,12 +796,24 @@ router.patch('/order-items/:id/kitchen-status', requireTerminalAuth(['kds']), as
 
     await client.query('UPDATE pos_order_items SET kitchen_status = $1 WHERE id = $2', [status, id]);
 
-    // Kitchen starting work on any line bumps the order itself into
-    // 'preparing' so the order-level state machine can later advance to
-    // 'ready' (order status and per-item kitchen_status are otherwise
-    // independent tracks).
     const now = toCambodiaTime(new Date());
-    if (order.status === 'sent_to_kitchen' && status !== 'pending') {
+    // Every item across the WHOLE order (any KDS station) done -- auto-advance
+    // to ready regardless of which station struck the last one, so readiness
+    // never depends on someone remembering to tap the Ready button.
+    const allItemsRes = await client.query('SELECT kitchen_status FROM pos_order_items WHERE order_id = $1', [order.id]);
+    const allDone = allItemsRes.rows.every(i => i.kitchen_status === 'done');
+
+    if (allDone && order.status !== 'ready' && order.status !== 'served' && !TERMINAL.has(order.status)) {
+      await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, order.id]);
+      await client.query(
+        `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'ready',$2,$3)`,
+        [order.id, req.terminal.terminal_id, now]
+      );
+    } else if (order.status === 'sent_to_kitchen' && status !== 'pending') {
+      // Kitchen starting work on any line bumps the order itself into
+      // 'preparing' so the order-level state machine can later advance to
+      // 'ready' (order status and per-item kitchen_status are otherwise
+      // independent tracks).
       await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['preparing', now, order.id]);
     } else {
       await client.query('UPDATE pos_orders SET updated_at = $1 WHERE id = $2', [now, order.id]);
@@ -832,23 +844,46 @@ router.post('/orders/:id/ready', requireTerminalAuth(['kds']), async (req, res) 
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
-    if (!canTransition(order.status, 'ready')) throw httpError(409, `Cannot mark a ${order.status} order ready.`);
+    if (TERMINAL.has(order.status)) throw httpError(409, `Cannot mark a ${order.status} order ready.`);
+    if (order.status === 'ready' || order.status === 'served') {
+      // Already fully ready -- another station's tap (or the last item
+      // struck anywhere) already got there first. Idempotent no-op.
+      await client.query('COMMIT');
+      return res.json({ order: await fetchOrder(id), fully_ready: true });
+    }
 
-    const itemsRes = await client.query('SELECT kitchen_status FROM pos_order_items WHERE order_id = $1', [id]);
-    if (itemsRes.rows.some(i => i.kitchen_status !== 'done')) {
-      throw httpError(409, 'All items must be done before marking the order ready.');
+    // Only THIS station's own items must be done -- exactly what the
+    // client's Ready button already checks before it's enabled. A station
+    // must never be blocked by another station's still-pending items.
+    const categoryIds = await loadKdsCategoryIds(req.terminal.id);
+    const stationItemsRes = await client.query(`
+      SELECT poi.kitchen_status
+      FROM pos_order_items poi
+      JOIN items i ON i.id = poi.source_item_id::uuid
+      WHERE poi.order_id = $1
+        AND COALESCE(i.custom_category_id, i.category_id) = ANY($2::uuid[])
+    `, [id, categoryIds]);
+    if (stationItemsRes.rows.some(i => i.kitchen_status !== 'done')) {
+      throw httpError(409, 'Your items must be done before marking your part ready.');
     }
 
     const now = toCambodiaTime(new Date());
-    await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, id]);
-    await client.query(
-      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'ready',$2,$3)`,
-      [id, req.terminal.terminal_id, now]
-    );
+    const allItemsRes = await client.query('SELECT kitchen_status FROM pos_order_items WHERE order_id = $1', [id]);
+    const fullyReady = allItemsRes.rows.every(i => i.kitchen_status === 'done');
+
+    if (fullyReady) {
+      await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, id]);
+      await client.query(
+        `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'ready',$2,$3)`,
+        [id, req.terminal.terminal_id, now]
+      );
+    }
+    // else: this station's part is done, but other station(s) still have
+    // pending items -- no status change, order stays visible everywhere.
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(id) });
+    res.json({ order: await fetchOrder(id), fully_ready: fullyReady });
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
