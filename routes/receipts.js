@@ -173,4 +173,23 @@ async function getOwnReceipts(req, res) {
   }
 }
 
+router.get('/own/live', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT po.id, po.order_number, po.name, po.status, po.dining_option, po.table_number,
+             po.total, po.created_at, po.updated_at,
+             b.name AS branch_name, COALESCE(pt.name, pt.terminal_id) AS terminal_name
+      FROM pos_orders po
+      LEFT JOIN branches b ON b.id = po.branch_id
+      LEFT JOIN pos_terminals pt ON pt.id = po.terminal_id
+      WHERE po.status NOT IN ('paid','cancelled')
+      ORDER BY po.created_at ASC
+    `);
+    res.json({ orders: rows });
+  } catch (err) {
+    console.error('Own live orders GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
