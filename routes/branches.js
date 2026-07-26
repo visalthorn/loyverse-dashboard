@@ -74,7 +74,45 @@ router.put('/devices/:id', async (req, res) => {
   }
 });
 
-// NOTE: registered before /:id so they never collide, same as /devices above.
+// NOTE: registered before /:id so /kds-settings never collides with the
+// single-segment PUT/DELETE /:id routes further down.
+
+router.get('/kds-settings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT warn_minutes, danger_minutes FROM kds_display_settings ORDER BY id LIMIT 1');
+    res.json(result.rows[0] || { warn_minutes: 10, danger_minutes: 20 });
+  } catch (err) {
+    console.error('kds-settings GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/kds-settings', async (req, res) => {
+  const warn   = parseInt(req.body.warn_minutes, 10);
+  const danger = parseInt(req.body.danger_minutes, 10);
+  if (!Number.isInteger(warn) || warn < 1) return res.status(400).json({ error: 'warn_minutes must be a positive integer.' });
+  if (!Number.isInteger(danger) || danger < 1) return res.status(400).json({ error: 'danger_minutes must be a positive integer.' });
+  if (warn >= danger) return res.status(400).json({ error: 'warn_minutes must be less than danger_minutes.' });
+  try {
+    const existing = await pool.query('SELECT id FROM kds_display_settings ORDER BY id LIMIT 1');
+    let result;
+    if (existing.rowCount) {
+      result = await pool.query(
+        'UPDATE kds_display_settings SET warn_minutes = $1, danger_minutes = $2, updated_at = NOW() WHERE id = $3 RETURNING warn_minutes, danger_minutes',
+        [warn, danger, existing.rows[0].id]
+      );
+    } else {
+      result = await pool.query(
+        'INSERT INTO kds_display_settings (warn_minutes, danger_minutes) VALUES ($1, $2) RETURNING warn_minutes, danger_minutes',
+        [warn, danger]
+      );
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('kds-settings PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get('/:id/pos-terminals', async (req, res) => {
   const branchId = parseId(req.params.id);
