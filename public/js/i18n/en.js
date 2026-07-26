@@ -502,6 +502,14 @@ export const en = {
   'branches.cardOrders': '{count} orders',
   'branches.cardEmpty': 'No sales in this period.',
   'branches.cardLoadFailed': 'Could not load branch breakdown.',
+  'branches.kdsSettingsTitle': '⏱️ KDS Display Settings',
+  'branches.kdsSettingsSubtitle': 'Minute thresholds that color-code KDS order cards (Good → Warning → Late)',
+  'branches.kdsWarnLabel': 'Warning after (minutes)',
+  'branches.kdsDangerLabel': 'Late after (minutes)',
+  'branches.kdsSettingsSaveBtn': 'Save',
+  'branches.kdsSettingsSaved': 'KDS display settings saved.',
+  'branches.kdsSettingsSaveFailed': 'Failed to save KDS display settings.',
+  'branches.kdsSettingsInvalid': 'Warning minutes must be a positive number less than Late minutes.',
 
   // ── sync page ───────────────────────────────────────────
   'sync.title': 'Loyverse Sync',

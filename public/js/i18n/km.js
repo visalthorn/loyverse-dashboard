@@ -502,6 +502,14 @@ export const km = {
   'branches.cardOrders': '{count} ការបញ្ជាទិញ',
   'branches.cardEmpty': 'គ្មានការលក់ក្នុងរយៈពេលនេះទេ។',
   'branches.cardLoadFailed': 'មិនអាចផ្ទុកទិន្នន័យតាមសាខាបានទេ។',
+  'branches.kdsSettingsTitle': '⏱️ ការកំណត់ពេលវេលាបង្ហាញ KDS',
+  'branches.kdsSettingsSubtitle': 'ចំនួននាទីកំណត់ពណ៌លើប័ណ្ណបញ្ជាទិញ KDS (ល្អ → ព្រមាន → យឺត)',
+  'branches.kdsWarnLabel': 'ព្រមានក្រោយ (នាទី)',
+  'branches.kdsDangerLabel': 'យឺតក្រោយ (នាទី)',
+  'branches.kdsSettingsSaveBtn': 'រក្សាទុក',
+  'branches.kdsSettingsSaved': 'បានរក្សាទុកការកំណត់បង្ហាញ KDS ។',
+  'branches.kdsSettingsSaveFailed': 'បរាជ័យក្នុងការរក្សាទុកការកំណត់បង្ហាញ KDS ។',
+  'branches.kdsSettingsInvalid': 'នាទីព្រមានត្រូវតែជាចំនួនវិជ្ជមានតិចជាងនាទីយឺត។',
 
   // ── sync page ───────────────────────────────────────────
   'sync.title': 'សមកាលកម្ម Loyverse',

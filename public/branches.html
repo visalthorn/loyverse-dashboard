@@ -145,6 +145,27 @@
         </div>
       </div>
 
+      <!-- KDS Display Settings card -->
+      <div class="card">
+        <div class="mb-4">
+          <h2 class="section-title" data-i18n="branches.kdsSettingsTitle">⏱️ KDS Display Settings</h2>
+          <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="branches.kdsSettingsSubtitle">Minute thresholds that color-code KDS order cards (Good → Warning → Late)</p>
+        </div>
+        <form id="kdsSettingsForm" onsubmit="saveKdsDisplaySettings(event)" class="grid grid-cols-2 gap-3 items-end">
+          <div>
+            <label class="text-xs text-[color:var(--text-secondary)] block mb-1" data-i18n="branches.kdsWarnLabel">Warning after (minutes)</label>
+            <input id="kdsWarnMinutesInput" type="number" min="1" required class="field-input"/>
+          </div>
+          <div>
+            <label class="text-xs text-[color:var(--text-secondary)] block mb-1" data-i18n="branches.kdsDangerLabel">Late after (minutes)</label>
+            <input id="kdsDangerMinutesInput" type="number" min="1" required class="field-input"/>
+          </div>
+          <div class="col-span-2">
+            <button type="submit" class="btn-accent" data-i18n="branches.kdsSettingsSaveBtn">Save</button>
+          </div>
+        </form>
+      </div>
+
     </div>
   </main>
 </div>

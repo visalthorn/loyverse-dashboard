@@ -355,6 +355,32 @@ export async function openCategoriesModal(kdsTerminalId) {
   });
 }
 
+let kdsSettings = { warn_minutes: 10, danger_minutes: 20 };
+
+async function loadKdsSettings() {
+  const data = await fetchJSON('/api/branches/kds-settings');
+  if (data) kdsSettings = data;
+  const warnEl   = getEl('kdsWarnMinutesInput');
+  const dangerEl = getEl('kdsDangerMinutesInput');
+  if (warnEl)   warnEl.value   = kdsSettings.warn_minutes;
+  if (dangerEl) dangerEl.value = kdsSettings.danger_minutes;
+}
+
+export async function saveKdsDisplaySettings(e) {
+  e.preventDefault();
+  const warn   = parseInt(getEl('kdsWarnMinutesInput').value, 10);
+  const danger = parseInt(getEl('kdsDangerMinutesInput').value, 10);
+  if (!Number.isInteger(warn) || warn < 1 || !Number.isInteger(danger) || danger < 1 || warn >= danger) {
+    showToast(t('branches.kdsSettingsInvalid'), 'error');
+    return;
+  }
+  const res = await apiPut('/api/branches/kds-settings', { warn_minutes: warn, danger_minutes: danger });
+  if (!res.ok) { showToast(res.data.error || t('branches.kdsSettingsSaveFailed'), 'error'); return; }
+  kdsSettings = res.data;
+  showToast(t('branches.kdsSettingsSaved'));
+}
+
 export async function init() {
   await loadAll();
+  await loadKdsSettings();
 }

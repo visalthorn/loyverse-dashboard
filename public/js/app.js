@@ -190,6 +190,7 @@ window.toggleTerminalActive     = Branches.toggleTerminalActive;
 window.resetTerminalPasscode    = Branches.resetTerminalPasscode;
 window.openCreateTerminalModal  = Branches.openCreateTerminalModal;
 window.openCategoriesModal      = Branches.openCategoriesModal;
+window.saveKdsDisplaySettings   = Branches.saveKdsDisplaySettings;
 
 // Items
 window.onItemSearch          = Items.onItemSearch;
