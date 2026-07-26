@@ -688,7 +688,7 @@ function receiptToPrintableOrder(receipt) {
   // Adapts a pos_receipts row (Task 5's GET /receipts/:id shape) into the
   // order-shaped object receiptHTML() from print.js already knows how to render.
   return {
-    order_number:   receipt.order_name || receipt.order_number || receipt.receipt_number,
+    order_number:   receipt.order_number || receipt.receipt_number,
     paid_at:        receipt.receipt_date,
     created_at:     receipt.receipt_date,
     table_number:   receipt.table_number,
