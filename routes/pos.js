@@ -4,6 +4,7 @@ const pool    = require('../db');
 const { requireTerminalAuth, verifyTerminalToken } = require('../middleware/terminalAuth');
 const { toCambodiaTime } = require('../utils/date');
 const { generateOrderNumber } = require('../services/pos/orderNumber');
+const { generateReceiptNumber } = require('../services/pos/receiptNumber');
 const { canTransition, TERMINAL } = require('../services/pos/stateMachine');
 
 const CATALOG_TTL_MS = 60 * 1000;
@@ -447,7 +448,7 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), async (req, res) 
   }
 });
 
-router.post('/orders/:id/pay', requireTerminalAuth(['pos']), async (req, res) => {
+async function completeOrder(req, res) {
   const id = parseId(req.params.id);
   const { payment_method, cash_received } = req.body;
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
@@ -477,6 +478,35 @@ router.post('/orders/:id/pay', requireTerminalAuth(['pos']), async (req, res) =>
       WHERE id = $4
     `, [payment_method, cashReceivedVal, now, id]);
 
+    // Immutable financial record -- written once here, never updated again.
+    // A refund later inserts its own new row (routes/receipts.js), it never
+    // touches this one.
+    const receiptNumber = await generateReceiptNumber(client);
+    const pm = PAYMENT_METHODS[payment_method];
+    const receiptRes = await client.query(`
+      INSERT INTO pos_receipts
+        (receipt_number, order_id, branch_id, pos_terminal_id, dining_option, subtotal, discount, total, receipt_date, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      RETURNING id
+    `, [receiptNumber, order.id, order.branch_id, req.terminal.id, order.dining_option,
+        order.subtotal, order.discount, order.total, now, req.terminal.terminal_id]);
+    const receiptId = receiptRes.rows[0].id;
+
+    await client.query(`
+      INSERT INTO pos_receipt_items (receipt_id, sku, item_name, quantity, price, gross_total)
+      SELECT $1, it.sku, poi.item_name, poi.quantity, poi.price, poi.price * poi.quantity
+      FROM pos_order_items poi
+      LEFT JOIN items it ON it.id = poi.source_item_id::uuid
+      WHERE poi.order_id = $2
+    `, [receiptId, order.id]);
+
+    await client.query(`
+      INSERT INTO pos_receipt_payments (receipt_id, payment_name, payment_type, money_amount, paid_at)
+      VALUES ($1,$2,$3,$4,$5)
+    `, [receiptId, pm.payment_name, pm.payment_type, order.total, now]);
+
+    await client.query(`UPDATE pos_orders SET receipt_id = $1 WHERE id = $2`, [receiptId, id]);
+
     await client.query(
       `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'paid',$2,$3)`,
       [id, req.terminal.terminal_id, now]
@@ -485,16 +515,19 @@ router.post('/orders/:id/pay', requireTerminalAuth(['pos']), async (req, res) =>
     await client.query('COMMIT');
     broadcastOrdersChanged();
     const change = payment_method === 'cash' ? Number((cashReceivedVal - Number(order.total)).toFixed(0)) : 0;
-    res.json({ order: await fetchOrder(id), change });
+    res.json({ order: await fetchOrder(id), receipt_number: receiptNumber, change });
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
-    if (status >= 500) console.error('POS pay error:', err);
+    if (status >= 500) console.error('POS complete order error:', err);
     res.status(status).json({ message: err.message });
   } finally {
     client.release();
   }
-});
+}
+
+router.post('/orders/:id/pay',      requireTerminalAuth(['pos']), completeOrder);
+router.post('/orders/:id/complete', requireTerminalAuth(['pos']), completeOrder);
 
 router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), async (req, res) => {
   const id = parseId(req.params.id);
