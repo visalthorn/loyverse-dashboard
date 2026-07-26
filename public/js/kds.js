@@ -289,7 +289,16 @@ function connectStream() {
   const token = getTerminalToken();
   const es = new EventSource(`/api/pos/kds/stream?token=${encodeURIComponent(token)}`);
   es.onopen = () => setConnDot(true);
-  es.onerror = () => setConnDot(false);
+  es.onerror = () => {
+    setConnDot(false);
+    // The browser's default auto-reconnect isn't reliable behind every
+    // proxy after a hard connection reset -- explicitly reconnect once the
+    // connection is confirmed closed rather than trusting it silently.
+    if (es.readyState === EventSource.CLOSED) {
+      es.close();
+      setTimeout(() => { if (stream === es) connectStream(); }, 3000);
+    }
+  };
   es.onmessage = (evt) => {
     try {
       const data = JSON.parse(evt.data);
