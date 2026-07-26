@@ -331,7 +331,7 @@ export async function openCategoriesModal(kdsTerminalId) {
         <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;${disabled ? 'opacity:.45;cursor:not-allowed;' : 'cursor:pointer;'}">
           <input type="checkbox" class="cat-checkbox" value="${c.id}" ${assignedIds.has(c.id) ? 'checked' : ''} ${disabled ? 'disabled' : ''}/>
           <span>${esc(c.custom_name || c.name)}</span>
-          ${disabled ? `<span style="font-size:10px;color:var(--text-muted);margin-left:auto;">${t('branches.assignedToTerminal', { terminal: taken.name || taken.terminal_id })}</span>` : ''}
+          ${disabled ? `<span style="font-size:10px;color:var(--text-muted);margin-left:auto;">${t('branches.assignedToTerminal', { terminal: esc(taken.name || taken.terminal_id) })}</span>` : ''}
         </label>`;
       }).join('') || `<div style="text-align:center;color:var(--text-secondary);font-size:12px;padding:20px 0;">—</div>`}
     </div>
