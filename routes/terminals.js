@@ -114,21 +114,39 @@ router.put('/kds-terminals/:id/categories', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const term = await client.query('SELECT id FROM kds_terminals WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const term = await client.query('SELECT id, branch_id FROM kds_terminals WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!term.rowCount) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Terminal not found' }); }
+    const branchId = term.rows[0].branch_id;
+
+    if (categoryIds.length) {
+      const conflicts = await client.query(`
+        SELECT ktc.category_id, kt.terminal_id, kt.name
+        FROM kds_terminal_categories ktc
+        JOIN kds_terminals kt ON kt.id = ktc.kds_terminal_id
+        WHERE ktc.branch_id = $1 AND ktc.kds_terminal_id != $2 AND ktc.category_id = ANY($3::uuid[])
+      `, [branchId, id, categoryIds]);
+      if (conflicts.rowCount) {
+        await client.query('ROLLBACK');
+        const first = conflicts.rows[0];
+        return res.status(409).json({
+          error: `Already assigned to ${first.name || first.terminal_id}.`,
+          conflicts: conflicts.rows,
+        });
+      }
+    }
 
     await client.query('DELETE FROM kds_terminal_categories WHERE kds_terminal_id = $1', [id]);
     for (const categoryId of categoryIds) {
       await client.query(
-        `INSERT INTO kds_terminal_categories (kds_terminal_id, category_id) VALUES ($1, $2)
-         ON CONFLICT DO NOTHING`,
-        [id, categoryId]
+        `INSERT INTO kds_terminal_categories (kds_terminal_id, category_id, branch_id) VALUES ($1, $2, $3)`,
+        [id, categoryId, branchId]
       );
     }
     await client.query('COMMIT');
     res.json({ success: true, count: categoryIds.length });
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err.code === '23505') return res.status(409).json({ error: 'Category already assigned to another KDS terminal in this branch.' });
     console.error('kds-terminal categories PUT error:', err);
     res.status(500).json({ error: err.message });
   } finally {
