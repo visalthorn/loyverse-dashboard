@@ -528,6 +528,25 @@ router.delete('/order-items/:id', requireTerminalAuth(['pos']), async (req, res)
       [newSubtotal, newTotal, now, order.id]
     );
 
+    const allItemsRes = await client.query(`
+      SELECT poi.kitchen_status
+      FROM pos_order_items poi
+      JOIN items i ON i.id = poi.source_item_id::uuid
+      WHERE poi.order_id = $1
+        AND EXISTS (
+          SELECT 1 FROM kds_terminal_categories ktc
+          WHERE ktc.category_id = COALESCE(i.custom_category_id, i.category_id)
+        )
+    `, [order.id]);
+    const allDone = allItemsRes.rows.length > 0 && allItemsRes.rows.every(i => i.kitchen_status === 'done');
+    if (allDone && order.status !== 'ready' && order.status !== 'served' && !TERMINAL.has(order.status)) {
+      await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, order.id]);
+      await client.query(
+        `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'ready',$2,$3)`,
+        [order.id, req.terminal.terminal_id, now]
+      );
+    }
+
     await client.query('COMMIT');
     broadcastOrdersChanged();
     res.json({ order: await fetchOrder(order.id) });
@@ -800,8 +819,17 @@ router.patch('/order-items/:id/kitchen-status', requireTerminalAuth(['kds']), as
     // Every item across the WHOLE order (any KDS station) done -- auto-advance
     // to ready regardless of which station struck the last one, so readiness
     // never depends on someone remembering to tap the Ready button.
-    const allItemsRes = await client.query('SELECT kitchen_status FROM pos_order_items WHERE order_id = $1', [order.id]);
-    const allDone = allItemsRes.rows.every(i => i.kitchen_status === 'done');
+    const allItemsRes = await client.query(`
+      SELECT poi.kitchen_status
+      FROM pos_order_items poi
+      JOIN items i ON i.id = poi.source_item_id::uuid
+      WHERE poi.order_id = $1
+        AND EXISTS (
+          SELECT 1 FROM kds_terminal_categories ktc
+          WHERE ktc.category_id = COALESCE(i.custom_category_id, i.category_id)
+        )
+    `, [order.id]);
+    const allDone = allItemsRes.rows.length > 0 && allItemsRes.rows.every(i => i.kitchen_status === 'done');
 
     if (allDone && order.status !== 'ready' && order.status !== 'served' && !TERMINAL.has(order.status)) {
       await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, order.id]);
@@ -863,13 +891,25 @@ router.post('/orders/:id/ready', requireTerminalAuth(['kds']), async (req, res) 
       WHERE poi.order_id = $1
         AND COALESCE(i.custom_category_id, i.category_id) = ANY($2::uuid[])
     `, [id, categoryIds]);
+    if (!stationItemsRes.rows.length) {
+      throw httpError(409, 'No items on this order belong to your station.');
+    }
     if (stationItemsRes.rows.some(i => i.kitchen_status !== 'done')) {
       throw httpError(409, 'Your items must be done before marking your part ready.');
     }
 
     const now = toCambodiaTime(new Date());
-    const allItemsRes = await client.query('SELECT kitchen_status FROM pos_order_items WHERE order_id = $1', [id]);
-    const fullyReady = allItemsRes.rows.every(i => i.kitchen_status === 'done');
+    const allItemsRes = await client.query(`
+      SELECT poi.kitchen_status
+      FROM pos_order_items poi
+      JOIN items i ON i.id = poi.source_item_id::uuid
+      WHERE poi.order_id = $1
+        AND EXISTS (
+          SELECT 1 FROM kds_terminal_categories ktc
+          WHERE ktc.category_id = COALESCE(i.custom_category_id, i.category_id)
+        )
+    `, [id]);
+    const fullyReady = allItemsRes.rows.length > 0 && allItemsRes.rows.every(i => i.kitchen_status === 'done');
 
     if (fullyReady) {
       await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, id]);
