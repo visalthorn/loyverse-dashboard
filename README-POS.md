@@ -91,7 +91,7 @@ Loyverse sync owns them.
 | GET    | `/kds/active`                         | `requireTerminalAuth(['kds'])` | Orders in caller's branch, filtered to this KDS station's assigned categories |
 | GET    | `/kds/stream`                         | kds, **via `?token=` query param** (EventSource can't send headers) | SSE push |
 | PATCH  | `/order-items/:id/kitchen-status`     | kds  | Cycle an item `pending → preparing → done` |
-| POST   | `/orders/:id/ready`                   | kds  | Kitchen marks order ready (all items must be `done`) |
+| POST   | `/orders/:id/ready`                   | kds  | Caller's own station's items must be `done`; order transitions to `ready` once every station's items are done (auto-advances on the last item struck, no tap required) |
 | POST   | `/orders/:id/served`                  | kds  | Order picked up / delivered |
 | GET    | `/health`                             | none | `{ db, uptime }` liveness probe |
 | POST   | `/api/terminal/login`                 | none, rate-limited 5/2min per `terminal_id` | Terminal PIN login, returns the terminal JWT |
