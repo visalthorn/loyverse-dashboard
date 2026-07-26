@@ -19,17 +19,26 @@ async function main() {
   const confirm = process.argv.includes('--confirm');
 
   const { rows: orphans } = await pool.query(`
-    SELECT id FROM pos_orders WHERE status = 'paid' AND receipt_id IS NULL ORDER BY id
+    SELECT id, order_number, branch_id
+    FROM pos_orders WHERE status = 'paid' AND receipt_id IS NULL ORDER BY id
   `);
 
   console.log(`Found ${orphans.length} paid pos_orders row(s) with no receipt.`);
   if (!orphans.length) return;
   if (!confirm) {
+    // Preview the same triage the --confirm run performs, so an operator can
+    // see up front how much of the backlog is actually backfillable.
+    const unattributable = orphans.filter(o => o.branch_id == null);
+    for (const o of unattributable) {
+      console.log(`Would skip order ${o.id} (${o.order_number}): no branch_id -- cannot attribute to a branch, likely pre-branch-era data`);
+    }
+    console.log(`Dry run: ${orphans.length - unattributable.length} would be backfilled, ${unattributable.length} would be skipped (no branch_id).`);
     console.log('Dry run only -- re-run with --confirm to backfill pos_receipts for these orders.');
     return;
   }
 
   let done = 0;
+  let skipped = 0;
   for (const { id } of orphans) {
     const client = await pool.connect();
     try {
@@ -37,6 +46,17 @@ async function main() {
       const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
       const order = orderRes.rows[0];
       if (!order || order.receipt_id) { await client.query('ROLLBACK'); continue; } // raced with a real completion
+
+      // pos_receipts.branch_id is NOT NULL, so an order that was never
+      // attributed to a branch structurally cannot get a receipt. That's an
+      // expected, benign outcome (pre-branch-era rows), not a failure --
+      // report it distinctly instead of letting the INSERT raise 23502.
+      if (order.branch_id == null) {
+        await client.query('ROLLBACK'); // nothing was written
+        console.log(`Skipped order ${id} (${order.order_number}): no branch_id -- cannot attribute to a branch, likely pre-branch-era data`);
+        skipped++;
+        continue;
+      }
 
       const now = order.paid_at ? toCambodiaTime(order.paid_at) : toCambodiaTime(new Date());
       const receiptNumber = await generateReceiptNumber(client);
@@ -74,7 +94,7 @@ async function main() {
       client.release();
     }
   }
-  console.log(`Backfilled ${done}/${orphans.length} receipt(s).`);
+  console.log(`Backfilled ${done}/${orphans.length} receipt(s), ${skipped} skipped (no branch_id), ${orphans.length - done - skipped} failed.`);
 }
 
 main().then(() => pool.end()).catch(err => { console.error(err); pool.end(); process.exit(1); });
