@@ -308,23 +308,32 @@ function showPasscodeModal(passcode) {
 // ─── KDS category assignment modal ──────────────────────────────────────────
 
 export async function openCategoriesModal(kdsTerminalId) {
-  const [allCats, assigned] = await Promise.all([
+  const [allCats, assigned, branchWide] = await Promise.all([
     fetchJSON('/api/items/categories'),
     fetchJSON(`/api/kds-terminals/${kdsTerminalId}/categories`),
+    fetchJSON(`/api/branches/${terminalBranchId}/kds-terminal-categories`),
   ]);
   const cats = allCats || [];
   const assignedIds = new Set((assigned || []).map(c => c.id));
+  const takenBy = new Map();
+  (branchWide || []).forEach(row => {
+    if (row.kds_terminal_id !== kdsTerminalId) takenBy.set(row.category_id, row);
+  });
 
   const overlay = buildModalShell(`
     <h2 style="margin:0 0 6px;font-size:16px;font-weight:700;">${t('branches.categoriesModalTitle')}</h2>
     <p style="font-size:11px;color:var(--text-secondary);margin:0 0 12px;">${t('branches.categoriesModalHint')}</p>
     <div style="max-height:280px;overflow-y:auto;margin-bottom:16px;">
-      ${cats.map(c => `
-        <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;cursor:pointer;">
-          <input type="checkbox" class="cat-checkbox" value="${c.id}" ${assignedIds.has(c.id) ? 'checked' : ''}/>
+      ${cats.map(c => {
+        const taken = takenBy.get(c.id);
+        const disabled = !!taken && !assignedIds.has(c.id);
+        return `
+        <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;${disabled ? 'opacity:.45;cursor:not-allowed;' : 'cursor:pointer;'}">
+          <input type="checkbox" class="cat-checkbox" value="${c.id}" ${assignedIds.has(c.id) ? 'checked' : ''} ${disabled ? 'disabled' : ''}/>
           <span>${esc(c.custom_name || c.name)}</span>
-        </label>
-      `).join('') || `<div style="text-align:center;color:var(--text-secondary);font-size:12px;padding:20px 0;">—</div>`}
+          ${disabled ? `<span style="font-size:10px;color:var(--text-muted);margin-left:auto;">${t('branches.assignedToTerminal', { terminal: taken.name || taken.terminal_id })}</span>` : ''}
+        </label>`;
+      }).join('') || `<div style="text-align:center;color:var(--text-secondary);font-size:12px;padding:20px 0;">—</div>`}
     </div>
     <div style="display:flex;gap:10px;">
       <button id="catsCancelBtn" type="button" class="btn-ghost" style="flex:1;">${t('dialog.cancel')}</button>
@@ -338,6 +347,8 @@ export async function openCategoriesModal(kdsTerminalId) {
     if (res.ok) {
       overlay.remove();
       showToast(t('branches.saved'), 'success');
+    } else if (res.status === 409) {
+      showToast(res.data.error || t('branches.categoryConflict'), 'error');
     } else {
       showToast(res.data.error || t('branches.saveFailed'), 'error');
     }

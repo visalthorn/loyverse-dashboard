@@ -494,6 +494,8 @@ export const km = {
   'branches.copied': 'បានចម្លង!',
   'branches.categoriesModalTitle': 'ប្រភេទសម្រាប់ស្ថានីយ៍ KDS នេះ',
   'branches.categoriesModalHint': 'មានតែការបញ្ជាទិញដែលមានទំនិញពីប្រភេទដែលបានធីកប៉ុណ្ណោះ នឹងបង្ហាញនៅស្ថានីយ៍នេះ។',
+  'branches.assignedToTerminal': 'បានកំណត់ទៅ {terminal}',
+  'branches.categoryConflict': 'ប្រភេទមួយចំនួនត្រូវបានកំណត់រួចហើយទៅស្ថានីយ៍ KDS ផ្សេងក្នុងសាខានេះ។',
   'branches.resetConfirm': 'កំណត់លេខសម្ងាត់ឡើងវិញសម្រាប់ "{name}"? លេខសម្ងាត់ចាស់នឹងឈប់ដំណើរការភ្លាមៗ។',
   'branches.deactivateConfirm': 'បិទដំណើរការ "{name}"? វានឹងចេញភ្លាមៗ ហើយចូលម្តងទៀតមិនបានទេ។',
   'branches.cardTitle': '🏬 ចំណូលតាមសាខា',

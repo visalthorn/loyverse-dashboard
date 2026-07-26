@@ -494,6 +494,8 @@ export const en = {
   'branches.copied': 'Copied!',
   'branches.categoriesModalTitle': 'Categories for this KDS station',
   'branches.categoriesModalHint': 'Only orders containing items from the checked categories will appear on this station.',
+  'branches.assignedToTerminal': 'Assigned to {terminal}',
+  'branches.categoryConflict': 'One or more categories are already assigned to another KDS terminal in this branch.',
   'branches.resetConfirm': 'Reset the passcode for "{name}"? The old passcode will stop working immediately.',
   'branches.deactivateConfirm': 'Deactivate "{name}"? It will be logged out immediately and unable to log back in.',
   'branches.cardTitle': '🏬 Revenue by Branch',
