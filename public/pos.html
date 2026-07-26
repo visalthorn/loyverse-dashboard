@@ -49,15 +49,30 @@
     border-radius: 7px; border: 1px solid var(--border); background: var(--bg-surface);
     color: var(--text-secondary); font-size: 13px; cursor: pointer; padding: 0;
   }
-  #newOrderBtn, #settingsBtn, #switchTerminalBtn, #receiptsBtn {
+  #newOrderBtn, #navMenuBtn {
     flex: 0 0 auto; height: 48px; padding: 0 18px;
     border-radius: 10px; border: 1px solid var(--border-strong);
     background: var(--bg-surface-alt); color: var(--text-primary);
     font-weight: 600; font-size: 13px; cursor: pointer;
   }
-  #switchTerminalBtn { margin-left: auto; width: 48px; padding: 0; font-size: 18px; }
-  #settingsBtn { width: 48px; padding: 0; font-size: 18px; }
-  #receiptsBtn { width: 48px; padding: 0; font-size: 18px; }
+  #navMenuBtn { margin-left: auto; width: 48px; padding: 0; font-size: 18px; }
+
+  #navMenu {
+    display: none; flex-direction: column; gap: 4px;
+    position: fixed; top: 68px; right: 16px; z-index: 600;
+    min-width: 220px; padding: 10px; border-radius: 12px;
+    background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-lift);
+  }
+  #navMenu.open { display: flex; }
+  #navMenuTerminalName {
+    padding: 8px 10px; font-size: 12px; font-weight: 700; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle); margin-bottom: 4px;
+  }
+  #navMenu button {
+    height: 44px; padding: 0 12px; text-align: left; border-radius: 8px; border: none;
+    background: none; color: var(--text-primary); font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  #navMenu button:active { background: var(--bg-surface-alt); }
 
   /* ── Main two-column layout ─────────────────────────────────────── */
   #main { flex: 1; display: flex; min-height: 0; }
@@ -297,10 +312,15 @@
   <div id="topStrip">
     <span class="brand">🧾 POS Till</span>
     <div id="openOrdersStrip" style="display:flex;gap:10px;"></div>
-    <button id="switchTerminalBtn" onclick="window.posSwitchTerminal()" title="Switch terminal">🔀</button>
-    <button id="settingsBtn" onclick="window.posOpenSettings()" title="Printer settings">⚙</button>
-    <button id="receiptsBtn" onclick="window.posOpenReceipts()" title="Today's receipts">🧾</button>
+    <button id="navMenuBtn" onclick="window.posToggleNavMenu()" title="Menu">☰</button>
     <button id="newOrderBtn" onclick="window.posNewOrder()">+ New Order</button>
+  </div>
+
+  <div id="navMenu">
+    <div id="navMenuTerminalName"></div>
+    <button type="button" onclick="window.posSwitchTerminal(); window.posToggleNavMenu();">🔀 Switch Terminal</button>
+    <button type="button" onclick="window.posOpenSettings(); window.posToggleNavMenu();">⚙ Settings</button>
+    <button type="button" onclick="window.posOpenReceipts(); window.posToggleNavMenu();">🧾 Receipts</button>
   </div>
 
   <div id="main">

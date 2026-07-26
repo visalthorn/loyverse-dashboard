@@ -840,24 +840,26 @@ window.posCloseSettings   = closeSettings;
 window.posSaveSettings    = saveSettings;
 window.posSwitchTerminal  = switchTerminal;
 
+function toggleNavMenu() {
+  getEl('navMenu').classList.toggle('open');
+}
+
+document.addEventListener('click', (e) => {
+  const menu = getEl('navMenu');
+  const btn  = getEl('navMenuBtn');
+  if (menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target !== btn) {
+    menu.classList.remove('open');
+  }
+});
+
+window.posToggleNavMenu = toggleNavMenu;
+
 let appStarted = false;
 
 async function startApp(terminal) {
   const info = terminal || getTerminalInfo();
-  const brandEl = document.querySelector('#topStrip .brand');
-  if (brandEl && info) {
-    // Re-used across switch-terminal cycles rather than inserted fresh each
-    // time, otherwise logging into a new terminal stacks another tag next
-    // to the previous one(s).
-    let tag = document.getElementById('terminalNameTag');
-    if (!tag) {
-      tag = document.createElement('span');
-      tag.id = 'terminalNameTag';
-      tag.style.cssText = 'font-size:11px;color:var(--text-secondary);white-space:nowrap;';
-      brandEl.insertAdjacentElement('afterend', tag);
-    }
-    tag.textContent = info.name || info.terminal_id;
-  }
+  const nameEl = getEl('navMenuTerminalName');
+  if (nameEl && info) nameEl.textContent = info.name || info.terminal_id;
 
   const configData = await fetchJSON('/api/pos/config');
   if (configData) config = configData;
