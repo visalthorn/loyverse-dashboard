@@ -798,6 +798,58 @@ router.post('/orders/:id/served', requireTerminalAuth(['kds']), async (req, res)
   }
 });
 
+router.get('/receipts', requireTerminalAuth(['pos']), async (req, res) => {
+  try {
+    const date  = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : null;
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const params = [req.terminal.branch_id];
+    let where = 'WHERE r.branch_id = $1';
+    if (date) { where += ' AND DATE(r.receipt_date) = $2'; params.push(date); }
+    else      { where += ` AND DATE(r.receipt_date) = (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date`; }
+    params.push(limit);
+
+    const { rows } = await pool.query(`
+      SELECT r.id, r.receipt_number, r.dining_option, r.subtotal, r.discount, r.total,
+             r.receipt_date, r.cancelled_at, r.created_by,
+             o.order_number, o.table_number, o.name AS order_name
+      FROM pos_receipts r
+      JOIN pos_orders o ON o.id = r.order_id
+      ${where}
+      ORDER BY r.receipt_date DESC
+      LIMIT $${params.length}
+    `, params);
+    res.json({ receipts: rows });
+  } catch (err) {
+    console.error('POS receipts GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/receipts/:id', requireTerminalAuth(['pos']), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid receipt id.' });
+  try {
+    const { rows } = await pool.query(`
+      SELECT r.*, o.order_number, o.table_number, o.name AS order_name
+      FROM pos_receipts r JOIN pos_orders o ON o.id = r.order_id
+      WHERE r.id = $1 AND r.branch_id = $2
+    `, [id, req.terminal.branch_id]);
+    if (!rows.length) return res.status(404).json({ message: 'Receipt not found.' });
+    const receipt = rows[0];
+
+    const [itemsRes, payRes] = await Promise.all([
+      pool.query(`SELECT sku, item_name, quantity, price, gross_total FROM pos_receipt_items WHERE receipt_id = $1 ORDER BY id`, [id]),
+      pool.query(`SELECT payment_name, payment_type, money_amount, paid_at FROM pos_receipt_payments WHERE receipt_id = $1 ORDER BY id`, [id]),
+    ]);
+    receipt.items = itemsRes.rows;
+    receipt.payment = payRes.rows[0] || null;
+    res.json({ receipt });
+  } catch (err) {
+    console.error('POS receipt detail GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Unauthenticated liveness/readiness probe — monitoring tools shouldn't need
 // a JWT, and it only ever reveals db-reachable + process uptime.
 router.get('/health', async (req, res) => {
