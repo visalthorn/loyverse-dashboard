@@ -183,8 +183,8 @@ function renderCard(order) {
   head.innerHTML = `
     <span class="oc-number">${order.order_number}</span>
     <span class="oc-badge">${badgeText(order)}</span>
-    <span class="oc-arrived">${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
-    <span class="oc-elapsed">0:00</span>
+    <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+    <span class="oc-elapsed">⏱ 0:00</span>
   `;
   card.appendChild(head);
 
@@ -225,7 +225,7 @@ function tickElapsed() {
     card.classList.toggle('elapsed-warn',   cls === 'elapsed-warn');
     card.classList.toggle('elapsed-danger', cls === 'elapsed-danger');
     const label = card.querySelector('.oc-elapsed');
-    if (label) label.textContent = formatElapsed(elapsedMs);
+    if (label) label.textContent = '⏱ ' + formatElapsed(elapsedMs);
   });
 }
 
