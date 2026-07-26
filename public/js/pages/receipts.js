@@ -4,6 +4,7 @@ import { t } from '../i18n.js';
 import { renderDateFilter } from '../dateFilter.js';
 import { renderBranchFilter } from '../branchFilter.js';
 import { showToast } from '../toast.js';
+import { state } from '../state.js';
 
 const PAGE_SIZE = 25;
 
@@ -106,6 +107,10 @@ export function switchReceiptSource(source) {
 }
 
 function mountOwnBranchFilter() {
+  // renderBranchFilter pre-selects state.branchId (persisted across pages) in
+  // the dropdown -- sync the module-local filter value to match, otherwise
+  // the dropdown shows a branch selected while the list still shows all of them.
+  ownBranchId = state.branchId ?? null;
   renderBranchFilter(getEl('ownBranchFilterMount'), {
     onChange: (branchId) => { ownBranchId = branchId; loadReceipts(); },
   });
