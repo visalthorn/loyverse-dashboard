@@ -11,22 +11,19 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 // order-level sent_to_kitchen -> preparing bump (server side) is unaffected
 // since it only checks for "not pending".
 const NEXT_STATUS = { pending: 'done', preparing: 'done', done: 'pending' };
-const WARN_MS   = 10 * 60 * 1000;
-const DANGER_MS = 20 * 60 * 1000;
+let warnMs   = 10 * 60 * 1000;
+let dangerMs = 20 * 60 * 1000;
 const SAFETY_POLL_MS = 30 * 1000;
 
 let orders = [];        // raw orders from /kds/active (sent_to_kitchen | preparing | ready)
 let clockOffsetMs = 0;  // (server "now" ms) - (Date.now() at fetch time)
 let finishedModalOpen = false; // finished-orders lookback shows in a dialog, never replaces the active board
 
-// server_now arrives as a naive "YYYY-MM-DD HH:mm:ss" string (no zone), but
-// order.created_at goes through Express's JSON serialization of a Date
-// object first, which already produces a full ISO string ending in "Z" --
-// blindly appending another "Z" there made an invalid double-"Z" string
-// (Invalid Date -> NaN elapsed). Only append when it isn't already present.
-function parseNaive(ts) {
-  const s = String(ts).replace(' ', 'T');
-  return new Date(s.endsWith('Z') ? s : s + 'Z').getTime();
+// server_now and every order timestamp are genuine UTC values (see
+// routes/pos.js) -- parse them the normal way. Display conversion to
+// Cambodia time happens explicitly in formatClock()/tickClock() below.
+function toEpochMs(ts) {
+  return new Date(ts).getTime();
 }
 
 function nowMs() {
@@ -41,8 +38,8 @@ function formatElapsed(ms) {
 }
 
 function formatClock(ts) {
-  const d = new Date(parseNaive(ts));
-  return d.toLocaleTimeString('en-GB', { hour12: false, timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
+  const d = new Date(toEpochMs(ts));
+  return d.toLocaleTimeString('en-GB', { hour12: false, timeZone: 'Asia/Phnom_Penh', hour: '2-digit', minute: '2-digit' });
 }
 
 function beep() {
@@ -69,7 +66,9 @@ let noCategoriesAssigned = false;
 async function refresh() {
   const data = await fetchJSON('/api/pos/kds/active');
   if (!data) return;
-  clockOffsetMs = parseNaive(data.server_now) - Date.now();
+  clockOffsetMs = toEpochMs(data.server_now) - Date.now();
+  if (Number.isInteger(data.warn_minutes))   warnMs   = data.warn_minutes * 60 * 1000;
+  if (Number.isInteger(data.danger_minutes)) dangerMs = data.danger_minutes * 60 * 1000;
   orders = data.orders;
   noCategoriesAssigned = !!data.no_categories_assigned;
   render();
@@ -80,8 +79,8 @@ function badgeText(order) {
 }
 
 function elapsedClass(ms) {
-  if (ms >= DANGER_MS) return 'elapsed-danger';
-  if (ms >= WARN_MS) return 'elapsed-warn';
+  if (ms >= dangerMs) return 'elapsed-danger';
+  if (ms >= warnMs) return 'elapsed-warn';
   return 'elapsed-ok';
 }
 
@@ -217,11 +216,11 @@ function renderCard(order) {
 
 function tickElapsed() {
   // :not(.finished) -- renderFinishedCard() never sets dataset.createdAt, so
-  // without this scope parseNaive(undefined) -> NaN -> both threshold
+  // without this scope toEpochMs(undefined) -> NaN -> both threshold
   // comparisons false -> elapsedClass's fallback ('elapsed-ok') paints a
   // misleading green "on time" border on cards outside the live timer.
   document.querySelectorAll('.order-card:not(.finished)').forEach(card => {
-    const elapsedMs = nowMs() - parseNaive(card.dataset.createdAt);
+    const elapsedMs = nowMs() - toEpochMs(card.dataset.createdAt);
     const cls = elapsedClass(elapsedMs);
     card.classList.toggle('elapsed-ok',     cls === 'elapsed-ok');
     card.classList.toggle('elapsed-warn',   cls === 'elapsed-warn');
@@ -322,7 +321,9 @@ window.addEventListener('online', () => {
 function tickClock() {
   const el = document.getElementById('clock');
   const d = new Date(nowMs());
-  el.textContent = d.toLocaleTimeString('en-GB', { hour12: false, timeZone: 'UTC' });
+  const time = d.toLocaleTimeString('en-GB', { hour12: false, timeZone: 'Asia/Phnom_Penh' });
+  const date = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Phnom_Penh', day: '2-digit', month: 'short', year: 'numeric' });
+  el.textContent = `${date} ${time}`;
 }
 
 let appStarted = false;

@@ -698,6 +698,11 @@ async function loadKdsCategoryIds(kdsTerminalId) {
   return catRes.rows.map(r => r.category_id);
 }
 
+async function loadKdsDisplaySettings() {
+  const res = await pool.query('SELECT warn_minutes, danger_minutes FROM kds_display_settings ORDER BY id LIMIT 1');
+  return res.rows[0] || { warn_minutes: 10, danger_minutes: 20 };
+}
+
 // Only items whose (custom-overridden) category is assigned to this KDS
 // station -- an order can appear on multiple stations at once, each showing
 // a different subset of its items. Orders with no matching items at all are
@@ -728,8 +733,9 @@ router.get('/kds/active', requireTerminalAuth(['kds']), async (req, res) => {
     // Zero categories assigned means this station hasn't been configured yet
     // -- show a friendly empty state, never "all orders" as a fallback.
     const categoryIds = await loadKdsCategoryIds(req.terminal.id);
+    const settings = await loadKdsDisplaySettings();
     if (!categoryIds.length) {
-      return res.json({ server_now: toCambodiaTime(new Date()), orders: [], no_categories_assigned: true });
+      return res.json({ server_now: new Date().toISOString(), orders: [], no_categories_assigned: true, ...settings });
     }
 
     const ordersRes = await pool.query(
@@ -739,7 +745,7 @@ router.get('/kds/active', requireTerminalAuth(['kds']), async (req, res) => {
       [req.terminal.branch_id]
     );
     const orders = await attachFilteredItems(ordersRes.rows, categoryIds);
-    res.json({ server_now: toCambodiaTime(new Date()), orders });
+    res.json({ server_now: new Date().toISOString(), orders, ...settings });
   } catch (err) {
     console.error('POS kds active GET error:', err);
     res.status(500).json({ error: err.message });
@@ -755,8 +761,9 @@ router.get('/kds/finished', requireTerminalAuth(['kds']), async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
     const categoryIds = await loadKdsCategoryIds(req.terminal.id);
+    const settings = await loadKdsDisplaySettings();
     if (!categoryIds.length) {
-      return res.json({ server_now: toCambodiaTime(new Date()), orders: [], no_categories_assigned: true });
+      return res.json({ server_now: new Date().toISOString(), orders: [], no_categories_assigned: true, ...settings });
     }
 
     const ordersRes = await pool.query(
@@ -767,7 +774,7 @@ router.get('/kds/finished', requireTerminalAuth(['kds']), async (req, res) => {
       [req.terminal.branch_id]
     );
     const orders = await attachFilteredItems(ordersRes.rows, categoryIds);
-    res.json({ server_now: toCambodiaTime(new Date()), orders });
+    res.json({ server_now: new Date().toISOString(), orders, ...settings });
   } catch (err) {
     console.error('POS kds finished GET error:', err);
     res.status(500).json({ error: err.message });
