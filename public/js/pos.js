@@ -680,6 +680,81 @@ function saveSettings() {
   closeSettings();
 }
 
+// ─── Receipts view ──────────────────────────────────────────────────────────
+
+let receiptsCache = [];
+
+function receiptToPrintableOrder(receipt) {
+  // Adapts a pos_receipts row (Task 5's GET /receipts/:id shape) into the
+  // order-shaped object receiptHTML() from print.js already knows how to render.
+  return {
+    order_number:   receipt.order_name || receipt.order_number || receipt.receipt_number,
+    paid_at:        receipt.receipt_date,
+    created_at:     receipt.receipt_date,
+    table_number:   receipt.table_number,
+    dining_option:  receipt.dining_option,
+    items:          (receipt.items || []).map(it => ({ item_name: it.item_name, price: it.price, quantity: it.quantity, note: null })),
+    subtotal:       receipt.subtotal,
+    discount:        receipt.discount,
+    total:          receipt.total,
+    payment_method: receipt.payment ? receipt.payment.payment_name : '',
+    cash_received:  null,
+  };
+}
+
+async function openReceipts() {
+  getEl('receiptDetailView').style.display = 'none';
+  getEl('receiptsList').style.display = '';
+  const data = await fetchJSON('/api/pos/receipts');
+  receiptsCache = data ? data.receipts : [];
+  const list = getEl('receiptsList');
+  if (!receiptsCache.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:20px 0;">No receipts yet today.</div>';
+  } else {
+    list.innerHTML = receiptsCache.map(r => `
+      <div class="receipt-row-item" data-receipt-id="${r.id}">
+        <div>
+          <div class="rr-num">${esc(r.receipt_number)}</div>
+          <div class="rr-meta">${esc(r.order_name || (r.table_number ? 'Table ' + r.table_number : r.dining_option))}${r.cancelled_at ? ' · refunded' : ''}</div>
+        </div>
+        <div class="rr-total">${khr(r.total)}</div>
+      </div>
+    `).join('');
+    list.querySelectorAll('[data-receipt-id]').forEach(el => {
+      el.addEventListener('click', () => openReceiptDetail(parseInt(el.dataset.receiptId, 10)));
+    });
+  }
+  getEl('receiptsModal').classList.add('open');
+}
+
+let currentReceiptDetail = null;
+
+async function openReceiptDetail(id) {
+  const data = await fetchJSON(`/api/pos/receipts/${id}`);
+  if (!data) return;
+  currentReceiptDetail = data.receipt;
+  getEl('receiptsList').style.display = 'none';
+  getEl('receiptDetailView').style.display = 'block';
+  getEl('receiptDetailFrame').srcdoc = receiptHTML(receiptToPrintableOrder(data.receipt));
+}
+
+function backToReceiptsList() {
+  getEl('receiptDetailView').style.display = 'none';
+  getEl('receiptsList').style.display = '';
+}
+
+function reprintReceiptFromList() {
+  if (currentReceiptDetail) printReceipt(receiptToPrintableOrder(currentReceiptDetail));
+}
+
+function closeReceipts() {
+  getEl('receiptsModal').classList.remove('open');
+}
+
+window.posOpenReceipts        = openReceipts;
+window.posCloseReceipts       = closeReceipts;
+window.posBackToReceiptsList  = backToReceiptsList;
+
 // ─── Switch terminal ────────────────────────────────────────────────────────
 
 async function switchTerminal() {
@@ -764,4 +839,8 @@ window.addEventListener('terminal-logged-out', requireLogin);
 window.addEventListener('DOMContentLoaded', () => {
   if (!getTerminalToken()) requireLogin();
   else startApp();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  getEl('receiptReprintBtn')?.addEventListener('click', reprintReceiptFromList);
 });
