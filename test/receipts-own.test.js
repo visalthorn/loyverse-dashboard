@@ -62,3 +62,27 @@ test('branch filter narrows the result set', async () => {
   assert.ok(!body2.receipts.some(r => r.id === receiptId));
   await pool.query(`DELETE FROM branches WHERE id = $1`, [otherBranch.rows[0].id]);
 });
+
+test('refundable is true for a fresh sale and false once refunded', async () => {
+  const res = await fetch(`${base}/api/receipts?source=own&per_page=500`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  const body = await res.json();
+  const row = body.receipts.find(r => r.id === receiptId);
+  assert.equal(row.refundable, true);
+
+  const refundRes = await pool.query(`
+    INSERT INTO pos_receipts (receipt_number, order_id, branch_id, dining_option, subtotal, discount, total, receipt_date, cancelled_at, created_by)
+    VALUES ($1,$2,$3,'ក្នុងហាង',7000,0,7000,NOW(),NOW(),'tester') RETURNING id
+  `, [`T-ORRF-${SUFFIX}`, orderId, branchId]);
+  const refundId = refundRes.rows[0].id;
+
+  const res2 = await fetch(`${base}/api/receipts?source=own&per_page=500`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  const body2 = await res2.json();
+  const row2 = body2.receipts.find(r => r.id === receiptId);
+  assert.equal(row2.refundable, false);
+
+  await pool.query(`DELETE FROM pos_receipts WHERE id = $1`, [refundId]);
+});
