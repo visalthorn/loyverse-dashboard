@@ -31,7 +31,12 @@ function getDismissedIds() {
 }
 
 function setDismissedIds(idSet) {
-  localStorage.setItem(DISMISSED_KEY, JSON.stringify([...idSet]));
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify([...idSet]));
+  } catch {
+    // Nothing actionable client-side (quota exceeded, storage disabled) --
+    // worst case dismissed orders reappear next refresh.
+  }
 }
 
 // server_now and every order timestamp are genuine UTC values (see
@@ -93,6 +98,7 @@ function badgeText(order) {
   return order.table_number ? `Table ${order.table_number}` : order.dining_option;
 }
 
+// Returns unescaped text -- callers must esc() the result before inserting into HTML.
 function cardTitle(order) {
   return order.name ? `${order.name} · ${order.order_number}` : order.order_number;
 }
@@ -163,11 +169,11 @@ async function refreshFinishedModal() {
 
   // Drop any dismissed id the server no longer returns (aged out of its own
   // 24h window) so this set can't grow unbounded across days of use.
-  const dismissed = getDismissedIds();
   const liveIds = new Set(data.orders.map(o => o.id));
-  setDismissedIds(new Set([...dismissed].filter(id => liveIds.has(id))));
+  const prunedDismissed = new Set([...getDismissedIds()].filter(id => liveIds.has(id)));
+  setDismissedIds(prunedDismissed);
 
-  const visible = data.orders.filter(o => !dismissed.has(o.id));
+  const visible = data.orders.filter(o => !prunedDismissed.has(o.id));
   finishedVisibleIds = visible.map(o => o.id);
 
   body.innerHTML = '';
@@ -178,11 +184,11 @@ async function refreshFinishedModal() {
   }
 }
 
-function clearFinishedOrders() {
+async function clearFinishedOrders() {
   const dismissed = getDismissedIds();
   for (const id of finishedVisibleIds) dismissed.add(id);
   setDismissedIds(dismissed);
-  refreshFinishedModal();
+  await refreshFinishedModal();
 }
 
 function renderFinishedCard(order) {
