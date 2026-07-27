@@ -754,9 +754,11 @@ router.get('/kds/active', requireTerminalAuth(['kds']), async (req, res) => {
 
 // Read-only lookback at recently completed (served) orders for this
 // station -- lets kitchen staff double-check what already went out without
-// cluttering the live board. Most-recent-first, capped rather than
-// date-bounded (updated_at is stored Cambodia-naive, not real UTC, so it
-// can't safely be compared against SQL NOW()).
+// cluttering the live board. Rolling 24-hour window on served_at (Cambodia-
+// naive like every other timestamp on this table, see migrations/008 --
+// compared against NOW() AT TIME ZONE, never bare NOW()), most-recent-first,
+// with a defensive cap that's not expected to bind at real single-branch
+// 24h volumes.
 router.get('/kds/finished', requireTerminalAuth(['kds']), async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
@@ -769,8 +771,9 @@ router.get('/kds/finished', requireTerminalAuth(['kds']), async (req, res) => {
     const ordersRes = await pool.query(
       `SELECT * FROM pos_orders
        WHERE status = 'served' AND branch_id = $1
-       ORDER BY updated_at DESC
-       LIMIT 30`,
+         AND served_at >= (NOW() AT TIME ZONE 'Asia/Phnom_Penh') - INTERVAL '24 hours'
+       ORDER BY served_at DESC
+       LIMIT 200`,
       [req.terminal.branch_id]
     );
     const orders = await attachFilteredItems(ordersRes.rows, categoryIds);
