@@ -140,8 +140,12 @@
     background: var(--bg-surface); border-bottom: 1px solid var(--border);
   }
   #finishedModalHead h2 { margin: 0; font-size: 16px; font-weight: 800; }
+  #finishedClearBtn {
+    margin-left: auto; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface-alt); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
   #finishedModalCloseBtn {
-    margin-left: auto; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-strong);
+    width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-strong);
     background: var(--bg-surface-alt); color: var(--text-primary); font-size: 16px; cursor: pointer;
   }
   #finishedModalBody {
@@ -170,6 +174,7 @@
   <div id="finishedModalCard">
     <div id="finishedModalHead">
       <h2>✅ Finished Orders</h2>
+      <button id="finishedClearBtn" onclick="window.kdsClearFinished()">🗑 Clear</button>
       <button id="finishedModalCloseBtn" onclick="window.kdsCloseFinished()">✕</button>
     </div>
     <div id="finishedModalBody"></div>

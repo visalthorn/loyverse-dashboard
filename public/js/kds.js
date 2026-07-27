@@ -18,6 +18,21 @@ const SAFETY_POLL_MS = 30 * 1000;
 let orders = [];        // raw orders from /kds/active (sent_to_kitchen | preparing | ready)
 let clockOffsetMs = 0;  // (server "now" ms) - (Date.now() at fetch time)
 let finishedModalOpen = false; // finished-orders lookback shows in a dialog, never replaces the active board
+let finishedVisibleIds = []; // order ids currently rendered in the finished modal -- what a "Clear" tap dismisses
+
+const DISMISSED_KEY = 'kds_dismissed_finished_orders';
+
+function getDismissedIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function setDismissedIds(idSet) {
+  localStorage.setItem(DISMISSED_KEY, JSON.stringify([...idSet]));
+}
 
 // server_now and every order timestamp are genuine UTC values (see
 // routes/pos.js) -- parse them the normal way. Display conversion to
@@ -140,14 +155,34 @@ async function refreshFinishedModal() {
   const body = document.getElementById('finishedModalBody');
   if (!data) return;
 
-  body.innerHTML = '';
   if (data.no_categories_assigned) {
+    finishedVisibleIds = [];
     body.innerHTML = '<div id="emptyBoardMsg">No categories assigned — ask a manager to configure this station.</div>';
-  } else if (!data.orders.length) {
+    return;
+  }
+
+  // Drop any dismissed id the server no longer returns (aged out of its own
+  // 24h window) so this set can't grow unbounded across days of use.
+  const dismissed = getDismissedIds();
+  const liveIds = new Set(data.orders.map(o => o.id));
+  setDismissedIds(new Set([...dismissed].filter(id => liveIds.has(id))));
+
+  const visible = data.orders.filter(o => !dismissed.has(o.id));
+  finishedVisibleIds = visible.map(o => o.id);
+
+  body.innerHTML = '';
+  if (!visible.length) {
     body.innerHTML = '<div id="emptyBoardMsg">No finished orders yet.</div>';
   } else {
-    for (const order of data.orders) body.appendChild(renderFinishedCard(order));
+    for (const order of visible) body.appendChild(renderFinishedCard(order));
   }
+}
+
+function clearFinishedOrders() {
+  const dismissed = getDismissedIds();
+  for (const id of finishedVisibleIds) dismissed.add(id);
+  setDismissedIds(dismissed);
+  refreshFinishedModal();
 }
 
 function renderFinishedCard(order) {
@@ -358,8 +393,9 @@ async function startApp(terminal) {
   }
 }
 
-window.kdsOpenFinished  = openFinishedModal;
-window.kdsCloseFinished = closeFinishedModal;
+window.kdsOpenFinished   = openFinishedModal;
+window.kdsCloseFinished  = closeFinishedModal;
+window.kdsClearFinished  = clearFinishedOrders;
 
 function requireLogin() {
   showTerminalLogin({ label: 'KDS Terminal Login', onSuccess: startApp });
