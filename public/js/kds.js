@@ -78,6 +78,10 @@ function badgeText(order) {
   return order.table_number ? `Table ${order.table_number}` : order.dining_option;
 }
 
+function cardTitle(order) {
+  return order.name ? `${order.name} · ${order.order_number}` : order.order_number;
+}
+
 function elapsedClass(ms) {
   if (ms >= dangerMs) return 'elapsed-danger';
   if (ms >= warnMs) return 'elapsed-warn';
@@ -108,7 +112,7 @@ function render() {
     for (const order of ready) {
       const chip = document.createElement('div');
       chip.className = 'ready-chip';
-      chip.innerHTML = `<span class="rc-title">${esc(order.order_number)}</span><span class="rc-sub">${esc(badgeText(order))}</span>`;
+      chip.innerHTML = `<span class="rc-title">${esc(cardTitle(order))}</span><span class="rc-sub">${esc(badgeText(order))}</span>`;
       chip.onclick = () => markServed(order.id);
       strip.appendChild(chip);
     }
@@ -153,8 +157,14 @@ function renderFinishedCard(order) {
   const head = document.createElement('div');
   head.className = 'oc-head';
   head.innerHTML = `
-    <span class="oc-number">${esc(order.order_number)}</span>
-    <span class="oc-badge">${esc(badgeText(order))}</span>
+    <div class="oc-head-row1">
+      <span class="oc-number">${esc(cardTitle(order))}</span>
+      <span class="oc-badge">${esc(badgeText(order))}</span>
+    </div>
+    <div class="oc-head-row2">
+      <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+      <span class="oc-served">✅ ${order.served_at ? formatClock(order.served_at) : '—'}</span>
+    </div>
   `;
   card.appendChild(head);
 
@@ -182,10 +192,14 @@ function renderCard(order) {
   const head = document.createElement('div');
   head.className = 'oc-head';
   head.innerHTML = `
-    <span class="oc-number">${esc(order.order_number)}</span>
-    <span class="oc-badge">${esc(badgeText(order))}</span>
-    <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
-    <span class="oc-elapsed">⏱ 0:00</span>
+    <div class="oc-head-row1">
+      <span class="oc-number">${esc(cardTitle(order))}</span>
+      <span class="oc-badge">${esc(badgeText(order))}</span>
+    </div>
+    <div class="oc-head-row2">
+      <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+      <span class="oc-elapsed">⏱ 0:00</span>
+    </div>
   `;
   card.appendChild(head);
 
