@@ -964,7 +964,7 @@ router.post('/orders/:id/served', requireTerminalAuth(['kds']), async (req, res)
     if (!canTransition(order.status, 'served')) throw httpError(409, `Cannot mark a ${order.status} order served.`);
 
     const now = toCambodiaTime(new Date());
-    await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['served', now, id]);
+    await client.query('UPDATE pos_orders SET status = $1, served_at = $2, updated_at = $2 WHERE id = $3', ['served', now, id]);
     await client.query(
       `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'served',$2,$3)`,
       [id, req.terminal.terminal_id, now]
