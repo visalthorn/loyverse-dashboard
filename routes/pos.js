@@ -48,6 +48,25 @@ function tooLong(str, max) {
   return typeof str === 'string' && str.length > max;
 }
 
+// Only dine-in-shaped value seen in receipts.dining_option on this branch's
+// data. No admin-configurable flag -- accepted tradeoff, see plan doc.
+const DINE_IN_LABEL = 'ក្នុងហាង';
+
+// "Active" here matches the definition already used by GET /orders?status=active
+// (status NOT IN ('paid','cancelled')) -- a table number frees up once its
+// order is paid or cancelled. Best-effort check-then-write, same pattern as
+// every other validation in this file; no DB-level uniqueness constraint.
+async function assertTableNumberAvailable(dbClient, branchId, tableNumber, excludeOrderId) {
+  const { rows } = await dbClient.query(
+    `SELECT id FROM pos_orders
+     WHERE branch_id = $1 AND table_number = $2 AND status NOT IN ('paid','cancelled')
+       AND id IS DISTINCT FROM $3
+     LIMIT 1`,
+    [branchId, tableNumber, excludeOrderId || null]
+  );
+  if (rows.length) throw httpError(409, `Table ${tableNumber} already has an active order.`);
+}
+
 // Cached (like /catalog) rather than queried on every order create — the
 // set of dining options actually used in receipts changes rarely.
 let diningOptionsCache = null; // { options: Set, expiresAt }
@@ -252,9 +271,16 @@ router.post('/orders', requireTerminalAuth(['pos']), async (req, res) => {
     return res.status(400).json({ message: 'Unknown dining_option.' });
   }
 
+  const tableNum = (table_number || '').trim() || null;
+  if (dining_option === DINE_IN_LABEL && !tableNum) {
+    return res.status(400).json({ message: 'table_number is required for dine-in orders.' });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    if (tableNum) await assertTableNumberAvailable(client, req.terminal.branch_id, tableNum, null);
 
     const lines = await snapshotItems(client, items);
     const subtotal   = lines.reduce((sum, i) => sum + i.price * i.quantity, 0);
@@ -272,7 +298,7 @@ router.post('/orders', requireTerminalAuth(['pos']), async (req, res) => {
         (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name)
       VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11)
       RETURNING *
-    `, [orderNumber, dining_option, table_number || null, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, name || null]);
+    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, name || null]);
 
     const order = orderRes.rows[0];
 
@@ -1060,3 +1086,5 @@ router.get('/health', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.DINE_IN_LABEL = DINE_IN_LABEL;
+module.exports.assertTableNumberAvailable = assertTableNumberAvailable;
