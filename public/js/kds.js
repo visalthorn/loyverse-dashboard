@@ -388,11 +388,11 @@ function renderCard(order) {
 }
 
 function tickElapsed() {
-  // :not(.finished) -- renderFinishedCard() never sets dataset.createdAt, so
-  // without this scope toEpochMs(undefined) -> NaN -> both threshold
-  // comparisons false -> elapsedClass's fallback ('elapsed-ok') paints a
-  // misleading green "on time" border on cards outside the live timer.
-  document.querySelectorAll('.order-card:not(.finished)').forEach(card => {
+  // :not(.dimmed) -- renderFinishedCard() and renderCancelledCard() never set
+  // dataset.createdAt, so without this scope toEpochMs(undefined) -> NaN ->
+  // both threshold comparisons false -> elapsedClass's fallback ('elapsed-ok')
+  // paints a misleading green "on time" border on cards outside the live timer.
+  document.querySelectorAll('.order-card:not(.dimmed)').forEach(card => {
     const elapsedMs = nowMs() - toEpochMs(card.dataset.createdAt);
     const cls = elapsedClass(elapsedMs);
     card.classList.toggle('elapsed-ok',     cls === 'elapsed-ok');
