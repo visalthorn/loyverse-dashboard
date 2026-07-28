@@ -318,7 +318,11 @@ function onTableNumber(value) {
   clearTimeout(tableNumberTimer);
   tableNumberTimer = setTimeout(async () => {
     const orderId = currentOrder.id;
-    const { ok, data } = await mutate(`/api/pos/orders/${orderId}/table-number`, 'PATCH', { table_number: tableNumber });
+    const { ok, data, queued } = await mutate(`/api/pos/orders/${orderId}/table-number`, 'PATCH', { table_number: tableNumber });
+    if (queued) {
+      showToast('Offline — table number queued, will sync automatically.', 'error');
+      return;
+    }
     if (ok && data.order && currentOrder && currentOrder.id === orderId) {
       currentOrder = data.order;
       renderCart();
