@@ -191,9 +191,127 @@ async function clearFinishedOrders() {
   await refreshFinishedModal();
 }
 
+const DISMISSED_CANCELLED_KEY = 'kds_dismissed_cancelled_orders';
+
+function getDismissedCancelledIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DISMISSED_CANCELLED_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function setDismissedCancelledIds(idSet) {
+  try {
+    localStorage.setItem(DISMISSED_CANCELLED_KEY, JSON.stringify([...idSet]));
+  } catch {
+    // Nothing actionable client-side (quota exceeded, storage disabled) --
+    // worst case dismissed orders reappear next refresh.
+  }
+}
+
+let cancelledModalOpen = false;
+let cancelledVisibleIds = [];
+
+function setCancelledDot(lit) {
+  document.getElementById('cancelledDot').classList.toggle('show', lit);
+}
+
+async function openCancelledModal() {
+  cancelledModalOpen = true;
+  document.getElementById('cancelledModal').classList.add('open');
+  await refreshCancelledModal();
+}
+
+function closeCancelledModal() {
+  cancelledModalOpen = false;
+  document.getElementById('cancelledModal').classList.remove('open');
+}
+
+async function refreshCancelledModal() {
+  const data = await fetchJSON('/api/pos/kds/cancelled');
+  const body = document.getElementById('cancelledModalBody');
+  if (!data) return;
+
+  if (data.no_categories_assigned) {
+    cancelledVisibleIds = [];
+    setCancelledDot(false);
+    body.innerHTML = '<div id="emptyBoardMsg">No categories assigned — ask a manager to configure this station.</div>';
+    return;
+  }
+
+  const liveIds = new Set(data.orders.map(o => o.id));
+  const prunedDismissed = new Set([...getDismissedCancelledIds()].filter(id => liveIds.has(id)));
+  setDismissedCancelledIds(prunedDismissed);
+
+  const visible = data.orders.filter(o => !prunedDismissed.has(o.id));
+  cancelledVisibleIds = visible.map(o => o.id);
+  setCancelledDot(visible.length > 0);
+
+  body.innerHTML = '';
+  if (!visible.length) {
+    body.innerHTML = '<div id="emptyBoardMsg">No cancelled orders in the last 24h.</div>';
+  } else {
+    for (const order of visible) body.appendChild(renderCancelledCard(order));
+  }
+}
+
+async function clearCancelledOrders() {
+  const dismissed = getDismissedCancelledIds();
+  for (const id of cancelledVisibleIds) dismissed.add(id);
+  setDismissedCancelledIds(dismissed);
+  await refreshCancelledModal();
+}
+
+// Lightweight poll used only while the modal is closed, purely to light the
+// dot -- refreshCancelledModal() (above) covers the dot too whenever the
+// modal is open, so the two never race on the same UI element.
+async function pollCancelledDot() {
+  if (cancelledModalOpen) return;
+  const data = await fetchJSON('/api/pos/kds/cancelled');
+  if (!data || data.no_categories_assigned) { setCancelledDot(false); return; }
+  const dismissed = getDismissedCancelledIds();
+  const visible = data.orders.filter(o => !dismissed.has(o.id));
+  setCancelledDot(visible.length > 0);
+}
+
+function renderCancelledCard(order) {
+  const card = document.createElement('div');
+  card.className = 'order-card dimmed';
+
+  const head = document.createElement('div');
+  head.className = 'oc-head';
+  head.innerHTML = `
+    <div class="oc-head-row1">
+      <span class="oc-number">${esc(cardTitle(order))}</span>
+      <span class="oc-badge">${esc(badgeText(order))}</span>
+    </div>
+    <div class="oc-head-row2">
+      <span class="oc-arrived">🚫 ${formatClock(order.cancelled_at)}</span>
+    </div>
+    ${order.cancel_reason ? `<div class="oc-cancel-reason">${esc(order.cancel_reason)}</div>` : ''}
+  `;
+  card.appendChild(head);
+
+  const itemsEl = document.createElement('div');
+  itemsEl.className = 'oc-items';
+  for (const item of order.items) {
+    const row = document.createElement('div');
+    row.className = 'oc-item status-cancelled';
+    row.innerHTML = `
+      <span class="qty">${item.quantity}×</span>
+      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}</span>
+    `;
+    itemsEl.appendChild(row);
+  }
+  card.appendChild(itemsEl);
+
+  return card;
+}
+
 function renderFinishedCard(order) {
   const card = document.createElement('div');
-  card.className = 'order-card finished';
+  card.className = 'order-card dimmed';
 
   const head = document.createElement('div');
   head.className = 'oc-head';
@@ -296,6 +414,7 @@ function scheduleRefresh() {
   refreshTimer = setTimeout(() => {
     refresh();
     if (finishedModalOpen) refreshFinishedModal();
+    if (cancelledModalOpen) refreshCancelledModal(); else pollCancelledDot();
   }, 120);
 }
 
@@ -389,6 +508,7 @@ async function startApp(terminal) {
   if (brandEl && info) brandEl.textContent = `🍳 ${info.name || info.terminal_id}`;
 
   await refresh();
+  pollCancelledDot();
   if (stream) stream.close();
   connectStream();
 
@@ -402,6 +522,9 @@ async function startApp(terminal) {
 window.kdsOpenFinished   = openFinishedModal;
 window.kdsCloseFinished  = closeFinishedModal;
 window.kdsClearFinished  = clearFinishedOrders;
+window.kdsOpenCancelled  = openCancelledModal;
+window.kdsCloseCancelled = closeCancelledModal;
+window.kdsClearCancelled = clearCancelledOrders;
 
 function requireLogin() {
   showTerminalLogin({ label: 'KDS Terminal Login', onSuccess: startApp });

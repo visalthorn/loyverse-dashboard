@@ -29,10 +29,17 @@
     padding: 0 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
   }
   #topBar .brand { font-weight: 700; font-size: 16px; color: var(--accent-strong); }
-  #finishedBtn {
+  #finishedBtn, #cancelledBtn {
     height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border-strong);
     background: var(--bg-surface-alt); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;
+    position: relative;
   }
+  .cancel-dot {
+    display: none; position: absolute; top: -4px; right: -4px;
+    width: 10px; height: 10px; border-radius: 50%; background: var(--loss);
+    border: 2px solid var(--bg-surface);
+  }
+  .cancel-dot.show { display: block; }
   #clock { font-family: var(--font-num); font-size: 18px; font-weight: 600; margin-left: auto; }
   #connDot {
     width: 12px; height: 12px; border-radius: 50%; background: var(--loss);
@@ -58,7 +65,7 @@
   .order-card.elapsed-ok { border-color: var(--gain); }
   .order-card.elapsed-warn  { border-color: var(--accent); }
   .order-card.elapsed-danger { border-color: var(--loss); }
-  .order-card.finished { opacity: 0.75; }
+  .order-card.dimmed { opacity: 0.75; }
 
   .oc-head {
     display: flex; flex-direction: column; gap: 6px; padding: 12px 14px;
@@ -86,6 +93,7 @@
   .elapsed-ok     .oc-elapsed { color: var(--gain); }
   .elapsed-warn   .oc-elapsed { color: var(--accent-strong); }
   .elapsed-danger .oc-elapsed { color: var(--loss); }
+  .oc-cancel-reason { font-size: 12px; color: var(--text-secondary); font-style: italic; }
 
   .oc-items { flex: 1; padding: 6px 0; }
   .oc-item {
@@ -97,9 +105,10 @@
   .oc-item .qty { font-weight: 800; font-family: var(--font-num); min-width: 28px; }
   .oc-item .name { flex: 1; font-size: 15px; font-weight: 600; }
   .oc-item .note { display: block; font-size: 12px; font-style: italic; color: var(--accent-strong); margin-top: 2px; }
-  .oc-item.status-pending   .name, .oc-item.status-pending .qty   { color: var(--text-primary); }
-  .oc-item.status-preparing .name, .oc-item.status-preparing .qty { color: var(--accent-strong); }
-  .oc-item.status-done      .name, .oc-item.status-done .qty      { color: var(--gain); text-decoration: line-through; }
+  .oc-item.status-pending    .name, .oc-item.status-pending .qty    { color: var(--text-primary); }
+  .oc-item.status-preparing  .name, .oc-item.status-preparing .qty  { color: var(--accent-strong); }
+  .oc-item.status-done       .name, .oc-item.status-done .qty       { color: var(--gain); text-decoration: line-through; }
+  .oc-item.status-cancelled  .name, .oc-item.status-cancelled .qty  { color: var(--text-secondary); text-decoration: line-through; }
 
   .oc-ready-btn {
     margin: 12px; height: 56px; border-radius: 12px; border: none; cursor: pointer;
@@ -126,33 +135,33 @@
   .ready-chip .rc-sub { font-size: 11px; opacity: .8; }
   #emptyReadyMsg { font-size: 12px; color: var(--text-dim); }
 
-  /* ── Finished orders dialog ─────────────────────────────────────────
-     Opens on top of the active board (which keeps running underneath,
-     untouched) purely to reconcile a completed order -- never a mode
-     switch away from the live board. ── */
-  #finishedModal {
+  /* ── Finished / Cancelled orders dialogs ─────────────────────────────
+     Both open on top of the active board (which keeps running underneath,
+     untouched) purely to reconcile a completed/cancelled order -- never a
+     mode switch away from the live board. ── */
+  .kds-modal {
     position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
     align-items: center; justify-content: center; z-index: 800; padding: 24px;
   }
-  #finishedModal.open { display: flex; }
-  #finishedModalCard {
+  .kds-modal.open { display: flex; }
+  .kds-modal-card {
     width: 100%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column;
     background: var(--bg-canvas); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
   }
-  #finishedModalHead {
+  .kds-modal-head {
     flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 16px 20px;
     background: var(--bg-surface); border-bottom: 1px solid var(--border);
   }
-  #finishedModalHead h2 { margin: 0; font-size: 16px; font-weight: 800; }
-  #finishedClearBtn {
+  .kds-modal-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
+  #finishedClearBtn, #cancelledClearBtn {
     margin-left: auto; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border-strong);
     background: var(--bg-surface-alt); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;
   }
-  #finishedModalCloseBtn {
+  #finishedModalCloseBtn, #cancelledModalCloseBtn {
     width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-strong);
     background: var(--bg-surface-alt); color: var(--text-primary); font-size: 16px; cursor: pointer;
   }
-  #finishedModalBody {
+  .kds-modal-body {
     flex: 1; overflow-y: auto; padding: 16px 20px;
     display: flex; flex-wrap: wrap; align-content: flex-start; gap: 16px;
   }
@@ -164,6 +173,7 @@
     <span class="brand">🍳 Kitchen Display</span>
     <span id="connDot" title="Live connection"></span>
     <button id="finishedBtn" onclick="window.kdsOpenFinished()">✅ Finished</button>
+    <button id="cancelledBtn" onclick="window.kdsOpenCancelled()">🚫 Cancelled<span id="cancelledDot" class="cancel-dot"></span></button>
     <span id="clock">--:--:--</span>
   </div>
 
@@ -174,14 +184,25 @@
   </div>
 </div>
 
-<div id="finishedModal">
-  <div id="finishedModalCard">
-    <div id="finishedModalHead">
+<div id="finishedModal" class="kds-modal">
+  <div class="kds-modal-card">
+    <div class="kds-modal-head">
       <h2>✅ Finished Orders</h2>
       <button id="finishedClearBtn" onclick="window.kdsClearFinished()">🗑 Clear</button>
       <button id="finishedModalCloseBtn" onclick="window.kdsCloseFinished()">✕</button>
     </div>
-    <div id="finishedModalBody"></div>
+    <div id="finishedModalBody" class="kds-modal-body"></div>
+  </div>
+</div>
+
+<div id="cancelledModal" class="kds-modal">
+  <div class="kds-modal-card">
+    <div class="kds-modal-head">
+      <h2>🚫 Cancelled Orders</h2>
+      <button id="cancelledClearBtn" onclick="window.kdsClearCancelled()">🗑 Clear</button>
+      <button id="cancelledModalCloseBtn" onclick="window.kdsCloseCancelled()">✕</button>
+    </div>
+    <div id="cancelledModalBody" class="kds-modal-body"></div>
   </div>
 </div>
 
