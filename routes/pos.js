@@ -847,6 +847,35 @@ router.get('/kds/finished', requireTerminalAuth(['kds']), async (req, res) => {
   }
 });
 
+// Read-only lookback at recently cancelled orders for this station -- lets
+// kitchen staff see why a card they were tracking disappeared from the
+// active board, instead of it just vanishing with no trace. Same 24h
+// rolling window / category filter / branch scope as /kds/finished.
+router.get('/kds/cancelled', requireTerminalAuth(['kds']), async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const categoryIds = await loadKdsCategoryIds(req.terminal.id);
+    const settings = await loadKdsDisplaySettings();
+    if (!categoryIds.length) {
+      return res.json({ server_now: new Date().toISOString(), orders: [], no_categories_assigned: true, ...settings });
+    }
+
+    const ordersRes = await pool.query(
+      `SELECT * FROM pos_orders
+       WHERE status = 'cancelled' AND branch_id = $1
+         AND cancelled_at >= (NOW() AT TIME ZONE 'Asia/Phnom_Penh') - INTERVAL '24 hours'
+       ORDER BY cancelled_at DESC
+       LIMIT 200`,
+      [req.terminal.branch_id]
+    );
+    const orders = await attachFilteredItems(ordersRes.rows, categoryIds);
+    res.json({ server_now: new Date().toISOString(), orders, ...settings });
+  } catch (err) {
+    console.error('POS kds cancelled GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // EventSource has no way to attach headers, so auth here comes from a
 // `?token=` query param instead of the usual Authorization header.
 router.get('/kds/stream', async (req, res) => {
