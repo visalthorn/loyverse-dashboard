@@ -440,12 +440,15 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), async (r
   }
 
   try {
-    const orderRes = await pool.query('SELECT status, branch_id FROM pos_orders WHERE id = $1', [id]);
+    const orderRes = await pool.query('SELECT status, branch_id, table_number FROM pos_orders WHERE id = $1', [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
       return res.status(404).json({ message: 'Order not found.' });
     }
     if (TERMINAL.has(orderRes.rows[0].status)) {
       return res.status(409).json({ message: `Cannot change dining option on a ${orderRes.rows[0].status} order.` });
+    }
+    if (dining_option === DINE_IN_LABEL && !orderRes.rows[0].table_number) {
+      return res.status(400).json({ message: 'Set a table number before switching this order to dine-in.' });
     }
 
     await pool.query(

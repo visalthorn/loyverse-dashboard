@@ -158,3 +158,31 @@ test('PATCH table-number to blank on a dine-in order is rejected', async () => {
   });
   assert.equal(patchRes.status, 400);
 });
+
+test('switching an order to dine-in without a table number set is rejected', async () => {
+  const created = await createOrder({ dining_option: 'ដឹកជញ្ចូន' }); // no table number
+  assert.equal(created.status, 201);
+
+  const patchRes = await fetch(`${base}/api/pos/orders/${created.data.order.id}/dining-option`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    body: JSON.stringify({ dining_option: DINE_IN }),
+  });
+  assert.equal(patchRes.status, 400);
+});
+
+test('switching an order to dine-in succeeds once a table number is set', async () => {
+  const created = await createOrder({ dining_option: 'ដឹកជញ្ចូន' });
+  assert.equal(created.status, 201);
+  const orderId = created.data.order.id;
+
+  await fetch(`${base}/api/pos/orders/${orderId}/table-number`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    body: JSON.stringify({ table_number: `T8-${SUFFIX}` }),
+  });
+
+  const patchRes = await fetch(`${base}/api/pos/orders/${orderId}/dining-option`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    body: JSON.stringify({ dining_option: DINE_IN }),
+  });
+  assert.equal(patchRes.status, 200);
+});
