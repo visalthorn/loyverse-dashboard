@@ -490,6 +490,7 @@ window.addEventListener('online', () => {
   if (stream) stream.close();
   connectStream();
   refresh();
+  pollCancelledDot();
 });
 
 function tickClock() {
@@ -514,7 +515,7 @@ async function startApp(terminal) {
 
   if (!appStarted) {
     appStarted = true;
-    setInterval(refresh, SAFETY_POLL_MS);
+    setInterval(() => { refresh(); pollCancelledDot(); }, SAFETY_POLL_MS);
     setInterval(() => { tickElapsed(); tickClock(); }, 1000);
   }
 }
