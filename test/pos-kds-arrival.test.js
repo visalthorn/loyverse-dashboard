@@ -55,7 +55,7 @@ test('send-to-kitchen sets sent_to_kitchen_at', async () => {
 
   const created = await fetch(`${base}/api/pos/orders`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ dining_option: diningOption, items: [{ source_item_id: catalogItemId, quantity: 1 }] }),
+    body: JSON.stringify({ dining_option: diningOption, table_number: `T${SUFFIX}`, items: [{ source_item_id: catalogItemId, quantity: 1 }] }),
   });
   const order = (await created.json()).order;
   orderId = order.id;

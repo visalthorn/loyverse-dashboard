@@ -64,7 +64,7 @@ test('creating an order works (setup for completion tests)', async () => {
   const res = await fetch(`${base}/api/pos/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
-    body: JSON.stringify({ dining_option: diningOption, items: [{ source_item_id: catalogItemId, quantity: 2 }] }),
+    body: JSON.stringify({ dining_option: diningOption, table_number: `1`, items: [{ source_item_id: catalogItemId, quantity: 2 }] }),
   });
   assert.equal(res.status, 201);
   const body = await res.json();
@@ -107,7 +107,7 @@ test('/pay still works as an alias', async () => {
   const created = await fetch(`${base}/api/pos/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
-    body: JSON.stringify({ dining_option: diningOption, items: [{ source_item_id: catalogItemId, quantity: 1 }] }),
+    body: JSON.stringify({ dining_option: diningOption, table_number: `2`, items: [{ source_item_id: catalogItemId, quantity: 1 }] }),
   });
   const order2 = (await created.json()).order;
 

@@ -49,7 +49,7 @@ test('setup: create an order with two lines and send to kitchen', async () => {
   const diningOption = diningRow.rows[0]?.dining_option || 'ក្នុងហាង';
   const created = await fetch(`${base}/api/pos/orders`, authed({
     method: 'POST',
-    body: JSON.stringify({ dining_option: diningOption, items: [
+    body: JSON.stringify({ dining_option: diningOption, table_number: `T${SUFFIX}`, items: [
       { source_item_id: catalogItemId, quantity: 2 },
       { source_item_id: catalogItemId, quantity: 1 },
     ] }),
