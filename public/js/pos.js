@@ -539,6 +539,11 @@ function updateChange() {
   getEl('changeValue').textContent = khr(Math.max(0, change));
   const valid = selectedPayMethod && (selectedPayMethod !== 'cash' || cashReceived >= total);
   getEl('payConfirmBtn').disabled = !valid;
+
+  const hint = getEl('payHint');
+  if (!selectedPayMethod) hint.textContent = 'Select a payment method to continue.';
+  else if (selectedPayMethod === 'cash' && cashReceived < total) hint.textContent = 'Enter cash received — must be at least the total.';
+  else hint.textContent = '';
 }
 
 async function confirmPay() {

@@ -223,6 +223,7 @@
   }
   #changeRow { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
   #changeRow .value { font-weight: 700; font-family: var(--font-num); color: var(--gain); }
+  #payHint { min-height: 16px; font-size: 12px; color: var(--text-secondary); margin: -4px 0 12px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 8px; }
   .modal-actions button { flex: 1; height: 52px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; }
   #payCancelBtn { border: 1px solid var(--border-strong); background: none; color: var(--text-primary); }
@@ -386,6 +387,7 @@
         </div>
         <div id="changeRow"><span>Change</span><span class="value" id="changeValue">៛0</span></div>
       </div>
+      <div id="payHint"></div>
       <div class="modal-actions">
         <button id="payCancelBtn" type="button" onclick="window.posClosePayModal()">Cancel</button>
         <button id="payConfirmBtn" type="button" onclick="window.posConfirmPay()" disabled>Confirm Payment</button>
