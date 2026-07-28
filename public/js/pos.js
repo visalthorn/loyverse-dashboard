@@ -309,8 +309,24 @@ async function onDiningOptionSelect(opt) {
   if (ok && data.order) { currentOrder = data.order; renderCart(); }
 }
 
-function onSearch(value)      { searchTerm = value; renderItemGrid(); }
-function onTableNumber(value) { tableNumber = value; }
+function onSearch(value) { searchTerm = value; renderItemGrid(); }
+
+let tableNumberTimer = null;
+function onTableNumber(value) {
+  tableNumber = value;
+  if (!currentOrder || currentOrder._queued) return; // nothing to persist yet -- included in the save/create call instead
+  clearTimeout(tableNumberTimer);
+  tableNumberTimer = setTimeout(async () => {
+    const orderId = currentOrder.id;
+    const { ok, data } = await mutate(`/api/pos/orders/${orderId}/table-number`, 'PATCH', { table_number: tableNumber });
+    if (ok && data.order && currentOrder && currentOrder.id === orderId) {
+      currentOrder = data.order;
+      renderCart();
+    } else if (!ok) {
+      showToast(data.message || 'Failed to update table number.', 'error');
+    }
+  }, 600);
+}
 
 let renameTimer = null;
 function onOrderName(value) {
