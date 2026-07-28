@@ -102,3 +102,59 @@ test('non-dine-in orders do not require a table number', async () => {
   assert.equal(status, 201);
   assert.equal(data.order.table_number, null);
 });
+
+test('PATCH table-number persists on an already-saved order', async () => {
+  const created = await createOrder({ dining_option: 'ដឹកជញ្ចូន' }); // starts with no table number
+  assert.equal(created.status, 201);
+  const orderId = created.data.order.id;
+
+  const patchRes = await fetch(`${base}/api/pos/orders/${orderId}/table-number`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    body: JSON.stringify({ table_number: `T4-${SUFFIX}` }),
+  });
+  assert.equal(patchRes.status, 200);
+  const patched = await patchRes.json();
+  assert.equal(patched.order.table_number, `T4-${SUFFIX}`);
+
+  const getRes = await fetch(`${base}/api/pos/orders/${orderId}`, { headers: { Authorization: `Bearer ${posToken()}` } });
+  const fetched = await getRes.json();
+  assert.equal(fetched.order.table_number, `T4-${SUFFIX}`, 'table number must survive a fresh GET, not just the PATCH response');
+});
+
+test('PATCH table-number to a value already active on another order is rejected', async () => {
+  const table = `T5-${SUFFIX}`;
+  const holder = await createOrder({ dining_option: DINE_IN, table_number: table });
+  assert.equal(holder.status, 201);
+
+  const other = await createOrder({ dining_option: 'ដឹកជញ្ចូន' });
+  assert.equal(other.status, 201);
+
+  const patchRes = await fetch(`${base}/api/pos/orders/${other.data.order.id}/table-number`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    body: JSON.stringify({ table_number: table }),
+  });
+  assert.equal(patchRes.status, 409);
+});
+
+test('PATCH table-number lets an order keep its own table number unchanged', async () => {
+  const table = `T6-${SUFFIX}`;
+  const created = await createOrder({ dining_option: DINE_IN, table_number: table });
+  assert.equal(created.status, 201);
+
+  const patchRes = await fetch(`${base}/api/pos/orders/${created.data.order.id}/table-number`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    body: JSON.stringify({ table_number: table }),
+  });
+  assert.equal(patchRes.status, 200, 'setting a dine-in order\'s table number to its own current value must not 409 against itself');
+});
+
+test('PATCH table-number to blank on a dine-in order is rejected', async () => {
+  const created = await createOrder({ dining_option: DINE_IN, table_number: `T7-${SUFFIX}` });
+  assert.equal(created.status, 201);
+
+  const patchRes = await fetch(`${base}/api/pos/orders/${created.data.order.id}/table-number`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    body: JSON.stringify({ table_number: '' }),
+  });
+  assert.equal(patchRes.status, 400);
+});

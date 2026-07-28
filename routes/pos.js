@@ -391,6 +391,40 @@ router.patch('/orders/:id/name', requireTerminalAuth(['pos']), async (req, res) 
   }
 });
 
+router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid order id.' });
+  const { table_number } = req.body;
+  if (tooLong(table_number, 20)) return res.status(400).json({ message: 'table_number is too long (max 20 characters).' });
+  const tableNum = (table_number || '').trim() || null;
+
+  try {
+    const orderRes = await pool.query('SELECT status, branch_id, dining_option FROM pos_orders WHERE id = $1', [id]);
+    if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+    const order = orderRes.rows[0];
+    if (TERMINAL.has(order.status)) {
+      return res.status(409).json({ message: `Cannot change table number on a ${order.status} order.` });
+    }
+    if (order.dining_option === DINE_IN_LABEL && !tableNum) {
+      return res.status(400).json({ message: 'table_number is required for dine-in orders.' });
+    }
+    if (tableNum) await assertTableNumberAvailable(pool, req.terminal.branch_id, tableNum, id);
+
+    await pool.query(
+      `UPDATE pos_orders SET table_number = $1, updated_at = $2 WHERE id = $3`,
+      [tableNum, toCambodiaTime(new Date()), id]
+    );
+    broadcastOrdersChanged();
+    res.json({ order: await fetchOrder(id) });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    if (status >= 500) console.error('POS table-number error:', err);
+    res.status(status).json({ message: err.message });
+  }
+});
+
 // Dining option is changeable any time the order isn't already finished --
 // e.g. a cashier building a saved order can still switch dine-in/takeaway
 // after items are already on it.
