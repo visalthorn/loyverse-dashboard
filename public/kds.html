@@ -6,6 +6,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css"/>
+<link rel="manifest" href="/manifest-kds.json"/>
+<link rel="apple-touch-icon" href="/icons-kds-192.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="CM KDS"/>
+<meta name="theme-color" content="#0F172A"/>
 <title>Kitchen Display</title>
 <script>
   // KDS is a dedicated kitchen screen — always dark, regardless of the
@@ -18,8 +24,12 @@
     height: 100%; margin: 0; overflow: hidden;
     background: var(--bg-canvas); color: var(--text-primary);
     font-family: var(--font-sans);
+    overscroll-behavior: none;
   }
-  button { font-family: inherit; }
+  button {
+    font-family: inherit;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
 
   #kdsApp { display: flex; flex-direction: column; height: 100vh; }
 
@@ -207,5 +217,10 @@
 </div>
 
 <script type="module" src="/js/kds.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+  }
+</script>
 </body>
 </html>

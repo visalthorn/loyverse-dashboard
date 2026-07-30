@@ -174,7 +174,7 @@
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
     <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
     <div>
-      <h2 class="text-lg font-semibold" data-i18n="receipts.title">Receipts</h2>
+      <h2 class="text-lg font-semibold" data-i18n="receipts.title">Orders and Receipts</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="receipts.subtitle">View and search receipt records</p>
     </div>
     <div class="flex-1"></div>
@@ -185,17 +185,17 @@
 
     <!-- Receipt source tabs -->
     <div class="flex gap-2" id="receiptSourceTabs">
-      <button id="receiptTabLoyverse" onclick="switchReceiptSource('loyverse')" class="receipt-source-tab active" data-i18n="receipts.tabLoyverse">Loyverse Receipts</button>
-      <button id="receiptTabOwn" onclick="switchReceiptSource('own')" class="receipt-source-tab" data-i18n="receipts.tabOwn">Own Receipts</button>
+      <button id="receiptTabLoyverse" onclick="switchReceiptSource('loyverse')" class="receipt-source-tab" data-i18n="receipts.tabLoyverse">Loyverse</button>
+      <button id="receiptTabOwn" onclick="switchReceiptSource('own')" class="receipt-source-tab active" data-i18n="receipts.tabOwn">Own Receipts</button>
     </div>
 
     <!-- Own-POS: branch filter (shown only on the Own tab) -->
-    <div id="ownBranchFilterRow" class="hidden">
+    <div id="ownBranchFilterRow">
       <div id="ownBranchFilterMount" style="display:flex;justify-content:flex-end;"></div>
     </div>
 
     <!-- Own-POS: live orders (shown only on the Own tab) -->
-    <div id="liveOrdersCard" class="card hidden">
+    <div id="liveOrdersCard" class="card">
       <div class="flex items-center justify-between mb-3">
         <h2 class="section-title">🔴 Live Orders</h2>
         <span class="text-xs text-[color:var(--text-secondary)]" id="liveOrdersCount">—</span>

@@ -1,10 +1,10 @@
-import { getTerminalToken, getTerminalInfo, showTerminalLogin, terminalLogout, clearDeviceTerminalId } from './terminalAuth.js';
+import { getTerminalInfo, showTerminalLogin, terminalLogout, clearDeviceTerminalId, bootSession, startIdleWatch, lockNow } from './terminalAuth.js';
 import { fetchTerminalJSON as fetchJSON } from './terminalAuth.js';
 import { getEl } from './utils.js';
-import { showConfirm } from './dialog.js';
+import { showConfirm, showPrompt } from './dialog.js';
 import { showToast } from './toast.js';
 import { printReceipt, printKitchenTicket, getBridgeUrl, setBridgeUrl, receiptHTML } from './print.js';
-import { mutate, onQueueChange, onReplaySuccess, nextLocalOrderNumber, startOfflineQueue } from './offlineQueue.js';
+import { mutate, onQueueChange, onReplaySuccess, onReplayRejected, nextLocalOrderNumber, startOfflineQueue } from './offlineQueue.js';
 
 const CATALOG_VERSION_POLL_MS = 5 * 60 * 1000;
 const OPEN_ORDERS_POLL_MS     = 15 * 1000;
@@ -134,6 +134,66 @@ function renderItemGrid() {
   grid.querySelectorAll('.item-btn').forEach(btn => {
     btn.addEventListener('click', () => addItemToCart(btn.dataset.itemId));
   });
+}
+
+// ─── In-progress cart draft ─────────────────────────────────────────────────
+// Persisted on every meaningful change so a hard refresh or reboot mid-order
+// restores the panel instead of silently dropping unsent items. Keyed per
+// terminal so a browser that's logged into different terminals over time
+// doesn't bleed one terminal's draft into another's.
+//
+// Only ever written by explicit user actions (typing, tapping) -- never by
+// the offline-queue's own replay -- so restoring a draft on boot can't cause
+// a duplicate order. The queue's own QUEUE_KEY (offlineQueue.js) is the sole
+// source of truth for what still needs to reach the server; this draft is
+// just a mirror of what the panel should *show* while that's pending.
+
+function draftKey() {
+  const info = getTerminalInfo();
+  return `pos_cart_draft_${info ? info.terminal_id : 'unknown'}`;
+}
+
+function saveDraft() {
+  try {
+    localStorage.setItem(draftKey(), JSON.stringify({ currentOrder, cart, diningOption, tableNumber, orderName }));
+  } catch { /* storage full/disabled -- worst case the draft doesn't restore */ }
+}
+
+function clearDraft() {
+  try { localStorage.removeItem(draftKey()); } catch { /* ignore */ }
+}
+
+function loadDraft() {
+  try { return JSON.parse(localStorage.getItem(draftKey()) || 'null'); }
+  catch { return null; }
+}
+
+// Only restores when there's genuinely unsent content -- a currentOrder that
+// was already fully persisted (not _queued) with an empty cart has nothing
+// at risk (it's safely in the DB, reachable again from the Orders list), so
+// leaving the panel blank there is correct, not a bug.
+// Returns true if a draft was applied. Must run BEFORE resetPanel() -- not
+// after -- since resetPanel()'s own renderCart() call saves a blank draft via
+// saveDraft(), which would clobber the very draft this is meant to restore.
+function restoreDraftIfAny() {
+  const draft = loadDraft();
+  const hasUnsentContent = draft && ((draft.cart && draft.cart.length) || (draft.currentOrder && draft.currentOrder._queued));
+  if (!hasUnsentContent) { clearDraft(); return false; }
+
+  currentOrder = draft.currentOrder || null;
+  cart = draft.cart || [];
+  diningOption = draft.diningOption || diningOption;
+  tableNumber  = draft.tableNumber || '';
+  orderName    = draft.orderName || orderName;
+
+  getEl('tableNumber').value = tableNumber;
+  getEl('tableNumber').classList.remove('invalid');
+  getEl('orderNameInput').value = orderName;
+  renderDiningOptions();
+  renderCart();
+  renderItemGrid();
+  showToast('Restored unsent order');
+  return true;
 }
 
 // ─── Cart ─────────────────────────────────────────────────────────────────
@@ -284,6 +344,8 @@ function renderCart() {
   // retry right where the cashier is already looking.
   const retryBtn = getEl('sendToKitchenRetryBtn');
   if (retryBtn) retryBtn.style.display = (currentOrder && currentOrder.status === 'open') ? 'flex' : 'none';
+
+  saveDraft();
 }
 
 // ─── Dining option / table number ──────────────────────────────────────────
@@ -304,6 +366,7 @@ async function onDiningOptionSelect(opt) {
   if (opt === diningOption) return;
   diningOption = opt;
   renderDiningOptions();
+  saveDraft();
   if (!currentOrder || currentOrder._queued) return;
   const { ok, data } = await mutate(`/api/pos/orders/${currentOrder.id}/dining-option`, 'PATCH', { dining_option: opt });
   if (ok && data.order) { currentOrder = data.order; renderCart(); }
@@ -311,10 +374,20 @@ async function onDiningOptionSelect(opt) {
 
 function onSearch(value) { searchTerm = value; renderItemGrid(); }
 
+// Visually calls out the table-# field after a dine-in save was rejected for
+// missing it -- a toast alone is easy to miss on a busy counter.
+function flagTableNumberRequired() {
+  const input = getEl('tableNumber');
+  input.classList.add('invalid');
+  input.focus();
+}
+
 let tableNumberTimer = null;
 function onTableNumber(value) {
   tableNumber = value;
-  if (!currentOrder || currentOrder._queued) return; // nothing to persist yet -- included in the save/create call instead
+  getEl('tableNumber').classList.remove('invalid');
+  saveDraft();
+  if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
   clearTimeout(tableNumberTimer);
   tableNumberTimer = setTimeout(async () => {
     const orderId = currentOrder.id;
@@ -335,7 +408,8 @@ function onTableNumber(value) {
 let renameTimer = null;
 function onOrderName(value) {
   orderName = value;
-  if (!currentOrder || currentOrder._queued) return; // nothing to persist yet -- included in the save/create call instead
+  saveDraft();
+  if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
   clearTimeout(renameTimer);
   renameTimer = setTimeout(async () => {
     const orderId = currentOrder.id;
@@ -356,6 +430,7 @@ function resetPanel() {
   tableNumber  = '';
   orderName    = defaultOrderName();
   getEl('tableNumber').value  = '';
+  getEl('tableNumber').classList.remove('invalid');
   getEl('orderNameInput').value = orderName;
   renderDiningOptions();
   renderCart();
@@ -393,6 +468,10 @@ async function persistCart() {
 
   if (!currentOrder) {
     if (!diningOption) return { ok: false, queued: false, message: 'Select dine-in / takeaway.' };
+    if (diningOption === config.dine_in_option && !tableNumber.trim()) {
+      flagTableNumberRequired();
+      return { ok: false, queued: false, message: 'Table # is required for dine-in orders.' };
+    }
     const localId = nextLocalOrderNumber();
     const lines = cart.slice();
     const { ok, data, queued } = await mutate('/api/pos/orders', 'POST', {
@@ -471,7 +550,7 @@ async function saveOrder() {
 
   if (savedOrder.status !== 'open') {
     showToast(wasNew ? `Sent to kitchen — ${savedOrder.order_number}` : 'Items sent to kitchen.');
-    if (wasNew) resetPanel(); else renderCart();
+    if (wasNew) { clearDraft(); resetPanel(); } else renderCart();
   } else {
     showToast(`Saved as ${savedOrder.order_number} — couldn't reach the kitchen. Tap "Send to Kitchen" to retry.`, 'error');
     renderCart();
@@ -485,6 +564,7 @@ async function retrySendToKitchen() {
   currentOrder = sent;
   if (sent.status !== 'open') {
     showToast(`Sent to kitchen — ${sent.order_number}`);
+    clearDraft();
     resetPanel();
   } else {
     showToast('Still could not reach the kitchen. Try again.', 'error');
@@ -613,6 +693,7 @@ function reprintReceipt() {
 
 function donePay() {
   closePayModal();
+  clearDraft();
   resetPanel();
 }
 
@@ -623,19 +704,23 @@ async function cancelOrder() {
     showToast("This order hasn't synced yet — it'll retry automatically.", 'error');
     return;
   }
-  const ok = await showConfirm('Cancel this order? This cannot be undone.', { danger: true, confirmText: 'Cancel Order' });
-  if (!ok) return;
-  const reason = window.prompt('Reason for cancellation (optional):') || '';
+  const reason = await showPrompt('Cancel this order? This cannot be undone.', {
+    title: 'Cancel Order', danger: true, confirmText: 'Cancel Order',
+    placeholder: 'Reason for cancellation (optional)',
+  });
+  if (reason === null) return; // dismissed the dialog itself
 
   const res = await mutate(`/api/pos/orders/${currentOrder.id}/cancel`, 'POST', { reason });
   if (res.queued) {
     showToast('Offline — cancellation queued, will sync automatically.', 'error');
+    clearDraft();
     resetPanel();
     loadOpenOrders();
     return;
   }
   if (!res.ok) { showToast(res.data.message || 'Failed to cancel order.', 'error'); return; }
   showToast('Order cancelled.');
+  clearDraft();
   resetPanel();
   loadOpenOrders();
 }
@@ -649,6 +734,7 @@ function applyOrderToPanel(order) {
   tableNumber  = order.table_number || '';
   orderName    = order.name || '';
   getEl('tableNumber').value   = tableNumber;
+  getEl('tableNumber').classList.remove('invalid');
   getEl('orderNameInput').value = orderName;
   renderDiningOptions();
   renderCart();
@@ -659,35 +745,53 @@ async function loadOpenOrders() {
   const data = await fetchJSON('/api/pos/orders?status=active');
   const orders = data ? data.orders.slice() : [];
   // The server has no idea a still-offline order exists yet — keep it
-  // visible in the strip locally until its create call reconciles.
+  // visible in the list locally until its create call reconciles.
   if (currentOrder && currentOrder._queued && !orders.some(o => o.order_number === currentOrder.order_number)) {
     orders.unshift(currentOrder);
   }
 
-  const strip = getEl('openOrdersStrip');
-  strip.innerHTML = '';
+  const countEl = getEl('openOrdersCount');
+  countEl.textContent = orders.length || '';
+  countEl.dataset.count = String(orders.length);
+
+  // Rebuilt every poll cycle regardless of whether the modal is open --
+  // matches the previous strip's behavior and keeps the list correct the
+  // instant it's opened, without a separate "is this visible" check.
+  const list = getEl('openOrdersList');
+  if (!orders.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:20px 0;">No open orders.</div>';
+    return;
+  }
+  list.innerHTML = '';
   orders.forEach(o => {
-    const chip = document.createElement('div');
-    chip.className = 'order-chip';
+    const row = document.createElement('div');
+    row.className = 'order-row-item';
     const title = o.name ? esc(o.name) : (o.table_number ? 'Table ' + o.table_number : o.order_number);
-    chip.innerHTML = `
-      <span class="chip-title">${title}</span>
-      <span class="chip-sub">${khr(o.total)} · ${(o.status || '').replace(/_/g, ' ')}${o._queued ? ' · offline' : ''}</span>
+    row.innerHTML = `
+      <div>
+        <div class="or-title">${title}</div>
+        <div class="or-sub">${(o.status || '').replace(/_/g, ' ')}${o._queued ? ' · offline' : ''}</div>
+      </div>
+      <span class="or-total">${khr(o.total)}</span>
       <button class="chip-reprint" type="button" title="Reprint kitchen ticket">🖨</button>
     `;
-    chip.addEventListener('click', () => {
+    row.addEventListener('click', () => {
       if (o._queued) applyOrderToPanel(o);
       else loadOrderIntoPanel(o.id);
+      closeOrdersModal();
     });
-    chip.querySelector('.chip-reprint').addEventListener('click', async (e) => {
+    row.querySelector('.chip-reprint').addEventListener('click', async (e) => {
       e.stopPropagation();
       if (o._queued) { printKitchenTicket(o); return; }
       const fresh = await fetchJSON(`/api/pos/orders/${o.id}`);
       if (fresh) printKitchenTicket(fresh.order);
     });
-    strip.appendChild(chip);
+    list.appendChild(row);
   });
 }
+
+function openOrdersModal()  { getEl('ordersModal').classList.add('open'); }
+function closeOrdersModal() { getEl('ordersModal').classList.remove('open'); }
 
 async function loadOrderIntoPanel(id) {
   orderLoading = true;
@@ -718,6 +822,27 @@ async function reconcileLocalOrder(localId, realOrder) {
 onReplaySuccess((entry, data) => {
   if (entry.localId && data && data.order) reconcileLocalOrder(entry.localId, data.order);
   else loadOpenOrders();
+});
+
+// A queued request that replays and comes back genuinely rejected (not just
+// unreachable) never becomes a real order -- without this, a local order
+// stuck as `_queued` would block persistCart() forever with no way out
+// short of a page refresh, silently losing the cart in the process.
+onReplayRejected((entry, data) => {
+  if (entry.localId) {
+    if (currentOrder && currentOrder.order_number === entry.localId) {
+      cart = currentOrder.items.map(i => ({
+        source_item_id: i.source_item_id, name: i.item_name, price: i.price,
+        quantity: i.quantity, note: i.note,
+      }));
+      currentOrder = null;
+      renderCart();
+    }
+    showToast(`Order ${entry.localId} couldn't be saved: ${data.message || 'rejected by the server'}. Please check and save again.`, 'error');
+  } else {
+    showToast(data.message ? `A queued change was rejected: ${data.message}` : 'A queued change was rejected by the server.', 'error');
+  }
+  loadOpenOrders();
 });
 
 onQueueChange(count => {
@@ -820,6 +945,8 @@ function closeReceipts() {
   getEl('receiptsModal').classList.remove('open');
 }
 
+window.posOpenOrdersModal     = openOrdersModal;
+window.posCloseOrdersModal    = closeOrdersModal;
 window.posOpenReceipts        = openReceipts;
 window.posCloseReceipts       = closeReceipts;
 window.posBackToReceiptsList  = backToReceiptsList;
@@ -837,7 +964,8 @@ async function switchTerminal() {
   // a DIFFERENT terminal, so the next login screen should ask for it fresh
   // rather than pre-filling the one we're leaving.
   clearDeviceTerminalId();
-  terminalLogout(); // clears the token and fires 'terminal-logged-out', which shows the login screen
+  clearDraft();
+  terminalLogout(); // clears the session and fires 'terminal-logged-out', which shows the login screen
 }
 
 // ─── Bootstrap ──────────────────────────────────────────────────────────────
@@ -856,7 +984,8 @@ window.posConfirmPay      = confirmPay;
 window.posReprintReceipt  = reprintReceipt;
 window.posDonePay         = donePay;
 window.posCancelOrder     = cancelOrder;
-window.posNewOrder        = () => resetPanel();
+window.posNewOrder        = () => { clearDraft(); resetPanel(); };
+window.posLockNow         = lockNow;
 window.posOpenSettings    = openSettings;
 window.posCloseSettings   = closeSettings;
 window.posSaveSettings    = saveSettings;
@@ -878,15 +1007,11 @@ window.posToggleNavMenu = toggleNavMenu;
 
 let appStarted = false;
 
-async function startApp(terminal) {
+async function startApp(terminal, idleTimeoutMinutes) {
   const info = terminal || getTerminalInfo();
   const nameEl = getEl('navMenuTerminalName');
   if (nameEl && info) nameEl.textContent = info.name || info.terminal_id;
-  const brandEl = getEl('posBrand');
-  if (info) {
-    if (brandEl) brandEl.textContent = `🧾 ${info.name || info.terminal_id}`;
-    document.title = info.name || info.terminal_id;
-  }
+  if (info) document.title = info.name || info.terminal_id;
 
   const configData = await fetchJSON('/api/pos/config');
   if (configData) config = configData;
@@ -895,11 +1020,12 @@ async function startApp(terminal) {
   const v = await fetchJSON('/api/pos/catalog/version');
   if (v) lastCatalogVersion = v.version;
 
-  resetPanel();
+  if (!restoreDraftIfAny()) resetPanel();
   await loadOpenOrders();
 
   if (!appStarted) {
     appStarted = true;
+    startIdleWatch(idleTimeoutMinutes ?? (info && info.idle_timeout_minutes) ?? 8);
     startOfflineQueue();
     setInterval(pollCatalogVersion, CATALOG_VERSION_POLL_MS);
     setInterval(loadOpenOrders, OPEN_ORDERS_POLL_MS);
@@ -912,9 +1038,13 @@ function requireLogin() {
 
 window.addEventListener('terminal-logged-out', requireLogin);
 
-window.addEventListener('DOMContentLoaded', () => {
-  if (!getTerminalToken()) requireLogin();
-  else startApp();
+// Boot refresh happens first, before rendering anything -- if the device
+// cookie is still good, staff land straight in the POS with no login
+// prompt, no matter how long since the tablet was last touched or rebooted.
+window.addEventListener('DOMContentLoaded', async () => {
+  const result = await bootSession();
+  if (result.ok) startApp(result.terminal, result.idle_timeout_minutes);
+  else requireLogin();
 });
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -1,5 +1,5 @@
 import {
-  getTerminalToken, getTerminalInfo, showTerminalLogin,
+  getTerminalInfo, showTerminalLogin, bootSession, startIdleWatch,
   fetchTerminalJSON as fetchJSON, terminalApiPatch as apiPatch, terminalApiPost as apiPost,
 } from './terminalAuth.js';
 import { showToast } from './toast.js';
@@ -461,16 +461,24 @@ async function markServed(orderId) {
 let stream = null;
 
 function connectStream() {
-  const token = getTerminalToken();
-  const es = new EventSource(`/api/pos/kds/stream?token=${encodeURIComponent(token)}`);
+  // Cookies ride along automatically on a same-origin EventSource request
+  // once withCredentials is set -- no token in the URL, so nothing auth-
+  // related leaks into server logs, proxies, or browser history.
+  const es = new EventSource('/api/pos/kds/stream', { withCredentials: true });
   es.onopen = () => setConnDot(true);
-  es.onerror = () => {
+  es.onerror = async () => {
     setConnDot(false);
     // The browser's default auto-reconnect isn't reliable behind every
     // proxy after a hard connection reset -- explicitly reconnect once the
     // connection is confirmed closed rather than trusting it silently.
     if (es.readyState === EventSource.CLOSED) {
       es.close();
+      // A closed connection is most often a stale/expired session cookie
+      // (SSE has no other way to signal 401) -- try a silent refresh once
+      // before reconnecting so a lapsed 12h session doesn't need a manual
+      // PIN re-entry mid-shift.
+      const refreshed = await bootSession();
+      if (!refreshed.ok) { requireLogin(); return; }
       setTimeout(() => { if (stream === es) connectStream(); }, 3000);
     }
   };
@@ -503,7 +511,7 @@ function tickClock() {
 
 let appStarted = false;
 
-async function startApp(terminal) {
+async function startApp(terminal, idleTimeoutMinutes) {
   const info = terminal || getTerminalInfo();
   const brandEl = document.querySelector('#topBar .brand');
   if (brandEl && info) brandEl.textContent = `🍳 ${info.name || info.terminal_id}`;
@@ -515,6 +523,7 @@ async function startApp(terminal) {
 
   if (!appStarted) {
     appStarted = true;
+    startIdleWatch(idleTimeoutMinutes ?? (info && info.idle_timeout_minutes) ?? 30);
     setInterval(() => { refresh(); pollCancelledDot(); }, SAFETY_POLL_MS);
     setInterval(() => { tickElapsed(); tickClock(); }, 1000);
   }
@@ -533,5 +542,11 @@ function requireLogin() {
 
 window.addEventListener('terminal-logged-out', requireLogin);
 
-if (!getTerminalToken()) requireLogin();
-else startApp();
+// Boot refresh happens first, before rendering anything -- if the device
+// cookie is still good, staff land straight on the board with no login
+// prompt, no matter how long since the tablet was last touched or rebooted.
+(async () => {
+  const result = await bootSession();
+  if (result.ok) startApp(result.terminal, result.idle_timeout_minutes);
+  else requireLogin();
+})();

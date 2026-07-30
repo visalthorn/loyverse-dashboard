@@ -1,13 +1,12 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { jwtSecretTerminal } = require('../config');
 const app = require('../app');
 const pool = require('../db');
+const { issueTerminalSession, cleanupTerminalDevice } = require('./helpers/terminalAuth');
 
-let server, base, branchId, posId, kdsId, catId, itemId, orderId;
+let server, base, branchId, posId, kdsId, catId, itemId, orderId, posHeaders, kdsHeaders, posDeviceId, kdsDeviceId;
 const SUFFIX = Date.now();
 
 before(async () => {
@@ -24,6 +23,12 @@ before(async () => {
   const kds = await pool.query(`INSERT INTO kds_terminals (branch_id, terminal_id, name, passcode_hash) VALUES ($1,$2,$3,$4) RETURNING id`,
     [branchId, `T-TZKd-${SUFFIX}`, 'KDS-TZ', hash]);
   kdsId = kds.rows[0].id;
+  const posSession = await issueTerminalSession(pool, { type: 'pos', id: posId, terminal_id: `T-TZPo-${SUFFIX}`, branch_id: branchId, name: 'x' });
+  const kdsSession = await issueTerminalSession(pool, { type: 'kds', id: kdsId, terminal_id: `T-TZKd-${SUFFIX}`, branch_id: branchId, name: 'x' });
+  posHeaders = posSession.headers;
+  kdsHeaders = kdsSession.headers;
+  posDeviceId = posSession.deviceId;
+  kdsDeviceId = kdsSession.deviceId;
   catId = crypto.randomUUID();
   await pool.query(`INSERT INTO categories (id, name) VALUES ($1,$2)`, [catId, `T-TZCat-${SUFFIX}`]);
   await pool.query(`INSERT INTO kds_terminal_categories (kds_terminal_id, category_id, branch_id) VALUES ($1,$2,$3)`, [kdsId, catId, branchId]);
@@ -32,6 +37,8 @@ before(async () => {
 });
 
 after(async () => {
+  await cleanupTerminalDevice(pool, posDeviceId);
+  await cleanupTerminalDevice(pool, kdsDeviceId);
   await pool.query(`DELETE FROM pos_order_events WHERE order_id = $1`, [orderId]);
   await pool.query(`DELETE FROM pos_order_items WHERE order_id = $1`, [orderId]);
   await pool.query(`DELETE FROM pos_orders WHERE id = $1`, [orderId]);
@@ -45,23 +52,21 @@ after(async () => {
   await pool.end();
 });
 
-const posToken = () => jwt.sign({ type: 'pos', id: posId, terminal_id: `T-TZPo-${SUFFIX}`, branch_id: branchId, name: 'x' }, jwtSecretTerminal);
-const kdsToken = () => jwt.sign({ type: 'kds', id: kdsId, terminal_id: `T-TZKd-${SUFFIX}`, branch_id: branchId, name: 'x' }, jwtSecretTerminal);
-const authed = (token, opts = {}) => ({ ...opts, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers || {}) } });
+const authed = (headers, opts = {}) => ({ ...opts, headers: { ...headers, ...(opts.headers || {}) } });
 
 test('setup: create and send an order to the kitchen', async () => {
-  const created = await fetch(`${base}/api/pos/orders`, authed(posToken(), {
+  const created = await fetch(`${base}/api/pos/orders`, authed(posHeaders, {
     method: 'POST',
     body: JSON.stringify({ dining_option: 'ក្នុងហាង', table_number: `T${SUFFIX}`, items: [{ source_item_id: itemId, quantity: 1 }] }),
   }));
   const body = await created.json();
   orderId = body.order.id;
-  const sent = await fetch(`${base}/api/pos/orders/${orderId}/send-to-kitchen`, authed(posToken(), { method: 'POST', body: '{}' }));
+  const sent = await fetch(`${base}/api/pos/orders/${orderId}/send-to-kitchen`, authed(posHeaders, { method: 'POST', body: '{}' }));
   assert.equal(sent.status, 200);
 });
 
 test('server_now and sent_to_kitchen_at agree to within a few seconds (no 7-hour residual)', async () => {
-  const res = await fetch(`${base}/api/pos/kds/active`, { headers: { Authorization: `Bearer ${kdsToken()}` } });
+  const res = await fetch(`${base}/api/pos/kds/active`, { headers: kdsHeaders });
   assert.equal(res.status, 200);
   const body = await res.json();
   const order = body.orders.find(o => o.id === orderId);
@@ -91,7 +96,7 @@ test('server_now and sent_to_kitchen_at agree to within a few seconds (no 7-hour
 
 test('warn_minutes/danger_minutes are present and sane on both boards', async () => {
   for (const path of ['active', 'finished']) {
-    const res = await fetch(`${base}/api/pos/kds/${path}`, { headers: { Authorization: `Bearer ${kdsToken()}` } });
+    const res = await fetch(`${base}/api/pos/kds/${path}`, { headers: kdsHeaders });
     const body = await res.json();
     assert.ok(Number.isInteger(body.warn_minutes) && body.warn_minutes > 0);
     assert.ok(Number.isInteger(body.danger_minutes) && body.danger_minutes > body.warn_minutes);

@@ -2,13 +2,12 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { jwtSecretTerminal } = require('../config');
 const app = require('../app');
 const pool = require('../db');
+const { issueTerminalSession, cleanupTerminalDevice } = require('./helpers/terminalAuth');
 
-let server, base, branchId, terminalDbId, terminalId, catalogItemId, orderId;
+let server, base, branchId, terminalDbId, terminalId, catalogItemId, orderId, posHeaders, posDeviceId;
 const SUFFIX = Date.now();
 
 before(async () => {
@@ -23,6 +22,9 @@ before(async () => {
     [`T-Arro-${SUFFIX}`, branchId, `T-Arro-${SUFFIX}`, hash]);
   terminalDbId = term.rows[0].id;
   terminalId = `T-Arro-${SUFFIX}`;
+  const session = await issueTerminalSession(pool, { type: 'pos', id: terminalDbId, terminal_id: terminalId, branch_id: branchId, name: terminalId });
+  posHeaders = session.headers;
+  posDeviceId = session.deviceId;
   const cat = await pool.query(`INSERT INTO categories (id, name) VALUES ($1,$2) RETURNING id`, [crypto.randomUUID(), `T-ArrCat-${SUFFIX}`]);
   const item = await pool.query(`INSERT INTO items (id, name, price, category_id) VALUES ($1,$2,$3,$4) RETURNING id`,
     [crypto.randomUUID(), `T-ArrItem-${SUFFIX}`, 4000, cat.rows[0].id]);
@@ -35,6 +37,7 @@ after(async () => {
   await pool.query(`DELETE FROM pos_orders WHERE id = $1`, [orderId]);
   await pool.query(`DELETE FROM items WHERE id = $1`, [catalogItemId]);
   await pool.query(`DELETE FROM categories WHERE name = $1`, [`T-ArrCat-${SUFFIX}`]);
+  await cleanupTerminalDevice(pool, posDeviceId);
   await pool.query(`DELETE FROM pos_terminals WHERE id = $1`, [terminalDbId]);
   await pool.query(`DELETE FROM branches WHERE id = $1`, [branchId]);
   server.close();
@@ -51,10 +54,9 @@ test('column exists', async () => {
 test('send-to-kitchen sets sent_to_kitchen_at', async () => {
   const diningRow = await pool.query(`SELECT DISTINCT dining_option FROM receipts WHERE dining_option IS NOT NULL LIMIT 1`);
   const diningOption = diningRow.rows[0]?.dining_option || 'ក្នុងហាង';
-  const token = jwt.sign({ type: 'pos', id: terminalDbId, terminal_id: terminalId, branch_id: branchId, name: terminalId }, jwtSecretTerminal);
 
   const created = await fetch(`${base}/api/pos/orders`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    method: 'POST', headers: posHeaders,
     body: JSON.stringify({ dining_option: diningOption, table_number: `T${SUFFIX}`, items: [{ source_item_id: catalogItemId, quantity: 1 }] }),
   });
   const order = (await created.json()).order;
@@ -63,7 +65,7 @@ test('send-to-kitchen sets sent_to_kitchen_at', async () => {
 
   // Call send-to-kitchen endpoint
   const sentRes = await fetch(`${base}/api/pos/orders/${orderId}/send-to-kitchen`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    method: 'POST', headers: posHeaders,
     body: JSON.stringify({}),
   });
   assert.equal(sentRes.status, 200);

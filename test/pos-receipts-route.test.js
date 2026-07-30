@@ -1,13 +1,12 @@
 // test/pos-receipts-route.test.js
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { jwtSecretTerminal } = require('../config');
 const app = require('../app');
 const pool = require('../db');
+const { issueTerminalSession, cleanupTerminalDevice } = require('./helpers/terminalAuth');
 
-let server, base, branchAId, branchBId, termAId, termBId, receiptId;
+let server, base, branchAId, branchBId, termAId, termBId, receiptId, headersA, headersB, deviceAId, deviceBId;
 const SUFFIX = Date.now();
 
 before(async () => {
@@ -28,6 +27,13 @@ before(async () => {
   termAId = ta.rows[0].id;
   termBId = tb.rows[0].id;
 
+  const sessionA = await issueTerminalSession(pool, { type: 'pos', id: termAId, terminal_id: `T-PosA-${SUFFIX}`, branch_id: branchAId, name: `T-PosA-${SUFFIX}` });
+  const sessionB = await issueTerminalSession(pool, { type: 'pos', id: termBId, terminal_id: `T-PosB-${SUFFIX}`, branch_id: branchBId, name: `T-PosB-${SUFFIX}` });
+  headersA = sessionA.headers;
+  headersB = sessionB.headers;
+  deviceAId = sessionA.deviceId;
+  deviceBId = sessionB.deviceId;
+
   const order = await pool.query(`
     INSERT INTO pos_orders (order_number, status, dining_option, subtotal, discount, total, branch_id, terminal_id, created_at, updated_at, paid_at)
     VALUES ($1,'paid','ក្នុងហាង',5000,0,5000,$2,$3,NOW(),NOW(),NOW()) RETURNING id
@@ -42,28 +48,23 @@ before(async () => {
 after(async () => {
   await pool.query(`DELETE FROM pos_receipts WHERE id = $1`, [receiptId]);
   await pool.query(`DELETE FROM pos_orders WHERE order_number = $1`, [`T-ORD-${SUFFIX}`]);
+  await cleanupTerminalDevice(pool, deviceAId);
+  await cleanupTerminalDevice(pool, deviceBId);
   await pool.query(`DELETE FROM pos_terminals WHERE id IN ($1,$2)`, [termAId, termBId]);
   await pool.query(`DELETE FROM branches WHERE id IN ($1,$2)`, [branchAId, branchBId]);
   server.close();
   await pool.end();
 });
 
-const tokenFor = (id, terminal_id, branch_id) =>
-  jwt.sign({ type: 'pos', id, terminal_id, branch_id, name: terminal_id }, jwtSecretTerminal);
-
 test('same-branch terminal sees the receipt in the list', async () => {
-  const res = await fetch(`${base}/api/pos/receipts?date=${new Date().toISOString().slice(0,10)}`, {
-    headers: { Authorization: `Bearer ${tokenFor(termAId, `T-PosA-${SUFFIX}`, branchAId)}` },
-  });
+  const res = await fetch(`${base}/api/pos/receipts?date=${new Date().toISOString().slice(0,10)}`, { headers: headersA });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.ok(body.receipts.some(r => r.id === receiptId));
 });
 
 test('same-branch terminal can fetch the detail with items', async () => {
-  const res = await fetch(`${base}/api/pos/receipts/${receiptId}`, {
-    headers: { Authorization: `Bearer ${tokenFor(termAId, `T-PosA-${SUFFIX}`, branchAId)}` },
-  });
+  const res = await fetch(`${base}/api/pos/receipts/${receiptId}`, { headers: headersA });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.receipt.id, receiptId);
@@ -71,14 +72,10 @@ test('same-branch terminal can fetch the detail with items', async () => {
 });
 
 test('a different branch terminal cannot see it', async () => {
-  const list = await fetch(`${base}/api/pos/receipts`, {
-    headers: { Authorization: `Bearer ${tokenFor(termBId, `T-PosB-${SUFFIX}`, branchBId)}` },
-  });
+  const list = await fetch(`${base}/api/pos/receipts`, { headers: headersB });
   const listBody = await list.json();
   assert.ok(!listBody.receipts.some(r => r.id === receiptId));
 
-  const detail = await fetch(`${base}/api/pos/receipts/${receiptId}`, {
-    headers: { Authorization: `Bearer ${tokenFor(termBId, `T-PosB-${SUFFIX}`, branchBId)}` },
-  });
+  const detail = await fetch(`${base}/api/pos/receipts/${receiptId}`, { headers: headersB });
   assert.equal(detail.status, 404);
 });

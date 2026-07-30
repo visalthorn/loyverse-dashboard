@@ -1,13 +1,12 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { jwtSecretTerminal } = require('../config');
 const app = require('../app');
 const pool = require('../db');
+const { issueTerminalSession, cleanupTerminalDevice } = require('./helpers/terminalAuth');
 
-let server, base, branchId, terminalId, terminalDbId, catalogItemId, orderId;
+let server, base, branchId, terminalId, terminalDbId, catalogItemId, orderId, posHeaders, posDeviceId;
 const SUFFIX = Date.now();
 
 before(async () => {
@@ -24,6 +23,9 @@ before(async () => {
   `, [`T-POS-${SUFFIX}`, branchId, `T-POS-${SUFFIX}`, hash]);
   terminalDbId = term.rows[0].id;
   terminalId = `T-POS-${SUFFIX}`;
+  const session = await issueTerminalSession(pool, { type: 'pos', id: terminalDbId, terminal_id: terminalId, branch_id: branchId, name: terminalId });
+  posHeaders = session.headers;
+  posDeviceId = session.deviceId;
 
   // categories.id / items.id are uuid PKs with no DB-side default in this
   // schema (see test/items.route.test.js for the same convention) -- must
@@ -48,22 +50,19 @@ after(async () => {
   await pool.query(`DELETE FROM pos_orders WHERE branch_id = $1`, [branchId]);
   await pool.query(`DELETE FROM items WHERE id = $1`, [catalogItemId]);
   await pool.query(`DELETE FROM categories WHERE name = $1`, [`T-Cat-${SUFFIX}`]);
+  await cleanupTerminalDevice(pool, posDeviceId);
   await pool.query(`DELETE FROM pos_terminals WHERE id = $1`, [terminalDbId]);
   await pool.query(`DELETE FROM branches WHERE id = $1`, [branchId]);
   server.close();
   await pool.end();
 });
 
-function posToken() {
-  return jwt.sign({ type: 'pos', id: terminalDbId, terminal_id: terminalId, branch_id: branchId, name: terminalId }, jwtSecretTerminal);
-}
-
 test('creating an order works (setup for completion tests)', async () => {
   const diningRow = await pool.query(`SELECT DISTINCT dining_option FROM receipts WHERE dining_option IS NOT NULL LIMIT 1`);
   const diningOption = diningRow.rows[0]?.dining_option || 'ក្នុងហាង';
   const res = await fetch(`${base}/api/pos/orders`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    headers: posHeaders,
     body: JSON.stringify({ dining_option: diningOption, table_number: `1`, items: [{ source_item_id: catalogItemId, quantity: 2 }] }),
   });
   assert.equal(res.status, 201);
@@ -75,7 +74,7 @@ test('creating an order works (setup for completion tests)', async () => {
 test('POST /complete pays the order AND writes an immutable receipt', async () => {
   const res = await fetch(`${base}/api/pos/orders/${orderId}/complete`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    headers: posHeaders,
     body: JSON.stringify({ payment_method: 'cash', cash_received: 20000 }),
   });
   assert.equal(res.status, 200);
@@ -106,14 +105,14 @@ test('/pay still works as an alias', async () => {
   const diningOption = diningRow.rows[0]?.dining_option || 'ក្នុងហាង';
   const created = await fetch(`${base}/api/pos/orders`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    headers: posHeaders,
     body: JSON.stringify({ dining_option: diningOption, table_number: `2`, items: [{ source_item_id: catalogItemId, quantity: 1 }] }),
   });
   const order2 = (await created.json()).order;
 
   const res = await fetch(`${base}/api/pos/orders/${order2.id}/pay`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}` },
+    headers: posHeaders,
     body: JSON.stringify({ payment_method: 'khqr' }),
   });
   assert.equal(res.status, 200);

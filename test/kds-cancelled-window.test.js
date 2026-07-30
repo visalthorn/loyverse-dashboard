@@ -2,13 +2,12 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { jwtSecretTerminal } = require('../config');
 const app = require('../app');
 const pool = require('../db');
+const { issueTerminalSession, cleanupTerminalDevice } = require('./helpers/terminalAuth');
 
-let server, base, branchId, kdsDbId, kdsTerminalId, catId, itemId, oldOrderId, freshOrderId;
+let server, base, branchId, kdsDbId, kdsTerminalId, catId, itemId, oldOrderId, freshOrderId, kdsHeaders, kdsDeviceId;
 const SUFFIX = Date.now();
 
 before(async () => {
@@ -23,6 +22,9 @@ before(async () => {
     [branchId, `TC${SUFFIX}`, 'T', hash]);
   kdsDbId = k.rows[0].id;
   kdsTerminalId = `TC${SUFFIX}`;
+  const session = await issueTerminalSession(pool, { type: 'kds', id: kdsDbId, terminal_id: kdsTerminalId, branch_id: branchId, name: 'x' });
+  kdsHeaders = session.headers;
+  kdsDeviceId = session.deviceId;
 
   catId = crypto.randomUUID();
   await pool.query(`INSERT INTO categories (id, name) VALUES ($1,$2)`, [catId, `CC${SUFFIX}`]);
@@ -52,6 +54,7 @@ before(async () => {
 });
 
 after(async () => {
+  await cleanupTerminalDevice(pool, kdsDeviceId);
   await pool.query(`DELETE FROM pos_order_items WHERE order_id IN ($1,$2)`, [oldOrderId, freshOrderId]);
   await pool.query(`DELETE FROM pos_orders WHERE id IN ($1,$2)`, [oldOrderId, freshOrderId]);
   await pool.query(`DELETE FROM items WHERE id = $1`, [itemId]);
@@ -64,8 +67,7 @@ after(async () => {
 });
 
 test('cancelled list includes orders cancelled within 24h, excludes older ones, and carries cancel_reason', async () => {
-  const token = jwt.sign({ type: 'kds', id: kdsDbId, terminal_id: kdsTerminalId, branch_id: branchId, name: 'x' }, jwtSecretTerminal);
-  const res = await fetch(`${base}/api/pos/kds/cancelled`, { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetch(`${base}/api/pos/kds/cancelled`, { headers: kdsHeaders });
   assert.equal(res.status, 200);
   const body = await res.json();
   const ids = body.orders.map(o => o.id);
@@ -88,8 +90,7 @@ test('/kds/cancelled respects branch scoping', async () => {
     [otherOrderId, itemId, `IC${SUFFIX}`]);
 
   try {
-    const token = jwt.sign({ type: 'kds', id: kdsDbId, terminal_id: kdsTerminalId, branch_id: branchId, name: 'x' }, jwtSecretTerminal);
-    const res = await fetch(`${base}/api/pos/kds/cancelled`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${base}/api/pos/kds/cancelled`, { headers: kdsHeaders });
     const body = await res.json();
     assert.ok(!body.orders.map(o => o.id).includes(otherOrderId));
   } finally {
@@ -104,14 +105,15 @@ test('/kds/cancelled returns no_categories_assigned:true for a terminal with no 
   const k2 = await pool.query(`INSERT INTO kds_terminals (branch_id, terminal_id, name, passcode_hash) VALUES ($1,$2,$3,$4) RETURNING id`,
     [branchId, `TC2${SUFFIX}`, 'T2', hash]);
   const kds2Id = k2.rows[0].id;
+  const session2 = await issueTerminalSession(pool, { type: 'kds', id: kds2Id, terminal_id: `TC2${SUFFIX}`, branch_id: branchId, name: 'x' });
 
   try {
-    const token = jwt.sign({ type: 'kds', id: kds2Id, terminal_id: `TC2${SUFFIX}`, branch_id: branchId, name: 'x' }, jwtSecretTerminal);
-    const res = await fetch(`${base}/api/pos/kds/cancelled`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${base}/api/pos/kds/cancelled`, { headers: session2.headers });
     const body = await res.json();
     assert.deepEqual(body.orders, []);
     assert.equal(body.no_categories_assigned, true);
   } finally {
+    await cleanupTerminalDevice(pool, session2.deviceId);
     await pool.query(`DELETE FROM kds_terminals WHERE id = $1`, [kds2Id]);
   }
 });

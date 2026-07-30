@@ -1,7 +1,8 @@
 const crypto  = require('crypto');
 const router  = require('express').Router();
 const pool    = require('../db');
-const { requireTerminalAuth, verifyTerminalToken } = require('../middleware/terminalAuth');
+const { requireTerminalAuth, verifySessionToken } = require('../middleware/terminalAuth');
+const { requireCsrf } = require('../middleware/terminalCsrf');
 const { toCambodiaTime } = require('../utils/date');
 const { generateOrderNumber } = require('../services/pos/orderNumber');
 const { generateReceiptNumber } = require('../services/pos/receiptNumber');
@@ -13,8 +14,10 @@ let catalogCache = null; // { data, expiresAt }
 const ITEM_KITCHEN_STATUSES = ['pending', 'preparing', 'done'];
 
 // KDS realtime: server-held list of open SSE connections. EventSource can't
-// set an Authorization header, so /kds/stream verifies the JWT from a query
-// param instead of going through requireAuth.
+// set custom headers, but it does send cookies automatically on same-origin
+// requests (withCredentials: true on the client) -- so /kds/stream reads
+// cm_session like any other route instead of taking a token in the URL,
+// which would otherwise leak into server logs, proxies, and browser history.
 const kdsClients = new Set();
 
 function broadcastOrdersChanged() {
@@ -194,6 +197,7 @@ router.get('/config', requireTerminalAuth(['pos']), async (req, res) => {
     );
     res.json({
       dining_options: diningRes.rows.map(r => r.dining_option),
+      dine_in_option: DINE_IN_LABEL,
       payment_methods: Object.entries(PAYMENT_METHODS).map(([code, v]) => ({
         code, label: v.payment_name, payment_name: v.payment_name, payment_type: v.payment_type,
       })),
@@ -254,7 +258,7 @@ router.get('/orders/:id', requireTerminalAuth(['pos']), async (req, res) => {
   }
 });
 
-router.post('/orders', requireTerminalAuth(['pos']), async (req, res) => {
+router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const { dining_option, table_number, discount, items, name } = req.body;
   if (!dining_option) return res.status(400).json({ message: 'dining_option is required.' });
   if (!Array.isArray(items) || items.length === 0) {
@@ -330,7 +334,7 @@ router.post('/orders', requireTerminalAuth(['pos']), async (req, res) => {
 // Separated from creation so the client can auto-attempt this right after
 // saving, but retry it independently (manually or via the offline queue) if
 // just this step fails -- the order itself is never lost.
-router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), async (req, res) => {
+router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
 
@@ -372,7 +376,7 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), async (
   }
 });
 
-router.patch('/orders/:id/name', requireTerminalAuth(['pos']), async (req, res) => {
+router.patch('/orders/:id/name', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
   const { name } = req.body;
@@ -391,7 +395,7 @@ router.patch('/orders/:id/name', requireTerminalAuth(['pos']), async (req, res) 
   }
 });
 
-router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), async (req, res) => {
+router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
   const { table_number } = req.body;
@@ -428,7 +432,7 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), async (re
 // Dining option is changeable any time the order isn't already finished --
 // e.g. a cashier building a saved order can still switch dine-in/takeaway
 // after items are already on it.
-router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), async (req, res) => {
+router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
   const { dining_option } = req.body;
@@ -462,7 +466,7 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), async (r
   }
 });
 
-router.post('/orders/:id/items', requireTerminalAuth(['pos']), async (req, res) => {
+router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   const { items } = req.body;
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
@@ -511,7 +515,7 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), async (req, res) 
   }
 });
 
-router.patch('/order-items/:id', requireTerminalAuth(['pos']), async (req, res) => {
+router.patch('/order-items/:id', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   const qty = parseInt(req.body.quantity, 10);
   if (!id) return res.status(400).json({ message: 'Invalid item id.' });
@@ -557,7 +561,7 @@ router.patch('/order-items/:id', requireTerminalAuth(['pos']), async (req, res) 
   }
 });
 
-router.delete('/order-items/:id', requireTerminalAuth(['pos']), async (req, res) => {
+router.delete('/order-items/:id', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid item id.' });
 
@@ -701,10 +705,10 @@ async function completeOrder(req, res) {
   }
 }
 
-router.post('/orders/:id/pay',      requireTerminalAuth(['pos']), completeOrder);
-router.post('/orders/:id/complete', requireTerminalAuth(['pos']), completeOrder);
+router.post('/orders/:id/pay',      requireTerminalAuth(['pos']), requireCsrf, completeOrder);
+router.post('/orders/:id/complete', requireTerminalAuth(['pos']), requireCsrf, completeOrder);
 
-router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), async (req, res) => {
+router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   const { reason } = req.body;
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
@@ -876,11 +880,9 @@ router.get('/kds/cancelled', requireTerminalAuth(['kds']), async (req, res) => {
   }
 });
 
-// EventSource has no way to attach headers, so auth here comes from a
-// `?token=` query param instead of the usual Authorization header.
 router.get('/kds/stream', async (req, res) => {
   try {
-    await verifyTerminalToken(req.query.token || '', ['kds']);
+    await verifySessionToken((req.cookies && req.cookies.cm_session) || '', ['kds']);
   } catch {
     return res.status(401).end();
   }
@@ -902,7 +904,7 @@ router.get('/kds/stream', async (req, res) => {
   });
 });
 
-router.patch('/order-items/:id/kitchen-status', requireTerminalAuth(['kds']), async (req, res) => {
+router.patch('/order-items/:id/kitchen-status', requireTerminalAuth(['kds']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   const { status } = req.body;
   if (!id) return res.status(400).json({ message: 'Invalid item id.' });
@@ -970,7 +972,7 @@ router.patch('/order-items/:id/kitchen-status', requireTerminalAuth(['kds']), as
   }
 });
 
-router.post('/orders/:id/ready', requireTerminalAuth(['kds']), async (req, res) => {
+router.post('/orders/:id/ready', requireTerminalAuth(['kds']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
 
@@ -1044,7 +1046,7 @@ router.post('/orders/:id/ready', requireTerminalAuth(['kds']), async (req, res) 
   }
 });
 
-router.post('/orders/:id/served', requireTerminalAuth(['kds']), async (req, res) => {
+router.post('/orders/:id/served', requireTerminalAuth(['kds']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
 

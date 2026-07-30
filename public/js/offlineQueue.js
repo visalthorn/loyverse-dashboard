@@ -1,4 +1,4 @@
-import { getTerminalToken, terminalLogout } from './terminalAuth.js';
+import { getCsrfToken, refreshSession, terminalLogout } from './terminalAuth.js';
 
 const QUEUE_KEY     = 'pos_offline_queue';
 const LOCAL_SEQ_KEY  = 'pos_local_order_seq';
@@ -7,6 +7,7 @@ const RETRY_INTERVAL_MS  = 15000;
 
 let queueChangeListener  = null;
 let replaySuccessListener = null;
+let replayRejectedListener = null;
 
 function loadQueue() {
   try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }
@@ -33,31 +34,66 @@ export function onReplaySuccess(fn) {
   replaySuccessListener = fn;
 }
 
+// Called with (entry, responseData) whenever a queued request replays and
+// comes back rejected (a real 4xx/5xx, not a connectivity failure) -- lets
+// the caller un-stick any local state that was optimistically built around
+// the assumption the request would eventually succeed.
+export function onReplayRejected(fn) {
+  replayRejectedListener = fn;
+}
+
 export function nextLocalOrderNumber() {
   const n = (parseInt(localStorage.getItem(LOCAL_SEQ_KEY) || '0', 10) || 0) + 1;
   localStorage.setItem(LOCAL_SEQ_KEY, String(n));
   return `LOCAL-${String(n).padStart(4, '0')}`;
 }
 
-async function timedFetch(url, method, body) {
+async function rawFetch(url, method, body, csrfToken) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const headers = { 'Content-Type': 'application/json' };
+  if (method !== 'GET') headers['X-CSRF-Token'] = csrfToken;
   try {
-    const token = getTerminalToken();
-    const r = await fetch(url, {
+    return await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json', Authorization: token ? 'Bearer ' + token : '' },
+      credentials: 'same-origin',
+      headers,
       body: body != null ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
-    if (r.status === 401) { terminalLogout(); return { ok: false, status: 401, data: {}, networkError: false }; }
-    const data = await r.json().catch(() => ({}));
-    return { ok: r.ok, status: r.status, data, networkError: false };
-  } catch {
-    return { ok: false, status: 0, data: {}, networkError: true };
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function timedFetch(url, method, body) {
+  let r;
+  try {
+    r = await rawFetch(url, method, body, getCsrfToken());
+  } catch {
+    return { ok: false, status: 0, data: {}, networkError: true };
+  }
+
+  if (r.status === 401) {
+    // A queued mutation can easily replay well after the 12h session JWT
+    // expired -- that's not a real rejection, so try the same silent
+    // refresh-then-retry the live request wrapper uses before giving up.
+    const refreshed = await refreshSession();
+    if (refreshed.ok) {
+      try {
+        r = await rawFetch(url, method, body, getCsrfToken());
+      } catch {
+        return { ok: false, status: 0, data: {}, networkError: true };
+      }
+    }
+    if (r.status === 401) {
+      terminalLogout();
+      return { ok: false, status: 401, data: {}, networkError: false };
+    }
+  }
+
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data, networkError: false };
 }
 
 // Main entry point for POS mutations. Behaves like apiPost/apiPatch on a
@@ -93,6 +129,8 @@ async function retryQueue() {
     }
     if (result.ok && replaySuccessListener) {
       replaySuccessListener(entry, result.data);
+    } else if (!result.ok && replayRejectedListener) {
+      replayRejectedListener(entry, result.data);
     }
     // A non-network response (success OR a real 4xx/5xx) resolves this
     // queue entry either way — a rejected request replayed verbatim will

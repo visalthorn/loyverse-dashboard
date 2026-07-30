@@ -86,6 +86,85 @@ router.patch('/kds-terminals/:id/toggle', async (req, res) => {
   }
 });
 
+// ─── Device management (Section 9 of the terminal-auth redesign) ───────────
+// Dashboard-side visibility/control over the long-lived device tokens minted
+// by POST /api/terminal/login. Gated the same as every other route in this
+// file (requireAuth + requireRole('admin'), applied via router.use() above).
+
+const TABLE_BY_TYPE = { pos: 'pos_terminals', kds: 'kds_terminals' };
+
+router.get('/terminals/:type/:id/devices', async (req, res) => {
+  const { type } = req.params;
+  const id = parseId(req.params.id);
+  if (!TABLE_BY_TYPE[type]) return res.status(400).json({ error: 'type must be pos or kds.' });
+  if (id === null) return res.status(404).json({ error: 'Terminal not found' });
+  try {
+    const result = await pool.query(
+      `SELECT id, device_label, user_agent, last_active_at, expires_at, created_at, revoked_at
+       FROM terminal_devices WHERE terminal_type = $1 AND terminal_ref_id = $2 ORDER BY created_at DESC`,
+      [type, id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('terminal devices GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/terminal-devices/:id/revoke', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) return res.status(404).json({ error: 'Device not found' });
+  try {
+    const result = await pool.query(
+      `UPDATE terminal_devices SET revoked_at = NOW(), revoked_by = $1
+       WHERE id = $2 AND revoked_at IS NULL RETURNING id`,
+      [req.user.username, id]
+    );
+    if (!result.rowCount) return res.status(404).json({ error: 'Device not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('terminal device revoke error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/terminals/:type/:id/revoke-all-devices', async (req, res) => {
+  const { type } = req.params;
+  const id = parseId(req.params.id);
+  if (!TABLE_BY_TYPE[type]) return res.status(400).json({ error: 'type must be pos or kds.' });
+  if (id === null) return res.status(404).json({ error: 'Terminal not found' });
+  try {
+    const result = await pool.query(
+      `UPDATE terminal_devices SET revoked_at = NOW(), revoked_by = $1
+       WHERE terminal_type = $2 AND terminal_ref_id = $3 AND revoked_at IS NULL RETURNING id`,
+      [req.user.username, type, id]
+    );
+    res.json({ success: true, revoked_count: result.rowCount });
+  } catch (err) {
+    console.error('terminal revoke-all-devices error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/terminals/:type/:id/unlock', async (req, res) => {
+  const { type } = req.params;
+  const id = parseId(req.params.id);
+  const table = TABLE_BY_TYPE[type];
+  if (!table) return res.status(400).json({ error: 'type must be pos or kds.' });
+  if (id === null) return res.status(404).json({ error: 'Terminal not found' });
+  try {
+    const result = await pool.query(
+      `UPDATE ${table} SET failed_attempts = 0, locked_until = NULL WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+      [id]
+    );
+    if (!result.rowCount) return res.status(404).json({ error: 'Terminal not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('terminal unlock error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/kds-terminals/:id/categories', async (req, res) => {
   const id = parseId(req.params.id);
   if (id === null) return res.status(404).json({ error: 'Terminal not found' });

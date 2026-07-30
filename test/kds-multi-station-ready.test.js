@@ -1,13 +1,12 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { jwtSecretTerminal } = require('../config');
 const app = require('../app');
 const pool = require('../db');
+const { issueTerminalSession, cleanupTerminalDevice } = require('./helpers/terminalAuth');
 
-let server, base, branchId, kds1Id, kds2Id, catBbqId, catSeafoodId, itemBbqId, itemSeafoodId, orderId, orderItemBbqId, orderItemSeafoodId;
+let server, base, branchId, kds1Id, kds2Id, catBbqId, catSeafoodId, itemBbqId, itemSeafoodId, orderId, orderItemBbqId, orderItemSeafoodId, kds1Headers, kds2Headers, kds1DeviceId, kds2DeviceId;
 const SUFFIX = Date.now();
 
 before(async () => {
@@ -24,6 +23,12 @@ before(async () => {
     [branchId, `T-MSR2-${SUFFIX}`, 'KDS-Seafood', hash]);
   kds1Id = k1.rows[0].id;
   kds2Id = k2.rows[0].id;
+  const session1 = await issueTerminalSession(pool, { type: 'kds', id: kds1Id, terminal_id: `T-MSR1-${SUFFIX}`, branch_id: branchId, name: 'x' });
+  const session2 = await issueTerminalSession(pool, { type: 'kds', id: kds2Id, terminal_id: `T-MSR2-${SUFFIX}`, branch_id: branchId, name: 'x' });
+  kds1Headers = session1.headers;
+  kds2Headers = session2.headers;
+  kds1DeviceId = session1.deviceId;
+  kds2DeviceId = session2.deviceId;
 
   catBbqId = crypto.randomUUID();
   catSeafoodId = crypto.randomUUID();
@@ -53,6 +58,8 @@ before(async () => {
 });
 
 after(async () => {
+  await cleanupTerminalDevice(pool, kds1DeviceId);
+  await cleanupTerminalDevice(pool, kds2DeviceId);
   await pool.query(`DELETE FROM pos_order_events WHERE order_id = $1`, [orderId]);
   await pool.query(`DELETE FROM pos_order_items WHERE order_id = $1`, [orderId]);
   await pool.query(`DELETE FROM pos_orders WHERE id = $1`, [orderId]);
@@ -65,15 +72,14 @@ after(async () => {
   await pool.end();
 });
 
-const kdsToken = (id, terminalId) => jwt.sign({ type: 'kds', id, terminal_id: terminalId, branch_id: branchId, name: 'x' }, jwtSecretTerminal);
-const authed = (token, opts = {}) => ({ ...opts, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers || {}) } });
+const authed = (headers, opts = {}) => ({ ...opts, headers: { ...headers, ...(opts.headers || {}) } });
 
 test('KDS-1 taps ready before KDS-2 finishes -- 200, fully_ready:false, order untouched', async () => {
-  await fetch(`${base}/api/pos/order-items/${orderItemBbqId}/kitchen-status`, authed(kdsToken(kds1Id, `T-MSR1-${SUFFIX}`), {
+  await fetch(`${base}/api/pos/order-items/${orderItemBbqId}/kitchen-status`, authed(kds1Headers, {
     method: 'PATCH', body: JSON.stringify({ status: 'done' }),
   }));
 
-  const res = await fetch(`${base}/api/pos/orders/${orderId}/ready`, authed(kdsToken(kds1Id, `T-MSR1-${SUFFIX}`), { method: 'POST' }));
+  const res = await fetch(`${base}/api/pos/orders/${orderId}/ready`, authed(kds1Headers, { method: 'POST' }));
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.fully_ready, false);
@@ -86,12 +92,12 @@ test('KDS-1 cannot be blocked by KDS-2 still-pending items -- no 409', async () 
 });
 
 test('KDS-2 tapping ready before its own item is done still 409s (real error, not the multi-station bug)', async () => {
-  const res = await fetch(`${base}/api/pos/orders/${orderId}/ready`, authed(kdsToken(kds2Id, `T-MSR2-${SUFFIX}`), { method: 'POST' }));
+  const res = await fetch(`${base}/api/pos/orders/${orderId}/ready`, authed(kds2Headers, { method: 'POST' }));
   assert.equal(res.status, 409);
 });
 
 test('the last item struck anywhere auto-advances the order to ready, no explicit ready tap needed', async () => {
-  const res = await fetch(`${base}/api/pos/order-items/${orderItemSeafoodId}/kitchen-status`, authed(kdsToken(kds2Id, `T-MSR2-${SUFFIX}`), {
+  const res = await fetch(`${base}/api/pos/order-items/${orderItemSeafoodId}/kitchen-status`, authed(kds2Headers, {
     method: 'PATCH', body: JSON.stringify({ status: 'done' }),
   }));
   assert.equal(res.status, 200);
@@ -100,7 +106,7 @@ test('the last item struck anywhere auto-advances the order to ready, no explici
 });
 
 test('un-striking an item back to pending still works freely (no lock introduced)', async () => {
-  const res = await fetch(`${base}/api/pos/order-items/${orderItemBbqId}/kitchen-status`, authed(kdsToken(kds1Id, `T-MSR1-${SUFFIX}`), {
+  const res = await fetch(`${base}/api/pos/order-items/${orderItemBbqId}/kitchen-status`, authed(kds1Headers, {
     method: 'PATCH', body: JSON.stringify({ status: 'pending' }),
   }));
   assert.equal(res.status, 200);

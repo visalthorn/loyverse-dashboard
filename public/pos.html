@@ -6,6 +6,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css"/>
+<link rel="manifest" href="/manifest-pos.json"/>
+<link rel="apple-touch-icon" href="/icons-pos-192.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="CM POS"/>
+<meta name="theme-color" content="#0F172A"/>
 <title>POS Till</title>
 <script>
   (function() {
@@ -19,35 +25,51 @@
     height: 100%; margin: 0; overflow: hidden;
     background: var(--bg-canvas); color: var(--text-primary);
     font-family: var(--font-sans);
+    overscroll-behavior: none; /* disable pull-to-refresh / rubber-banding on a touch till */
+  }
+  button, .item-btn, .seg-btn, .qty-stepper button {
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
   }
   button { font-family: inherit; }
 
   #posApp { display: flex; flex-direction: column; height: 100vh; }
 
-  /* ── Top strip: open orders ─────────────────────────────────────── */
+  /* ── Top strip ──────────────────────────────────────────────────── */
   #topStrip {
     display: flex; align-items: center; gap: 10px;
     height: 64px; flex: 0 0 64px;
-    padding: 0 16px; overflow-x: auto;
+    padding: 0 16px;
     background: var(--bg-surface); border-bottom: 1px solid var(--border);
   }
-  #topStrip .brand {
-    font-weight: 700; font-size: 15px; color: var(--accent-strong);
-    white-space: nowrap; margin-right: 8px;
+  #openOrdersBtn {
+    position: relative; flex: 0 0 auto; height: 48px; padding: 0 18px;
+    border-radius: 10px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface-alt); color: var(--text-primary);
+    font-weight: 600; font-size: 13px; cursor: pointer;
   }
-  .order-chip {
-    position: relative; flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start;
-    min-width: 110px; padding: 6px 34px 6px 14px; border-radius: 10px;
-    background: var(--bg-surface-alt); border: 1px solid var(--border);
-    cursor: pointer; min-height: 48px; justify-content: center;
+  #openOrdersBtn .count-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; padding: 0 5px; margin-left: 8px;
+    border-radius: 10px; background: var(--accent); color: var(--accent-contrast);
+    font-size: 11px; font-weight: 700; font-family: var(--font-num); vertical-align: middle;
   }
-  .order-chip:active { background: var(--accent-soft); border-color: var(--accent); }
-  .order-chip .chip-title { font-size: 13px; font-weight: 700; }
-  .order-chip .chip-sub    { font-size: 11px; color: var(--text-secondary); }
-  .chip-reprint {
-    position: absolute; top: 8px; right: 6px; width: 26px; height: 26px;
-    border-radius: 7px; border: 1px solid var(--border); background: var(--bg-surface);
-    color: var(--text-secondary); font-size: 13px; cursor: pointer; padding: 0;
+  #openOrdersBtn .count-badge:empty,
+  #openOrdersBtn .count-badge[data-count="0"] { display: none; }
+  /* Vertical order list (inside #ordersModal) -- replaces the old horizontal
+     chip strip, which stopped being scannable once more than a few orders
+     were open at once. */
+  .order-row-item {
+    position: relative; display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; padding: 10px 40px 10px 4px; border-bottom: 1px solid var(--border-subtle); cursor: pointer;
+  }
+  .order-row-item:last-child { border-bottom: none; }
+  .order-row-item .or-title { font-size: 13px; font-weight: 700; }
+  .order-row-item .or-sub   { font-size: 11px; color: var(--text-secondary); }
+  .order-row-item .or-total { font-weight: 700; font-family: var(--font-num); white-space: nowrap; }
+  .order-row-item .chip-reprint {
+    position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+    width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--text-secondary); font-size: 13px; cursor: pointer; padding: 0;
   }
   #newOrderBtn, #navMenuBtn {
     flex: 0 0 auto; height: 48px; padding: 0 18px;
@@ -55,7 +77,8 @@
     background: var(--bg-surface-alt); color: var(--text-primary);
     font-weight: 600; font-size: 13px; cursor: pointer;
   }
-  #navMenuBtn { margin-left: auto; width: 48px; padding: 0; font-size: 18px; }
+  #newOrderBtn { margin-left: auto; }
+  #navMenuBtn { width: 48px; padding: 0; font-size: 18px; }
 
   #navMenu {
     display: none; flex-direction: column; gap: 4px;
@@ -79,15 +102,21 @@
   #leftPanel  { flex: 0 0 65%; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border); }
   #rightPanel { flex: 0 0 35%; display: flex; flex-direction: column; min-width: 0; }
 
-  /* Categories + search */
+  /* Categories + search -- kept on one row so the item grid below gets more
+     vertical room, and so neither control has to fight for a whole line to
+     itself on a short viewport. */
+  #filterBar {
+    display: flex; align-items: center; gap: 10px;
+    margin: 10px 12px; flex: 0 0 auto;
+  }
   #categoryBar {
-    display: block; margin: 10px 12px; flex: 0 0 auto;
-    height: 52px; padding: 0 14px; border-radius: 10px;
+    flex: 0 0 auto; width: 140px;
+    height: 48px; padding: 0 14px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--bg-surface);
     color: var(--text-primary); font-size: 14px; font-weight: 600;
   }
 
-  #searchBar { padding: 0 12px 10px; flex: 0 0 auto; }
+  #searchBar { flex: 1 1 auto; min-width: 0; }
   #itemSearch {
     width: 100%; height: 48px; border-radius: 10px; border: 1px solid var(--border);
     background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 15px;
@@ -133,6 +162,7 @@
     background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 16px;
     font-family: var(--font-num);
   }
+  #tableNumber.invalid { border-color: var(--loss); box-shadow: 0 0 0 1px var(--loss); }
   #orderNameInput {
     width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--border);
     background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 14px;
@@ -241,6 +271,17 @@
   #paySuccessReprintBtn { border: 1px solid var(--border-strong); background: none; color: var(--text-primary); }
   #paySuccessDoneBtn { border: none; background: var(--accent); color: var(--accent-contrast); }
 
+  /* ── Orders modal ────────────────────────────────────────────────── */
+  #ordersModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
+    align-items: center; justify-content: center; z-index: 500;
+  }
+  #ordersModal.open { display: flex; }
+  #ordersModalCard {
+    width: 100%; max-width: 480px; background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; box-shadow: var(--shadow-lift); max-height: 90vh; overflow-y: auto;
+  }
+
   /* ── Receipts modal ──────────────────────────────────────────────── */
   #receiptsModal {
     position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
@@ -310,14 +351,14 @@
   <div id="offlineBanner"></div>
 
   <div id="topStrip">
-    <span id="posBrand" class="brand">🧾 POS Till</span>
-    <div id="openOrdersStrip" style="display:flex;gap:10px;"></div>
-    <button id="navMenuBtn" onclick="window.posToggleNavMenu()" title="Menu">☰</button>
+    <button id="openOrdersBtn" onclick="window.posOpenOrdersModal()">📋 Orders<span id="openOrdersCount" class="count-badge" data-count="0"></span></button>
     <button id="newOrderBtn" onclick="window.posNewOrder()">+ New Order</button>
+    <button id="navMenuBtn" onclick="window.posToggleNavMenu()" title="Menu">☰</button>
   </div>
 
   <div id="navMenu">
     <div id="navMenuTerminalName"></div>
+    <button type="button" onclick="window.posLockNow(); window.posToggleNavMenu();">🔒 Lock</button>
     <button type="button" onclick="window.posSwitchTerminal(); window.posToggleNavMenu();">🔀 Switch Terminal</button>
     <button type="button" onclick="window.posOpenSettings(); window.posToggleNavMenu();">⚙ Settings</button>
     <button type="button" onclick="window.posOpenReceipts(); window.posToggleNavMenu();">🧾 Receipts</button>
@@ -325,9 +366,11 @@
 
   <div id="main">
     <div id="leftPanel">
-      <select id="categoryBar"></select>
-      <div id="searchBar">
-        <input id="itemSearch" type="text" placeholder="Search items…" oninput="window.posOnSearch(this.value)"/>
+      <div id="filterBar">
+        <select id="categoryBar"></select>
+        <div id="searchBar">
+          <input id="itemSearch" type="text" placeholder="Search items…" oninput="window.posOnSearch(this.value)"/>
+        </div>
       </div>
       <div id="itemGrid"></div>
     </div>
@@ -418,6 +461,16 @@
   </div>
 </div>
 
+<div id="ordersModal">
+  <div id="ordersModalCard">
+    <h2 style="margin:0 0 12px;font-size:18px;">Open Orders</h2>
+    <div id="openOrdersList" style="max-height:60vh;overflow-y:auto;margin-bottom:12px;"></div>
+    <div class="modal-actions" style="margin-top:8px;">
+      <button type="button" onclick="window.posCloseOrdersModal()" style="flex:1;height:48px;border-radius:10px;border:1px solid var(--border-strong);background:none;color:var(--text-primary);cursor:pointer;">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="receiptsModal">
   <div id="receiptsModalCard" style="max-width:480px;">
     <h2 style="margin:0 0 12px;font-size:18px;">Today's Receipts</h2>
@@ -434,5 +487,10 @@
 </div>
 
 <script type="module" src="/js/pos.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+  }
+</script>
 </body>
 </html>

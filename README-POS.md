@@ -6,39 +6,72 @@ not dashboard users. It never touches Loyverse-synced tables — all POS writes
 go into `pos_*` tables so a Loyverse sync can never collide with or overwrite
 a POS order.
 
-## Auth model — terminals, not dashboard users
+## Auth model — device token + session JWT, not dashboard users
 
 `/pos` and `/kds` no longer reuse the dashboard's user login. Each physical
 device (or browser tab acting as one) logs in as a **terminal**: a short code
 (e.g. `PP-POS-01`) + a 4–6 digit PIN, entered on a numeric pad — no username,
-no dashboard account.
+no dashboard account. Once logged in, the device stays logged in indefinitely
+(sliding 90-day expiry) without staff ever re-entering the PIN, until someone
+explicitly logs out, revokes the device from the dashboard, or 90 days pass
+with the tablet never coming back online.
 
-- `pos_terminals` / `kds_terminals` (`migrations/011_terminal_auth.sql`) hold
-  `terminal_id` (unique code), a bcrypt `passcode_hash`, `branch_id`, and
+Two artifacts replace what used to be a single flat terminal JWT:
+
+- **Device token** — opaque 256-bit random value, issued once at PIN login,
+  stored in `terminal_devices` as a sha256 hash (never the raw value), sliding
+  90-day expiry extended on every silent refresh, revocable per-device from
+  the dashboard. Travels as the httpOnly `cm_device` cookie, scoped to `/api`.
+- **Session token** — a short-lived (12h) JWT, silently re-minted from the
+  device token by `POST /api/terminal/session/refresh` before the app ever
+  renders. Staff never see this happen. Travels as the httpOnly `cm_session`
+  cookie, scoped to the whole app.
+
+Both cookies are same-origin (Express serves the API and the static pages),
+so there is no CORS involved. A third, **non-**httpOnly cookie `cm_csrf`
+pairs with an `X-CSRF-Token` header on every state-changing request
+(double-submit CSRF check, `middleware/terminalCsrf.js`) — plain header-based
+`Authorization: Bearer` auth is gone for terminals, and so is any
+`localStorage` token.
+
+- `pos_terminals` / `kds_terminals` (`migrations/011_terminal_auth.sql`, plus
+  `failed_attempts`/`locked_until` added in `migrations/020_terminal_devices.sql`)
+  hold `terminal_id` (unique code), a bcrypt `passcode_hash`, `branch_id`, and
   `is_active`. `kds_terminal_categories` maps a KDS station to the categories
   it should display (empty = unconfigured, shows a "no categories assigned"
   message rather than everything).
+- `terminal_devices` (`migrations/020_terminal_devices.sql`) is the device
+  token table described above — one row per logged-in physical device,
+  independent of the terminal_id/PIN it logged in with.
 - `POST /api/terminal/login` (`routes/terminalAuth.js`) checks the passcode
-  and signs a terminal JWT using **`JWT_SECRET_TERMINAL`** — a secret
-  completely separate from the dashboard's `JWT_SECRET*`, so a leaked
-  terminal token can never be replayed against dashboard routes (`/api/kpis`,
-  etc.) and a dashboard token can never reach `/api/pos/*`. Terminal tokens
-  expire in 12h and are re-checked against `is_active`/`deleted_at` on every
-  request (`middleware/terminalAuth.js`) — deactivating a terminal from the
-  dashboard logs it out immediately, not at next token expiry.
-- Frontend: `public/js/terminalAuth.js` stores the token under
-  `localStorage['terminal_token']` (separate key from the dashboard's
-  `pos_token`, so a tablet used for both never cross-contaminates sessions)
-  and remembers the device's terminal code under `device_terminal_id` so
-  staff only re-enter the PIN daily, not the terminal ID.
+  (bcrypt), and on success mints both cookies plus `cm_csrf`, using
+  **`JWT_SECRET_TERMINAL`** for the session JWT — a secret completely
+  separate from the dashboard's `JWT_SECRET*`, so a leaked terminal session
+  can never be replayed against dashboard routes (`/api/kpis`, etc.) and a
+  dashboard token can never reach `/api/pos/*`. 5 wrong PINs in a row locks
+  the terminal for 15 minutes (`locked_until`), clearable from the dashboard.
+- `requireTerminalAuth` (`middleware/terminalAuth.js`) reads `cm_session`,
+  verifies the JWT, then re-checks **both** the terminal's `is_active` and
+  the `terminal_devices` row's `revoked_at`/`expires_at` against the DB on
+  every single request — deactivating a terminal, or revoking one device,
+  takes effect on the device's very next API call, not at next token expiry.
+- Frontend: `public/js/terminalAuth.js` no longer stores any token. It keeps
+  only display metadata (`terminal_info` — name/branch, not a credential) and
+  the remembered terminal code (`device_terminal_id`) so staff only re-enter
+  the PIN once per device, never daily. Every terminal API call goes through
+  a shared wrapper that attaches the CSRF header and, on a 401, tries one
+  silent `/session/refresh` before falling back to the PIN screen — with a
+  shared in-flight promise so several simultaneous 401s only trigger one
+  refresh call, not a stampede.
 - Every `pos_orders` row now carries `terminal_id`/`branch_id` derived
-  **server-side** from the caller's terminal token — never trusted from the
+  **server-side** from the caller's session — never trusted from the
   client. `GET /orders`, `/kds/active`, and every single-order action are
   scoped to the calling terminal's own branch.
 - Branch/terminal management (create terminal, reset passcode, activate/
-  deactivate, assign KDS categories) lives on `/branches.html`, gated by the
-  existing dashboard admin login (`requireAuth` + `requireRole('admin')`) —
-  that page's auth is unchanged.
+  deactivate, assign KDS categories, list/revoke logged-in devices, unlock a
+  locked-out terminal) lives on `/branches.html`, gated by the existing
+  dashboard admin login (`requireAuth` + `requireRole('admin')`) — that
+  page's auth is unchanged.
 
 ## Architecture
 
@@ -47,7 +80,7 @@ no dashboard account.
                  │   Browser: /pos           │  cashier order-taking
                  │   (public/pos.html+js)    │  + offline queue + printing
                  └───────────┬───────────────┘
-                             │ REST (JWT Bearer)         ┌─────────────────────┐
+                             │ REST (cm_session cookie)  ┌─────────────────────┐
                  ┌───────────▼───────────────┐   SSE     │  Browser: /kds       │
                  │   Express: routes/pos.js  │◄──────────┤  (public/kds.html+js)│
                  │   /api/pos/*              │  push     │  kitchen tablet/TV   │
@@ -89,12 +122,15 @@ Loyverse sync owns them.
 | POST   | `/orders/:id/pay`                     | pos  | Pay (cash or khqr) |
 | POST   | `/orders/:id/cancel`                  | pos  | Cancel |
 | GET    | `/kds/active`                         | `requireTerminalAuth(['kds'])` | Orders in caller's branch, filtered to this KDS station's assigned categories |
-| GET    | `/kds/stream`                         | kds, **via `?token=` query param** (EventSource can't send headers) | SSE push |
+| GET    | `/kds/stream`                         | kds, via `cm_session` cookie (EventSource sends cookies automatically with `withCredentials: true`, no token in the URL) | SSE push |
 | PATCH  | `/order-items/:id/kitchen-status`     | kds  | Cycle an item `pending → preparing → done` |
 | POST   | `/orders/:id/ready`                   | kds  | Caller's own station's items must be `done`; order transitions to `ready` once every station's items are done (auto-advances on the last item struck, no tap required) |
 | POST   | `/orders/:id/served`                  | kds  | Order picked up / delivered |
 | GET    | `/health`                             | none | `{ db, uptime }` liveness probe |
-| POST   | `/api/terminal/login`                 | none, rate-limited 5/2min per `terminal_id` | Terminal PIN login, returns the terminal JWT |
+| POST   | `/api/terminal/login`                 | none, rate-limited 5/2min per `terminal_id` | Terminal PIN login, sets `cm_device`/`cm_session`/`cm_csrf` cookies (no token in the response body) |
+| POST   | `/api/terminal/session/refresh`       | `cm_device` cookie | Silently re-mints `cm_session` (called on every app boot, before rendering) |
+| POST   | `/api/terminal/unlock`                | `cm_session` + CSRF | Dismisses the idle-lock overlay by re-checking the PIN; does not touch the device token |
+| POST   | `/api/terminal/logout`                | CSRF | Explicit sign-out — revokes the device token and clears all three cookies |
 
 Order status lifecycle: `open → sent_to_kitchen → preparing → ready → served →
 paid | cancelled`. PAY and CANCEL are allowed from any non-terminal status —
@@ -198,18 +234,25 @@ Run through this after any change that touches `routes/pos.js`,
 - [ ] **Health check**: `GET /api/pos/health` returns `{db:"ok", uptime}`
 
 Run through this after any change that touches terminal auth
-(`middleware/terminalAuth.js`, `routes/terminalAuth.js`, `routes/terminals.js`,
-`public/js/terminalAuth.js`):
+(`middleware/terminalAuth.js`, `middleware/terminalCsrf.js`,
+`routes/terminalAuth.js`, `routes/terminals.js`, `public/js/terminalAuth.js`):
 
 - [ ] **Cross-auth guardrails**: a dashboard user JWT gets 401 on any
-      `/api/pos/*` route; a terminal JWT gets 401 on any dashboard-only route
-      (e.g. `/api/kpis`); a POS-type token gets 401 on a KDS-only route and
-      vice versa.
+      `/api/pos/*` route; a terminal session cookie gets 401 on any
+      dashboard-only route (e.g. `/api/kpis`); a POS-type session gets 401 on
+      a KDS-only route and vice versa.
 - [ ] **Wrong PIN**: generic "Invalid terminal ID or passcode" — never
-      reveals whether the terminal ID or the PIN was the wrong part.
-- [ ] **Immediate revocation**: deactivate a terminal on `/branches.html`
-      while it's logged in elsewhere — its very next API call 401s, it does
-      not wait for the 12h token expiry.
+      reveals whether the terminal ID or the PIN was the wrong part. 5 wrong
+      attempts (at login or at the idle-lock unlock screen) locks the
+      terminal 15 minutes.
+- [ ] **Immediate revocation**: revoke a device (or deactivate a terminal) on
+      `/branches.html` while it's logged in elsewhere — its very next API
+      call 401s, it does not wait for the 12h session expiry.
+- [ ] **Silent boot refresh**: close the browser entirely and reopen `/pos` or
+      `/kds` — lands straight in the app with no login prompt, as long as the
+      device hasn't been revoked/expired/deactivated.
+- [ ] **CSRF**: a state-changing request with a missing or mismatched
+      `X-CSRF-Token` header gets 403, even with a valid session cookie.
 - [ ] **Branch isolation**: two terminals on different branches — a cashier
       never sees the other branch's open orders, and can't pay/cancel an
       order id belonging to another branch even if guessed directly.
@@ -224,21 +267,30 @@ Run through this after any change that touches terminal auth
 
 ## Deploying this to PROD
 
-Two things beyond code need to land on the production (Supabase) database
-and environment before terminal auth works there — both are **your call to
+Three things beyond code need to land on the production (Supabase) database
+and environment before terminal auth works there — all are **your call to
 run**, not something run automatically for you:
 
-1. Run `migrations/011_terminal_auth.sql` against PROD (via
-   `scripts/add-terminal-auth.js`, same pattern as the other migration
-   scripts). It alters the existing (currently unused) `pos_terminals` table
-   in place and adds `kds_terminals` + `kds_terminal_categories` — safe to
-   run more than once.
+1. Run `migrations/011_terminal_auth.sql` against PROD if it hasn't already
+   landed there, then `migrations/020_terminal_devices.sql` (adds the
+   `terminal_devices` table and `failed_attempts`/`locked_until` columns).
+   Both are idempotent — safe to run more than once, and 020 must run after
+   011. `migrations/` is gitignored in this repo despite files 015–019
+   already being tracked from before that rule existed — `git add -f
+   migrations/020_terminal_devices.sql` (or fix `.gitignore`) so it actually
+   makes it into your next commit.
 2. Add `JWT_SECRET_TERMINAL` to PROD's `.env` (a long random string, distinct
    from `JWT_SECRET_PROD`). Without it the app falls back to a hardcoded dev
    default, which is fine for local testing but must not be used in
    production.
+3. **Secure cookies require HTTPS.** `config.isProd` (true when `ENV=PROD`)
+   sets `Secure` on all three terminal cookies — confirm PROD is actually
+   served over HTTPS (Railway provisions this automatically for its default
+   domain and any custom domain with DNS pointed at it) before flipping
+   `ENV=PROD`, or the browser will silently refuse to set the cookies at all
+   and login will loop. Local dev (`ENV=UAT`, plain HTTP) omits `Secure`
+   automatically — no local config needed.
 
-Until both are done, `/pos` and `/kds` on PROD will fail (the old
+Until all three are done, `/pos` and `/kds` on PROD will fail (the old
 dashboard-JWT login path no longer exists in the code at all — there's no
 backwards-compatible fallback).
-      without a token.

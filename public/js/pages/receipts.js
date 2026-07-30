@@ -1,5 +1,5 @@
 import { fetchJSON, apiPost } from '../api.js';
-import { getEl, fmtRaw, fmtKHR, downloadCSV, TZ } from '../utils.js';
+import { getEl, fmtRaw, fmtKHR, downloadCSV, TZ, getTodayDate } from '../utils.js';
 import { t } from '../i18n.js';
 import { renderDateFilter } from '../dateFilter.js';
 import { renderBranchFilter } from '../branchFilter.js';
@@ -18,7 +18,7 @@ let selectedId  = null;
 let isLoading   = false;
 let filterStart = '';
 let filterEnd   = '';
-let receiptSource = 'loyverse'; // 'loyverse' | 'own'
+let receiptSource = 'own'; // 'loyverse' | 'own'
 let ownBranchId = null;
 
 // ─── Formatters (receipts-specific) ─────────────────────────────────────────
@@ -150,11 +150,12 @@ export function applyDateFilter({ start, end }) {
   loadReceipts();
 }
 
-function mountDateFilter() {
+function mountDateFilter(initial) {
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [{ key: 'yesterday', labelKey: 'common.yesterday' }],
     defaultPreset: 'yesterday',
     onChange: applyDateFilter,
+    initial,
   });
 }
 
@@ -191,8 +192,17 @@ function renderTable() {
     const idx         = start + i + 1;
     const typeClass   = r.receipt_type === 'REFUND' ? 'badge-refund' : 'badge-sale';
     const typeLabel   = r.receipt_type === 'SALE' ? t('receipts.typeSale') : r.receipt_type === 'REFUND' ? t('receipts.typeRefund') : (r.receipt_type || '—');
+    // A refund never rewrites the original sale row (migration 013's "write
+    // once" rule) -- it's a separate REFUND row against the same order. So a
+    // sale that HAS been refunded still reads receipt_type SALE / is_canceled
+    // No forever; `refundable` flipping to false once a refund exists is the
+    // only signal, and without surfacing it here the original row looks
+    // untouched even though the money was returned.
+    const wasRefunded = r.receipt_type === 'SALE' && r.refundable === false;
     const cancelBadge = r.is_canceled === 'Yes'
       ? `<span class="badge badge-canceled">${t('receipts.yes')}</span>`
+      : wasRefunded
+      ? `<span class="badge badge-refund">${t('receipts.refundedBadge')}</span>`
       : '<span class="text-[color:var(--text-muted)] text-xs">—</span>';
     const sel = r.id === selectedId ? 'selected' : '';
 
@@ -263,7 +273,12 @@ export function selectReceipt(id) {
   const isRefund  = r.receipt_type === 'REFUND';
   const typeClass = isRefund ? 'val-loss' : 'val-gain';
   const typeLabel = isRefund ? t('receipts.typeRefund') : t('receipts.typeSale');
-  const cancelNote = r.is_canceled === 'Yes' ? `<span class="badge badge-canceled ml-2">${t('receipts.canceledBadge')}</span>` : '';
+  const wasRefunded = r.receipt_type === 'SALE' && r.refundable === false;
+  const cancelNote = r.is_canceled === 'Yes'
+    ? `<span class="badge badge-canceled ml-2">${t('receipts.canceledBadge')}</span>`
+    : wasRefunded
+    ? `<span class="badge badge-refund ml-2">${t('receipts.refundedBadge')}</span>`
+    : '';
 
   const itemsHtml = items.map(it => `
     <div class="detail-item-row">
@@ -319,7 +334,26 @@ export async function refundReceipt(id) {
   if (!res.ok) { showToast(res.data.message || t('receipts.refundFailed'), 'error'); return; }
   showToast(t('receipts.refundSuccess'));
   selectedId = null;
-  await loadReceipts();
+  // loadReceipts() only re-renders the table -- without this the detail
+  // panel keeps showing the pre-refund view (including the now-stale Refund
+  // button) since nothing else clears it once selectedId is nulled.
+  const empty = getEl('detailEmpty'), content = getEl('detailContent'), panel = getEl('detailPanel');
+  if (empty && content && panel) { empty.classList.remove('hidden'); content.classList.add('hidden'); panel.classList.remove('active'); }
+
+  // The new refund row is always dated "now" (see routes/receipts.js
+  // /:id/refund). If the currently applied date range ends before today, that
+  // row -- and its contribution to the Refunds stat card -- falls outside the
+  // window loadReceipts() is about to (re)fetch, so it silently stays at 0
+  // even though the refund succeeded. Extend the visible range forward to
+  // include today so what just happened is actually visible, same as the
+  // list/detail-panel updates above; loadReceipts() runs as part of this
+  // re-mount's onChange, so no separate call is needed here.
+  const today = getTodayDate();
+  if (today > filterEnd) {
+    mountDateFilter({ period: 'range', start: filterStart, end: today });
+  } else {
+    await loadReceipts();
+  }
 }
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
@@ -485,5 +519,11 @@ function stopLiveOrdersPoll() {
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 export function init() {
+  // Own is the default tab -- mirrors what switchReceiptSource('own') sets up,
+  // but done directly since receiptSource already starts as 'own' (that guard
+  // would otherwise short-circuit and skip this setup entirely).
+  mountOwnBranchFilter();
+  loadLiveOrders();
+  startLiveOrdersPoll();
   mountDateFilter();
 }

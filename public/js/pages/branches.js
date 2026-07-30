@@ -43,9 +43,20 @@ function renderBranches() {
       <td class="py-2.5 pr-3 text-center">${b.device_count}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
         <button onclick="startEditBranch(${b.id})" class="text-xs text-[color:var(--accent-strong)] hover:underline mr-3">${t('branches.edit')}</button>
+        <button onclick="confirmRevokeAllBranchDevices(${b.id})" class="text-xs text-[color:var(--loss)] hover:underline mr-3">${t('branches.revokeAllDevices')}</button>
         <button onclick="confirmDeleteBranch(${b.id})" class="text-xs text-[color:var(--loss)] hover:underline">${t('branches.delete')}</button>
       </td>
     </tr>`).join('');
+}
+
+export async function confirmRevokeAllBranchDevices(id) {
+  const b = branches.find(x => x.id === id);
+  if (!b) return;
+  const ok = await showConfirm(t('branches.revokeAllBranchConfirm', { name: b.name }), { danger: true });
+  if (!ok) return;
+  const res = await apiPost(`/api/branches/${id}/revoke-all-devices`, {});
+  if (res.ok) showToast(t('branches.devicesRevoked', { count: res.data.revoked_count }), 'success');
+  else showToast(res.data.error || t('branches.saveFailed'), 'error');
 }
 
 function branchOptions(selectedId) {
@@ -200,6 +211,7 @@ function renderTerminals() {
     return;
   }
   const isPos = terminalTab === 'pos';
+  const isLocked = term => term.locked_until && new Date(term.locked_until) > new Date();
   tbody.innerHTML = terminals.map(term => `
     <tr class="border-b border-[color:var(--border-subtle)]">
       <td class="py-2.5 pr-3 font-mono font-medium">${esc(term.terminal_id)}</td>
@@ -208,13 +220,21 @@ function renderTerminals() {
         <button onclick="toggleTerminalActive(${term.id})" class="badge" style="cursor:pointer;background:${term.is_active ? 'var(--gain-soft, var(--accent-soft))' : 'var(--bg-surface-alt)'};color:${term.is_active ? 'var(--gain)' : 'var(--text-muted)'}">
           ${term.is_active ? t('branches.active') : t('branches.inactive')}
         </button>
+        ${isLocked(term) ? `<button onclick="unlockTerminal(${term.id})" class="badge" style="cursor:pointer;background:var(--loss-soft, var(--bg-surface-alt));color:var(--loss);margin-left:4px;" title="${esc(new Date(term.locked_until).toLocaleString())}">${t('branches.lockedBadge')}</button>` : ''}
       </td>
       <td class="py-2.5 pr-3 text-xs text-[color:var(--text-secondary)]">${fmtLastLogin(term.last_login_at)}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
         <button onclick="resetTerminalPasscode(${term.id})" class="text-xs text-[color:var(--accent-strong)] hover:underline mr-3">${t('branches.resetPasscode')}</button>
+        <button onclick="openDevicesModal(${term.id})" class="text-xs text-[color:var(--accent-strong)] hover:underline mr-3">${t('branches.devices')}</button>
         ${isPos ? '' : `<button onclick="openCategoriesModal(${term.id})" class="text-xs text-[color:var(--accent-strong)] hover:underline">${t('branches.categories')}</button>`}
       </td>
     </tr>`).join('');
+}
+
+export async function unlockTerminal(id) {
+  const res = await apiPost(`/api/terminals/${terminalEndpoint() === 'pos-terminals' ? 'pos' : 'kds'}/${id}/unlock`, {});
+  if (res.ok) { showToast(t('branches.terminalUnlocked'), 'success'); loadTerminals(); }
+  else showToast(res.data.error || t('branches.saveFailed'), 'error');
 }
 
 export async function toggleTerminalActive(id) {
@@ -241,6 +261,77 @@ export async function resetTerminalPasscode(id) {
   } else {
     showToast(res.data.error || t('branches.saveFailed'), 'error');
   }
+}
+
+// ─── Device management modal ────────────────────────────────────────────────
+// Long-lived device tokens minted at PIN login (see routes/terminalAuth.js) --
+// this is the dashboard's only visibility into which physical devices are
+// still logged into a given terminal, and the only way to revoke one short
+// of waiting out its 90-day sliding expiry.
+
+function relativeTime(ts) {
+  if (!ts) return t('branches.never');
+  const diffMs = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return t('branches.justNow');
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+export async function openDevicesModal(termId) {
+  const type = terminalEndpoint() === 'pos-terminals' ? 'pos' : 'kds';
+  const term = terminals.find(x => x.id === termId);
+
+  const overlay = buildModalShell(`
+    <h2 style="margin:0 0 4px;font-size:16px;font-weight:700;">${t('branches.devicesModalTitle')}</h2>
+    <p style="font-size:11px;color:var(--text-secondary);margin:0 0 12px;">${esc(term ? (term.name || term.terminal_id) : '')}</p>
+    <div id="devicesModalBody" style="max-height:340px;overflow-y:auto;margin-bottom:12px;font-size:12px;">
+      <div style="text-align:center;color:var(--text-secondary);padding:20px 0;">…</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button id="devicesRevokeAllBtn" type="button" class="btn-ghost" style="flex:1;color:var(--loss);">${t('branches.revokeAllDevices')}</button>
+      <button id="devicesCloseBtn" type="button" class="btn-accent" style="flex:1;">${t('dialog.ok')}</button>
+    </div>
+  `);
+  overlay.querySelector('#devicesCloseBtn').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#devicesRevokeAllBtn').addEventListener('click', async () => {
+    const ok = await showConfirm(t('branches.revokeAllConfirm'), { danger: true });
+    if (!ok) return;
+    const res = await apiPost(`/api/terminals/${type}/${termId}/revoke-all-devices`, {});
+    if (res.ok) { showToast(t('branches.devicesRevoked', { count: res.data.revoked_count }), 'success'); renderDeviceList(); }
+    else showToast(res.data.error || t('branches.saveFailed'), 'error');
+  });
+
+  async function renderDeviceList() {
+    const body = overlay.querySelector('#devicesModalBody');
+    const list = await fetchJSON(`/api/terminals/${type}/${termId}/devices`);
+    const rows = (list || []).filter(d => !d.revoked_at);
+    if (!body) return; // overlay closed while awaiting
+    if (!rows.length) {
+      body.innerHTML = `<div style="text-align:center;color:var(--text-secondary);padding:20px 0;">${t('branches.noTerminalDevices')}</div>`;
+      return;
+    }
+    body.innerHTML = rows.map(d => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border-subtle);">
+        <div style="min-width:0;">
+          <div style="font-weight:600;">${esc(d.device_label || t('branches.unlabeledDevice'))}</div>
+          <div style="color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;">${esc((d.user_agent || '').slice(0, 60))}</div>
+          <div style="color:var(--text-muted);">${t('branches.lastActive')}: ${relativeTime(d.last_active_at)} · ${t('branches.expires')}: ${new Date(d.expires_at).toLocaleDateString()}</div>
+        </div>
+        <button data-revoke-id="${d.id}" class="text-xs text-[color:var(--loss)] hover:underline" style="flex-shrink:0;">${t('branches.revoke')}</button>
+      </div>`).join('');
+    body.querySelectorAll('[data-revoke-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const res = await apiPost(`/api/terminal-devices/${btn.dataset.revokeId}/revoke`, {});
+        if (res.ok) renderDeviceList();
+        else showToast(res.data.error || t('branches.saveFailed'), 'error');
+      });
+    });
+  }
+
+  renderDeviceList();
 }
 
 // ─── Create-terminal modal (lightweight, no shared dialog infra needed) ─────

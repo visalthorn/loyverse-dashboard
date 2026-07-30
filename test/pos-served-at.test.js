@@ -2,13 +2,12 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { jwtSecretTerminal } = require('../config');
 const app = require('../app');
 const pool = require('../db');
+const { issueTerminalSession, cleanupTerminalDevice } = require('./helpers/terminalAuth');
 
-let server, base, branchId, posTerminalDbId, kdsTerminalDbId, terminalId, catalogItemId, orderId;
+let server, base, branchId, posTerminalDbId, kdsTerminalDbId, terminalId, catalogItemId, orderId, posHeaders, kdsHeaders, posDeviceId, kdsDeviceId;
 const SUFFIX = Date.now();
 
 before(async () => {
@@ -26,6 +25,12 @@ before(async () => {
     [branchId, `T-Srv-${SUFFIX}`, `T-Srv-${SUFFIX}`, hash]);
   kdsTerminalDbId = kdsTerm.rows[0].id;
   terminalId = `T-Srv-${SUFFIX}`;
+  const posSession = await issueTerminalSession(pool, { type: 'pos', id: posTerminalDbId, terminal_id: terminalId, branch_id: branchId, name: terminalId });
+  const kdsSession = await issueTerminalSession(pool, { type: 'kds', id: kdsTerminalDbId, terminal_id: terminalId, branch_id: branchId, name: terminalId });
+  posHeaders = posSession.headers;
+  kdsHeaders = kdsSession.headers;
+  posDeviceId = posSession.deviceId;
+  kdsDeviceId = kdsSession.deviceId;
   const cat = await pool.query(`INSERT INTO categories (id, name) VALUES ($1,$2) RETURNING id`, [crypto.randomUUID(), `T-SrvCat-${SUFFIX}`]);
   const catId = cat.rows[0].id;
   const item = await pool.query(`INSERT INTO items (id, name, price, category_id) VALUES ($1,$2,$3,$4) RETURNING id`,
@@ -45,6 +50,8 @@ after(async () => {
     await pool.query(`DELETE FROM kds_terminal_categories WHERE category_id = $1`, [catRes.rows[0].id]);
   }
   await pool.query(`DELETE FROM categories WHERE name = $1`, [`T-SrvCat-${SUFFIX}`]);
+  await cleanupTerminalDevice(pool, posDeviceId);
+  await cleanupTerminalDevice(pool, kdsDeviceId);
   await pool.query(`DELETE FROM pos_terminals WHERE id = $1`, [posTerminalDbId]);
   await pool.query(`DELETE FROM kds_terminals WHERE id = $1`, [kdsTerminalDbId]);
   await pool.query(`DELETE FROM branches WHERE id = $1`, [branchId]);
@@ -62,17 +69,15 @@ test('column exists', async () => {
 test('marking an order served sets served_at', async () => {
   const diningRow = await pool.query(`SELECT DISTINCT dining_option FROM receipts WHERE dining_option IS NOT NULL LIMIT 1`);
   const diningOption = diningRow.rows[0]?.dining_option || 'ក្នុងហាង';
-  const kdsToken = jwt.sign({ type: 'kds', id: kdsTerminalDbId, terminal_id: terminalId, branch_id: branchId, name: terminalId }, jwtSecretTerminal);
-  const posToken = jwt.sign({ type: 'pos', id: posTerminalDbId, terminal_id: terminalId, branch_id: branchId, name: terminalId }, jwtSecretTerminal);
 
   const created = await fetch(`${base}/api/pos/orders`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken}` },
+    method: 'POST', headers: posHeaders,
     body: JSON.stringify({ dining_option: diningOption, table_number: `T${SUFFIX}`, items: [{ source_item_id: catalogItemId, quantity: 1 }] }),
   });
   orderId = (await created.json()).order.id;
 
   await fetch(`${base}/api/pos/orders/${orderId}/send-to-kitchen`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken}` }, body: JSON.stringify({}),
+    method: 'POST', headers: posHeaders, body: JSON.stringify({}),
   });
 
   // Get the order item id so we can mark it as done
@@ -81,7 +86,7 @@ test('marking an order served sets served_at', async () => {
 
   // Mark the item as done to auto-transition order to ready
   await fetch(`${base}/api/pos/order-items/${itemId}/kitchen-status`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kdsToken}` },
+    method: 'PATCH', headers: kdsHeaders,
     body: JSON.stringify({ status: 'done' }),
   });
 
@@ -89,7 +94,7 @@ test('marking an order served sets served_at', async () => {
   assert.equal(preRow.rows[0].served_at, null);
 
   const servedRes = await fetch(`${base}/api/pos/orders/${orderId}/served`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kdsToken}` }, body: JSON.stringify({}),
+    method: 'POST', headers: kdsHeaders, body: JSON.stringify({}),
   });
   assert.equal(servedRes.status, 200);
 
@@ -102,9 +107,7 @@ test('marking an order served sets served_at', async () => {
   // /kds/finished 24h-window query and come back out, not just exist as a
   // raw column value. This is what test/kds-finished-window.test.js (which
   // seeds served_at with raw NOW() - INTERVAL SQL) cannot catch.
-  const finishedRes = await fetch(`${base}/api/pos/kds/finished`, {
-    headers: { Authorization: `Bearer ${kdsToken}` },
-  });
+  const finishedRes = await fetch(`${base}/api/pos/kds/finished`, { headers: kdsHeaders });
   assert.equal(finishedRes.status, 200);
   const finishedBody = await finishedRes.json();
   const finishedIds = finishedBody.orders.map(o => o.id);

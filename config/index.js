@@ -8,7 +8,17 @@ module.exports = {
   // jwtSecret, so a leaked terminal token can't be replayed against dashboard
   // routes (and vice versa).
   jwtSecretTerminal:     process.env.JWT_SECRET_TERMINAL || 'pos_terminal_secret_change_in_prod',
-  jwtExpiresTerminal:    '24h',
+  // Short-lived session JWT, silently re-minted from the long-lived device
+  // token (see terminal_devices / routes/terminalAuth.js) -- staff never see
+  // this expire because /api/terminal/session/refresh re-mints it first.
+  jwtExpiresSession:     '12h',
+  deviceTokenDays:       90,
+  // How long a terminal can sit idle before the lock overlay covers it --
+  // a person check, not a device check (Section 6 of the terminal-auth
+  // redesign). KDS defaults longer since a kitchen screen is meant to be
+  // glanceable rather than actively operated.
+  idleTimeoutMinutes:    { pos: 8, kds: 30 },
+  isProd:                (process.env.ENV || 'UAT') === 'PROD',
   tz:                    'Asia/Phnom_Penh',
   env:                   process.env.ENV || 'UAT',
   loyverseToken:         process.env.LOYVERSE_TOKEN,

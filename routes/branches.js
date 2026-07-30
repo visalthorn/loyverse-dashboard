@@ -114,12 +114,31 @@ router.put('/kds-settings', async (req, res) => {
   }
 });
 
+// Bulk device revoke for an entire branch -- staff turnover or a lost/stolen
+// tablet whose specific terminal isn't known offhand. Registered before
+// /:id so it never collides with the single-segment PUT/DELETE routes below.
+router.post('/:id/revoke-all-devices', async (req, res) => {
+  const branchId = parseId(req.params.id);
+  if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
+  try {
+    const result = await pool.query(
+      `UPDATE terminal_devices SET revoked_at = NOW(), revoked_by = $1
+       WHERE branch_id = $2 AND revoked_at IS NULL RETURNING id`,
+      [req.user.username, branchId]
+    );
+    res.json({ success: true, revoked_count: result.rowCount });
+  } catch (err) {
+    console.error('branch revoke-all-devices error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/:id/pos-terminals', async (req, res) => {
   const branchId = parseId(req.params.id);
   if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
   try {
     const result = await pool.query(
-      `SELECT id, terminal_id, name, is_active, last_login_at, created_at
+      `SELECT id, terminal_id, name, is_active, last_login_at, locked_until, created_at
        FROM pos_terminals WHERE branch_id = $1 AND deleted_at IS NULL ORDER BY terminal_id`,
       [branchId]
     );
@@ -160,7 +179,7 @@ router.get('/:id/kds-terminals', async (req, res) => {
   if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
   try {
     const result = await pool.query(
-      `SELECT id, terminal_id, name, is_active, last_login_at, created_at
+      `SELECT id, terminal_id, name, is_active, last_login_at, locked_until, created_at
        FROM kds_terminals WHERE branch_id = $1 AND deleted_at IS NULL ORDER BY terminal_id`,
       [branchId]
     );

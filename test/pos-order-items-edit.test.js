@@ -1,13 +1,12 @@
 // test/pos-order-items-edit.test.js
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { jwtSecretTerminal } = require('../config');
 const app = require('../app');
 const pool = require('../db');
+const { issueTerminalSession, cleanupTerminalDevice } = require('./helpers/terminalAuth');
 
-let server, base, branchId, termId, catalogItemId, orderId, itemId1, itemId2;
+let server, base, branchId, termId, catalogItemId, orderId, itemId1, itemId2, posHeaders, posDeviceId;
 const SUFFIX = Date.now();
 
 before(async () => {
@@ -21,6 +20,9 @@ before(async () => {
   const t = await pool.query(`INSERT INTO pos_terminals (name, branch_id, terminal_id, passcode_hash) VALUES ($1,$2,$3,$4) RETURNING id`,
     [`T-EdPos-${SUFFIX}`, branchId, `T-EdPo-${SUFFIX}`, hash]);
   termId = t.rows[0].id;
+  const session = await issueTerminalSession(pool, { type: 'pos', id: termId, terminal_id: `T-EdPo-${SUFFIX}`, branch_id: branchId, name: 'x' });
+  posHeaders = session.headers;
+  posDeviceId = session.deviceId;
   const cat = await pool.query(`INSERT INTO categories (id, name) VALUES ($1,$2) RETURNING id`, [require('crypto').randomUUID(), `T-EdCat-${SUFFIX}`]);
   const item = await pool.query(`INSERT INTO items (id, name, price, category_id) VALUES ($1,$2,$3,$4) RETURNING id`,
     [require('crypto').randomUUID(), `T-EdItem-${SUFFIX}`, 4000, cat.rows[0].id]);
@@ -33,16 +35,14 @@ after(async () => {
   await pool.query(`DELETE FROM pos_orders WHERE id = $1`, [orderId]);
   await pool.query(`DELETE FROM items WHERE id = $1`, [catalogItemId]);
   await pool.query(`DELETE FROM categories WHERE name = $1`, [`T-EdCat-${SUFFIX}`]);
+  await cleanupTerminalDevice(pool, posDeviceId);
   await pool.query(`DELETE FROM pos_terminals WHERE id = $1`, [termId]);
   await pool.query(`DELETE FROM branches WHERE id = $1`, [branchId]);
   server.close();
   await pool.end();
 });
 
-function posToken() {
-  return jwt.sign({ type: 'pos', id: termId, terminal_id: `T-EdPo-${SUFFIX}`, branch_id: branchId, name: 'x' }, jwtSecretTerminal);
-}
-const authed = (opts = {}) => ({ ...opts, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${posToken()}`, ...(opts.headers || {}) } });
+const authed = (opts = {}) => ({ ...opts, headers: { ...posHeaders, ...(opts.headers || {}) } });
 
 test('setup: create an order with two lines and send to kitchen', async () => {
   const diningRow = await pool.query(`SELECT DISTINCT dining_option FROM receipts WHERE dining_option IS NOT NULL LIMIT 1`);
