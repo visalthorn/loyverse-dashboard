@@ -236,7 +236,12 @@ router.get('/orders', requireTerminalAuth(['pos']), async (req, res) => {
       }
     }
 
-    res.json({ orders: ordersRes.rows.map(o => ({ ...o, items: itemsByOrder[o.id] || [] })) });
+    // server_now: a real UTC ISO timestamp, unlike created_at/sent_to_kitchen_at
+    // which are naive Cambodia-local strings (see kds-elapsed-timezone.test.js
+    // for why this pairing matters) -- lets the client compute "how long has
+    // this order been sitting" without assuming its own clock/timezone
+    // matches the server's.
+    res.json({ server_now: new Date().toISOString(), orders: ordersRes.rows.map(o => ({ ...o, items: itemsByOrder[o.id] || [] })) });
   } catch (err) {
     console.error('POS orders GET error:', err);
     res.status(500).json({ error: err.message });
@@ -497,10 +502,31 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
     const newTotal      = Math.max(0, newSubtotal - Number(order.discount));
     const now = toCambodiaTime(new Date());
 
-    await client.query(
-      `UPDATE pos_orders SET subtotal = $1, total = $2, updated_at = $3 WHERE id = $4`,
-      [newSubtotal, newTotal, now, id]
-    );
+    // New lines always start kitchen_status 'pending'. If the order had
+    // already reached 'ready' or 'served', those brand-new pending items
+    // would otherwise sit invisible to the kitchen: /kds/active renders a
+    // 'ready' order as a pickup chip (no per-item list) and doesn't query
+    // 'served' orders at all. Send it back through the kitchen exactly like
+    // a fresh order -- refreshing sent_to_kitchen_at too, so the KDS elapsed
+    // timer/warn-danger coloring reflects this new round of cooking rather
+    // than however long the original items took.
+    const reactivating = order.status === 'ready' || order.status === 'served';
+    if (reactivating) {
+      await client.query(
+        `UPDATE pos_orders SET status = 'sent_to_kitchen', served_at = NULL, sent_to_kitchen_at = $1,
+                subtotal = $2, total = $3, updated_at = $1 WHERE id = $4`,
+        [now, newSubtotal, newTotal, id]
+      );
+      await client.query(
+        `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'items_added_after_ready',$2,$3)`,
+        [id, req.terminal.terminal_id, now]
+      );
+    } else {
+      await client.query(
+        `UPDATE pos_orders SET subtotal = $1, total = $2, updated_at = $3 WHERE id = $4`,
+        [newSubtotal, newTotal, now, id]
+      );
+    }
 
     await client.query('COMMIT');
     broadcastOrdersChanged();

@@ -30,6 +30,12 @@ let cashReceived       = 0;
 let lastPaidOrder      = null;
 let orderLoading       = false;
 
+// server_now vs Date.now() at fetch time -- corrects for the same naive-
+// Cambodia-local-timestamp-vs-client-clock mismatch kds.js already guards
+// against (see kds-elapsed-timezone.test.js) so "sitting time" in the Orders
+// list doesn't drift by hours if the terminal's own clock/timezone differs.
+let ordersClockOffsetMs = 0;
+
 // Saved-order name: auto-filled with the time the order was started, freely
 // editable (e.g. to "Table 5") before or after saving.
 let orderName = '';
@@ -741,9 +747,51 @@ function applyOrderToPanel(order) {
   renderItemGrid();
 }
 
+// table_number always shown when present -- it must never be hidden behind
+// a custom order name, since "which table is this" is the one thing a
+// cashier or runner needs at a glance. Falls back to the dining option
+// (e.g. "Takeaway") when there's no table to show.
+function orderTableLabel(o) {
+  return o.table_number ? `Table ${o.table_number}` : (o.dining_option || '');
+}
+
+// Maps the order's kitchen-facing state to the four labels requested:
+// Pending -> Cooking -> Ready -> Finished. 'sent_to_kitchen' covers two
+// distinct situations that both read as "kitchen hasn't started yet" but
+// differ in history -- a genuinely fresh order, vs. one that was already
+// ready/served and just had new items appended to it (see the
+// 'items_added_after_ready' reactivation in POST /orders/:id/items) -- the
+// latter carries a mix of already-'done' and freshly-'pending' items, which
+// is exactly what distinguishes it from a first-time send.
+function orderStatusLabel(o) {
+  if (o.status === 'served')    return { text: 'Finished', cls: 'finished' };
+  if (o.status === 'ready')     return { text: 'Ready',    cls: 'ready' };
+  if (o.status === 'preparing') return { text: 'Cooking',  cls: 'cooking' };
+  if (o.status === 'sent_to_kitchen') {
+    const items = o.items || [];
+    const hasDone    = items.some(i => i.kitchen_status === 'done');
+    const hasPending = items.some(i => i.kitchen_status === 'pending');
+    if (hasDone && hasPending) return { text: 'Pending · new items', cls: 'pending-new' };
+    return { text: 'Pending', cls: 'pending' };
+  }
+  return { text: 'Pending', cls: 'pending' }; // 'open' -- not yet sent to kitchen at all
+}
+
+function orderElapsedBaseMs(o) {
+  const ts = o.sent_to_kitchen_at || o.created_at;
+  return ts ? new Date(ts).getTime() : null;
+}
+
+function formatSittingTime(ms) {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  if (totalMin < 60) return `${totalMin}m`;
+  return `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`;
+}
+
 async function loadOpenOrders() {
   const data = await fetchJSON('/api/pos/orders?status=active');
   const orders = data ? data.orders.slice() : [];
+  if (data && data.server_now) ordersClockOffsetMs = new Date(data.server_now).getTime() - Date.now();
   // The server has no idea a still-offline order exists yet — keep it
   // visible in the list locally until its create call reconciles.
   if (currentOrder && currentOrder._queued && !orders.some(o => o.order_number === currentOrder.order_number)) {
@@ -766,11 +814,17 @@ async function loadOpenOrders() {
   orders.forEach(o => {
     const row = document.createElement('div');
     row.className = 'order-row-item';
-    const title = o.name ? esc(o.name) : (o.table_number ? 'Table ' + o.table_number : o.order_number);
+    const title = o.name ? esc(o.name) : o.order_number;
+    const tableLabel = esc(orderTableLabel(o));
+    const status = orderStatusLabel(o);
+    const baseMs = orderElapsedBaseMs(o);
+    const elapsedText = baseMs ? formatSittingTime(Date.now() + ordersClockOffsetMs - baseMs) : '';
     row.innerHTML = `
       <div>
         <div class="or-title">${title}</div>
-        <div class="or-sub">${(o.status || '').replace(/_/g, ' ')}${o._queued ? ' · offline' : ''}</div>
+        <div class="or-sub">
+          ${tableLabel ? `${tableLabel} · ` : ''}<span class="or-status-badge status-${status.cls}">${esc(status.text)}</span>${elapsedText ? ` · ${elapsedText}` : ''}${o._queued ? ' · offline' : ''}
+        </div>
       </div>
       <span class="or-total">${khr(o.total)}</span>
       <button class="chip-reprint" type="button" title="Reprint kitchen ticket">🖨</button>
