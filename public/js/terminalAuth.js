@@ -245,17 +245,17 @@ function showLockOverlay() {
         if (pin.length >= 6) return;
         pin += btn.dataset.d;
         render();
-        if (pin.length >= 4) submit();
+        if (pin.length === 6) submit();
       });
     });
     overlay.querySelector('#tlkBackspace').addEventListener('click', () => { pin = pin.slice(0, -1); render(); });
     overlay.querySelector('#tlkClear').addEventListener('click', () => { pin = ''; render(); });
     overlay.querySelector('#tlkSubmit').addEventListener('click', submit);
-    overlay.querySelector('#tlkSubmit').disabled = pin.length < 4;
+    overlay.querySelector('#tlkSubmit').disabled = pin.length < 6;
   }
 
   async function submit() {
-    if (pin.length < 4) return;
+    if (pin.length < 6) return;
     const btn = overlay.querySelector('#tlkSubmit');
     const errEl = overlay.querySelector('#tlkError');
     if (btn) btn.disabled = true;
@@ -403,7 +403,7 @@ export function showTerminalLogin({ label, onSuccess }) {
 
   function updateSubmitState() {
     const btn = overlay.querySelector('#tlSubmit');
-    if (btn) btn.disabled = !(terminalId && pin.length >= 4);
+    if (btn) btn.disabled = !(terminalId && pin.length === 6);
   }
 
   async function submit() {

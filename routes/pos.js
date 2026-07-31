@@ -27,13 +27,20 @@ function broadcastOrdersChanged() {
 
 // Discovered in Phase 1 from receipt_payments: only ('Cash','CASH') and
 // ('QR','OTHER') have ever occurred. 'khqr' is our own internal code for the
-// national QR scheme, which Loyverse itself just calls 'QR'/'OTHER' — there
-// is no third method (e.g. bank transfer) with any historical precedent, so
-// none is offered here.
+// national QR scheme, which Loyverse itself just calls 'QR'/'OTHER'.
 const PAYMENT_METHODS = {
   cash: { payment_name: 'Cash', payment_type: 'CASH' },
   khqr: { payment_name: 'QR',   payment_type: 'OTHER' },
 };
+
+// 'both' is a split of the two methods above (part cash, part QR) — it has
+// no single payment_name/payment_type of its own. completeOrder() below
+// writes it as two separate pos_receipt_payments rows, one per method.
+const PAYMENT_METHOD_OPTIONS = [
+  { code: 'cash', label: 'Cash' },
+  { code: 'khqr', label: 'QR' },
+  { code: 'both', label: 'Both' },
+];
 
 function httpError(statusCode, message) {
   const err = new Error(message);
@@ -198,9 +205,7 @@ router.get('/config', requireTerminalAuth(['pos']), async (req, res) => {
     res.json({
       dining_options: diningRes.rows.map(r => r.dining_option),
       dine_in_option: DINE_IN_LABEL,
-      payment_methods: Object.entries(PAYMENT_METHODS).map(([code, v]) => ({
-        code, label: v.payment_name, payment_name: v.payment_name, payment_type: v.payment_type,
-      })),
+      payment_methods: PAYMENT_METHOD_OPTIONS,
     });
   } catch (err) {
     console.error('POS config GET error:', err);
@@ -655,9 +660,11 @@ router.delete('/order-items/:id', requireTerminalAuth(['pos']), requireCsrf, asy
 
 async function completeOrder(req, res) {
   const id = parseId(req.params.id);
-  const { payment_method, cash_received } = req.body;
+  const { payment_method, cash_received, khqr_received } = req.body;
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
-  if (!PAYMENT_METHODS[payment_method]) return res.status(400).json({ message: 'Unknown payment_method.' });
+  if (!['cash', 'khqr', 'both'].includes(payment_method)) {
+    return res.status(400).json({ message: 'Unknown payment_method.' });
+  }
 
   const client = await pool.connect();
   try {
@@ -670,10 +677,21 @@ async function completeOrder(req, res) {
     if (!canTransition(order.status, 'paid')) throw httpError(409, `Cannot pay a ${order.status} order.`);
 
     let cashReceivedVal = null;
+    let khqrReceivedVal = null;
     if (payment_method === 'cash') {
       cashReceivedVal = Number(cash_received);
       if (!Number.isFinite(cashReceivedVal) || cashReceivedVal < Number(order.total)) {
         throw httpError(400, 'cash_received must be a number >= total.');
+      }
+    } else if (payment_method === 'both') {
+      cashReceivedVal = Number(cash_received);
+      khqrReceivedVal = Number(khqr_received);
+      if (!Number.isFinite(cashReceivedVal) || !Number.isFinite(khqrReceivedVal) ||
+          cashReceivedVal <= 0 || khqrReceivedVal <= 0) {
+        throw httpError(400, 'cash_received and khqr_received must both be greater than 0 for a split payment.');
+      }
+      if (Math.round(cashReceivedVal + khqrReceivedVal) !== Math.round(Number(order.total))) {
+        throw httpError(400, 'cash_received + khqr_received must equal the order total.');
       }
     }
 
@@ -687,7 +705,6 @@ async function completeOrder(req, res) {
     // A refund later inserts its own new row (routes/receipts.js), it never
     // touches this one.
     const receiptNumber = await generateReceiptNumber(client);
-    const pm = PAYMENT_METHODS[payment_method];
     const receiptRes = await client.query(`
       INSERT INTO pos_receipts
         (receipt_number, order_id, branch_id, pos_terminal_id, dining_option, subtotal, discount, total, receipt_date, created_by)
@@ -705,10 +722,24 @@ async function completeOrder(req, res) {
       WHERE poi.order_id = $2
     `, [receiptId, order.id]);
 
-    await client.query(`
-      INSERT INTO pos_receipt_payments (receipt_id, payment_name, payment_type, money_amount, paid_at)
-      VALUES ($1,$2,$3,$4,$5)
-    `, [receiptId, pm.payment_name, pm.payment_type, order.total, now]);
+    if (payment_method === 'both') {
+      const cashPm = PAYMENT_METHODS.cash;
+      const khqrPm = PAYMENT_METHODS.khqr;
+      await client.query(`
+        INSERT INTO pos_receipt_payments (receipt_id, payment_name, payment_type, money_amount, paid_at)
+        VALUES ($1,$2,$3,$4,$5)
+      `, [receiptId, cashPm.payment_name, cashPm.payment_type, cashReceivedVal, now]);
+      await client.query(`
+        INSERT INTO pos_receipt_payments (receipt_id, payment_name, payment_type, money_amount, paid_at)
+        VALUES ($1,$2,$3,$4,$5)
+      `, [receiptId, khqrPm.payment_name, khqrPm.payment_type, khqrReceivedVal, now]);
+    } else {
+      const pm = PAYMENT_METHODS[payment_method];
+      await client.query(`
+        INSERT INTO pos_receipt_payments (receipt_id, payment_name, payment_type, money_amount, paid_at)
+        VALUES ($1,$2,$3,$4,$5)
+      `, [receiptId, pm.payment_name, pm.payment_type, order.total, now]);
+    }
 
     await client.query(`UPDATE pos_orders SET receipt_id = $1 WHERE id = $2`, [receiptId, id]);
 
@@ -1159,7 +1190,7 @@ router.get('/receipts/:id', requireTerminalAuth(['pos']), async (req, res) => {
       pool.query(`SELECT payment_name, payment_type, money_amount, paid_at FROM pos_receipt_payments WHERE receipt_id = $1 ORDER BY id`, [id]),
     ]);
     receipt.items = itemsRes.rows;
-    receipt.payment = payRes.rows[0] || null;
+    receipt.payments = payRes.rows;
     res.json({ receipt });
   } catch (err) {
     console.error('POS receipt detail GET error:', err);

@@ -54,16 +54,22 @@ const RECEIPT_STYLE = `
   .grand { font-size: 16px; font-weight: 800; }
 `;
 
+const PAY_METHOD_LABELS = { cash: 'Cash', khqr: 'QR', both: 'Cash + QR' };
+
 export function receiptHTML(order) {
   const itemRows = (order.items || []).map(it => `
     <div class="row"><span>${it.quantity} × ${esc(it.item_name)}</span><span>${khr(it.price * it.quantity)}</span></div>
     ${it.note ? `<div class="note">${esc(it.note)}</div>` : ''}
   `).join('');
 
-  const changeRows = order.payment_method === 'cash' && order.cash_received != null
-    ? `<div class="row"><span>Cash received</span><span>${khr(order.cash_received)}</span></div>
-       <div class="row"><span>Change</span><span>${khr(Number(order.cash_received) - Number(order.total))}</span></div>`
-    : '';
+  let changeRows = '';
+  if (order.payment_method === 'cash' && order.cash_received != null) {
+    changeRows = `<div class="row"><span>Cash received</span><span>${khr(order.cash_received)}</span></div>
+       <div class="row"><span>Change</span><span>${khr(Number(order.cash_received) - Number(order.total))}</span></div>`;
+  } else if (order.payment_method === 'both' && order.cash_received != null) {
+    changeRows = `<div class="row"><span>Cash</span><span>${khr(order.cash_received)}</span></div>
+       <div class="row"><span>QR</span><span>${khr(Number(order.total) - Number(order.cash_received))}</span></div>`;
+  }
 
   return `<!doctype html><html><head><meta charset="utf-8"><style>${RECEIPT_STYLE}</style></head><body>
     <div class="center bold" style="font-size:16px;">CHAB MOUTH</div>
@@ -78,7 +84,7 @@ export function receiptHTML(order) {
     ${Number(order.discount) > 0 ? `<div class="row"><span>Discount</span><span>-${khr(order.discount)}</span></div>` : ''}
     <div class="row grand"><span>TOTAL</span><span>${khr(order.total)}</span></div>
     <div class="hr"></div>
-    <div class="row"><span>Payment</span><span>${esc(order.payment_method || '')}</span></div>
+    <div class="row"><span>Payment</span><span>${esc(PAY_METHOD_LABELS[order.payment_method] || order.payment_method || '')}</span></div>
     ${changeRows}
     <div class="hr"></div>
     <div class="center" style="margin-top:8px;">សូមអរគុណ / Thank you</div>

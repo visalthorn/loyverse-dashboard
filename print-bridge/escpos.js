@@ -84,6 +84,8 @@ function padCols(left, right, width = 32) {
   return left + ' '.repeat(gap) + right;
 }
 
+const PAY_METHOD_LABELS = { cash: 'Cash', khqr: 'QR', both: 'Cash + QR' };
+
 function buildReceipt(order) {
   const parts = [
     CMD.init, CMD.alignCenter,
@@ -108,10 +110,13 @@ function buildReceipt(order) {
   }
   parts.push(CMD.boldOn, CMD.doubleOn, line('TOTAL ' + khr(order.total)), CMD.doubleOff, CMD.boldOff);
   parts.push(line('--------------------------------'));
-  parts.push(line('Payment: ' + (order.payment_method || '')));
+  parts.push(line('Payment: ' + (PAY_METHOD_LABELS[order.payment_method] || order.payment_method || '')));
   if (order.payment_method === 'cash' && order.cash_received != null) {
     parts.push(line(padCols('Cash received', khr(order.cash_received))));
     parts.push(line(padCols('Change', khr(Number(order.cash_received) - Number(order.total)))));
+  } else if (order.payment_method === 'both' && order.cash_received != null) {
+    parts.push(line(padCols('Cash', khr(order.cash_received))));
+    parts.push(line(padCols('QR', khr(Number(order.total) - Number(order.cash_received)))));
   }
   parts.push(CMD.alignCenter, line(''), line(toLatin('សូមអរគុណ') + ' / Thank you'));
   parts.push(feed(3), CMD.cut);

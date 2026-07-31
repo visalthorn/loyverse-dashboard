@@ -27,6 +27,8 @@ let tableNumber  = '';
 
 let selectedPayMethod = null;
 let cashReceived       = 0;
+
+const PAY_METHOD_LABELS = { cash: 'Cash', khqr: 'QR', both: 'Cash + QR' };
 let lastPaidOrder      = null;
 let orderLoading       = false;
 
@@ -610,7 +612,10 @@ async function openPayModal() {
   selectedPayMethod = null;
   cashReceived = 0;
   getEl('cashReceivedInput').value = '';
+  getEl('cashReceivedInput').placeholder = 'Cash received';
   getEl('cashSection').classList.remove('show');
+  getEl('cashExactBtn').style.display = '';
+  getEl('changeLabel').textContent = 'Change';
   getEl('payConfirmBtn').disabled = true;
   getEl('payModalTotal').textContent = khr(computeTotals().total);
 
@@ -631,7 +636,9 @@ function closePayModal() { getEl('payModal').classList.remove('open'); }
 function selectPayMethod(code) {
   selectedPayMethod = code;
   document.querySelectorAll('.pay-method-btn').forEach(b => b.classList.toggle('active', b.dataset.code === code));
-  getEl('cashSection').classList.toggle('show', code === 'cash');
+  getEl('cashSection').classList.toggle('show', code === 'cash' || code === 'both');
+  getEl('cashExactBtn').style.display = code === 'both' ? 'none' : '';
+  getEl('cashReceivedInput').placeholder = code === 'both' ? 'Cash portion' : 'Cash received';
   updateChange();
 }
 
@@ -641,31 +648,48 @@ function cashExact()           { cashReceived = computeTotals().total; getEl('ca
 
 function updateChange() {
   const total = computeTotals().total;
-  const change = selectedPayMethod === 'cash' ? cashReceived - total : 0;
-  getEl('changeValue').textContent = khr(Math.max(0, change));
-  const valid = selectedPayMethod && (selectedPayMethod !== 'cash' || cashReceived >= total);
+  const changeLabel = getEl('changeLabel');
+  let valid = false;
+
+  if (selectedPayMethod === 'cash') {
+    changeLabel.textContent = 'Change';
+    getEl('changeValue').textContent = khr(Math.max(0, cashReceived - total));
+    valid = cashReceived >= total;
+  } else if (selectedPayMethod === 'both') {
+    changeLabel.textContent = 'QR amount';
+    getEl('changeValue').textContent = khr(Math.max(0, total - cashReceived));
+    valid = cashReceived > 0 && cashReceived < total;
+  } else if (selectedPayMethod === 'khqr') {
+    valid = true;
+  }
   getEl('payConfirmBtn').disabled = !valid;
 
   const hint = getEl('payHint');
   if (!selectedPayMethod) hint.textContent = 'Select a payment method to continue.';
   else if (selectedPayMethod === 'cash' && cashReceived < total) hint.textContent = 'Enter cash received — must be at least the total.';
+  else if (selectedPayMethod === 'both' && !valid) hint.textContent = 'Enter the cash portion — must be more than 0 and less than the total; the rest is paid by QR.';
   else hint.textContent = '';
 }
 
 async function confirmPay() {
   if (!currentOrder || !selectedPayMethod) return;
+  const total = computeTotals().total;
   const body = { payment_method: selectedPayMethod };
   if (selectedPayMethod === 'cash') body.cash_received = cashReceived;
+  if (selectedPayMethod === 'both') {
+    body.cash_received = cashReceived;
+    body.khqr_received = total - cashReceived;
+  }
 
   const { ok, data, queued } = await mutate(`/api/pos/orders/${currentOrder.id}/pay`, 'POST', body);
 
   if (queued) {
     // Optimistic: the network is down, not the till — let the cashier keep
     // moving and reconcile once the pay call replays successfully.
-    const change = selectedPayMethod === 'cash' ? Math.max(0, cashReceived - computeTotals().total) : 0;
+    const change = selectedPayMethod === 'cash' ? Math.max(0, cashReceived - total) : 0;
     const optimisticOrder = {
       ...currentOrder, status: 'paid', payment_method: selectedPayMethod,
-      cash_received: selectedPayMethod === 'cash' ? cashReceived : null,
+      cash_received: (selectedPayMethod === 'cash' || selectedPayMethod === 'both') ? cashReceived : null,
     };
     showToast(`Offline — payment queued for ${currentOrder.order_number}.`, 'error');
     printReceipt(optimisticOrder);
@@ -686,7 +710,7 @@ function showPaySuccess(order, change) {
   lastPaidOrder = order;
   getEl('payModalBody').style.display = 'none';
   getEl('paySuccessView').style.display = 'block';
-  getEl('paySuccessOrderNo').textContent = `${order.order_number} · ${order.payment_method}`;
+  getEl('paySuccessOrderNo').textContent = `${order.order_number} · ${PAY_METHOD_LABELS[order.payment_method] || order.payment_method}`;
   getEl('paySuccessChange').textContent = change ? `Change ${khr(change)}` : '';
   // No printing happens automatically -- this is a viewable receipt only;
   // "Print Receipt" below sends it to the printer/bridge on demand.
@@ -945,7 +969,7 @@ function receiptToPrintableOrder(receipt) {
     subtotal:       receipt.subtotal,
     discount:        receipt.discount,
     total:          receipt.total,
-    payment_method: receipt.payment ? receipt.payment.payment_name : '',
+    payment_method: (receipt.payments || []).map(p => p.payment_name).join(' + '),
     cash_received:  null,
   };
 }
