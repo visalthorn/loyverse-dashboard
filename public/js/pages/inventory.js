@@ -18,6 +18,8 @@ let analysisById = {};         // id → /api/inventory/analysis row
 let soldItems = null;          // lazily fetched, cached for the link picker
 let currentIngredientId = null;
 let currentLinks = [];
+let currentComponents = [];
+let currentUsedIn = [];
 let currentRestockUnit = '';
 let currentHistoryRows = [];
 let branchOptions = [];
@@ -145,6 +147,7 @@ function renderIngredients() {
       <div class="inv-card-actions">
         <button onclick="invOpenRestock(${ing.id})" class="inv-btn inv-btn--accent">📦 ${t('inventory.restock')}</button>
         <button onclick="invOpenLinks(${ing.id})" class="inv-btn">🔗 ${t('inventory.items')} (${ing.link_count})</button>
+        <button onclick="invOpenComponents(${ing.id})" class="inv-btn">🧬 ${t('inventory.madeFrom')} (${ing.component_count})</button>
         <button onclick="invOpenHistory(${ing.id})" class="inv-btn">📜 ${t('inventory.history')}</button>
         <button onclick="invOpenEditIngredient(${ing.id})" class="inv-icon-btn" title="${t('common.edit')}">✏️</button>
         <button onclick="invToggleActive(${ing.id})" class="inv-icon-btn" title="${t(ing.is_active ? 'inventory.deactivate' : 'inventory.activate')}">${ing.is_active ? '⏸' : '▶'}</button>
@@ -406,6 +409,98 @@ export async function invRemoveLink(id) {
 
   currentLinks = currentLinks.filter(l => l.id !== id);
   renderLinksList();
+  await loadIngredients();
+}
+
+// ── Ingredient components ("made from") ──────────────────────────────────
+// A composite ingredient (e.g. "BBQ Source") made from other base
+// ingredients (e.g. "Garlic"). Link only, no quantities — Garlic can also
+// link directly to items via invOpenLinks independent of this. One level
+// only: enforced server-side, mirrored here for the picker (candidates that
+// are themselves composites are excluded) and for locking the add form when
+// this ingredient is already someone else's component.
+
+function renderComponentsList() {
+  const el = getEl('componentsCurrentList');
+  if (!el) return;
+  if (!currentComponents.length) {
+    el.innerHTML = `<div class="text-xs text-[color:var(--text-muted)]">${t('inventory.noComponentsYet')}</div>`;
+    return;
+  }
+  el.innerHTML = currentComponents.map(c => `
+    <span class="chip">${esc(c.name)}<button type="button" onclick="invRemoveComponent(${c.id})" class="chip-remove" title="${t('common.delete')}">✕</button></span>
+  `).join('');
+}
+
+function renderUsedInList() {
+  const wrap = getEl('componentsUsedInWrap');
+  const el = getEl('componentsUsedInList');
+  if (!wrap || !el) return;
+  wrap.classList.toggle('hidden', !currentUsedIn.length);
+  el.innerHTML = currentUsedIn.map(u => `<span class="chip">${esc(u.name)}</span>`).join('');
+}
+
+export async function invOpenComponents(id) {
+  const ing = ingredients.find(i => i.id === id);
+  if (!ing) return;
+  currentIngredientId = id;
+  getEl('componentsIngName').textContent = ing.name;
+  getEl('componentSearch').value = '';
+  getEl('componentResults').innerHTML = '';
+
+  const data = await fetchJSON(`/api/inventory/ingredient-components?ingredient_id=${id}`) || { components: [], used_in: [] };
+  currentComponents = data.components;
+  currentUsedIn = data.used_in;
+  renderComponentsList();
+  renderUsedInList();
+
+  // Already someone else's component -> can't also become a composite (one level only).
+  const blocked = currentUsedIn.length > 0;
+  getEl('componentsAddSection').classList.toggle('hidden', blocked);
+  getEl('componentsBlockedMsg').classList.toggle('hidden', !blocked);
+
+  showModal('componentsModal');
+}
+
+export function invCloseComponents() { hideModal('componentsModal'); }
+
+export function invOnComponentSearch() {
+  const q = (getEl('componentSearch').value || '').toLowerCase().trim();
+  const results = getEl('componentResults');
+  if (!q) { results.innerHTML = ''; return; }
+
+  const linkedIds = new Set(currentComponents.map(c => c.ingredient_id));
+  const matches = ingredients
+    .filter(i => i.id !== currentIngredientId && !linkedIds.has(i.id) && Number(i.component_count) === 0
+      && `${i.name} ${i.name_kh || ''}`.toLowerCase().includes(q))
+    .slice(0, 8);
+
+  results.innerHTML = matches.length
+    ? matches.map(i => `<button type="button" class="inv-link-result-item" onclick="invAddComponent(${i.id})">${esc(i.name)}${i.name_kh ? ` <span class="text-[color:var(--text-muted)]">${esc(i.name_kh)}</span>` : ''}</button>`).join('')
+    : `<div class="text-xs text-[color:var(--text-muted)] px-1 py-1">${t('common.emptyNoData')}</div>`;
+}
+
+export async function invAddComponent(componentIngredientId) {
+  const res = await apiPost('/api/inventory/ingredient-components', {
+    parent_ingredient_id: currentIngredientId,
+    component_ingredient_id: componentIngredientId,
+  });
+  if (!res.ok) { showToast(res.data?.message || t('inventory.linkFailed'), 'error'); return; }
+
+  const comp = ingredients.find(i => i.id === componentIngredientId);
+  currentComponents.push({ id: res.data.id, ingredient_id: componentIngredientId, name: comp?.name, name_kh: comp?.name_kh, unit: comp?.unit });
+  renderComponentsList();
+  getEl('componentSearch').value = '';
+  getEl('componentResults').innerHTML = '';
+  await loadIngredients();
+}
+
+export async function invRemoveComponent(id) {
+  const res = await apiDelete(`/api/inventory/ingredient-components/${id}`);
+  if (!res.ok) { showToast(res.data?.message || t('inventory.linkFailed'), 'error'); return; }
+
+  currentComponents = currentComponents.filter(c => c.id !== id);
+  renderComponentsList();
   await loadIngredients();
 }
 
@@ -674,7 +769,7 @@ export async function invRunAiAnalysis() {
 // ── Init ──────────────────────────────────────────────────────────────────
 
 export function init() {
-  ['ingredientModal', 'restockModal', 'linksModal', 'historyModal', 'analysisModal'].forEach(id => {
+  ['ingredientModal', 'restockModal', 'linksModal', 'componentsModal', 'historyModal', 'analysisModal'].forEach(id => {
     const m = getEl(id);
     if (m) m.style.display = 'none';   // ensure hidden despite inline flex
   });

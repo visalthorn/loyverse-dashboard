@@ -37,7 +37,8 @@ router.get('/ingredients', requireAuth, async (req, res) => {
     const result = await pool.query(`
       SELECT i.id, i.name, i.name_kh, i.unit, i.alert_threshold, i.is_active,
              lr.restock_date AS last_restock_date, lr.total_after AS last_total_after,
-             COALESCE(lc.link_count, 0) AS link_count
+             COALESCE(lc.link_count, 0) AS link_count,
+             COALESCE(cc.component_count, 0) AS component_count
       FROM inv_ingredients i
       LEFT JOIN LATERAL (
         SELECT restock_date, total_after FROM inv_restocks
@@ -49,6 +50,10 @@ router.get('/ingredients', requireAuth, async (req, res) => {
       LEFT JOIN (
         SELECT ingredient_id, COUNT(*) AS link_count FROM inv_item_links GROUP BY ingredient_id
       ) lc ON lc.ingredient_id = i.id
+      LEFT JOIN (
+        SELECT parent_ingredient_id, COUNT(*) AS component_count
+        FROM inv_ingredient_components GROUP BY parent_ingredient_id
+      ) cc ON cc.parent_ingredient_id = i.id
       ${includeInactive ? '' : 'WHERE i.is_active = true'}
       ORDER BY i.name
     `, branchId ? [branchId] : []);
@@ -306,6 +311,82 @@ router.delete('/links/:id', requireAuth, async (req, res) => {
     res.json({ deleted: true, id });
   } catch (err) {
     console.error('Inventory links DELETE error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Ingredient components — one composite ingredient made from other base
+// ingredients (e.g. "BBQ Source" made from "Garlic"). Link only, no
+// quantities, same as item links. An ingredient can independently ALSO link
+// straight to items via inv_item_links (Garlic can be sold directly AND feed
+// into BBQ Source). One level only: a component can't itself have components,
+// and a composite can't itself be someone else's component — checked here,
+// not in SQL, since there's no single-constraint way to express it. ────────
+
+router.get('/ingredient-components', requireAuth, async (req, res) => {
+  const ingredientId = parseInt(req.query.ingredient_id);
+  if (!ingredientId) return badRequest(res, 'ingredient_id is required.');
+  try {
+    const [componentsRes, usedInRes] = await Promise.all([
+      pool.query(`
+        SELECT c.id, c.component_ingredient_id AS ingredient_id, i.name, i.name_kh, i.unit
+        FROM inv_ingredient_components c JOIN inv_ingredients i ON i.id = c.component_ingredient_id
+        WHERE c.parent_ingredient_id = $1 ORDER BY i.name
+      `, [ingredientId]),
+      pool.query(`
+        SELECT c.id, c.parent_ingredient_id AS ingredient_id, i.name, i.name_kh, i.unit
+        FROM inv_ingredient_components c JOIN inv_ingredients i ON i.id = c.parent_ingredient_id
+        WHERE c.component_ingredient_id = $1 ORDER BY i.name
+      `, [ingredientId]),
+    ]);
+    res.json({ components: componentsRes.rows, used_in: usedInRes.rows });
+  } catch (err) {
+    console.error('Inventory ingredient-components GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/ingredient-components', requireAuth, async (req, res) => {
+  const parentId    = parseInt(req.body.parent_ingredient_id);
+  const componentId = parseInt(req.body.component_ingredient_id);
+  if (!parentId || !componentId) return badRequest(res, 'parent_ingredient_id and component_ingredient_id are required.');
+  if (parentId === componentId)  return badRequest(res, 'An ingredient cannot be a component of itself.');
+
+  try {
+    const ing = await pool.query('SELECT id FROM inv_ingredients WHERE id = ANY($1)', [[parentId, componentId]]);
+    if (ing.rows.length < 2) return res.status(404).json({ message: 'Ingredient not found.' });
+
+    // One level only, in both directions.
+    const [componentHasOwnComponents, parentIsSomeonesComponent] = await Promise.all([
+      pool.query('SELECT 1 FROM inv_ingredient_components WHERE parent_ingredient_id = $1 LIMIT 1', [componentId]),
+      pool.query('SELECT 1 FROM inv_ingredient_components WHERE component_ingredient_id = $1 LIMIT 1', [parentId]),
+    ]);
+    if (componentHasOwnComponents.rowCount)
+      return res.status(409).json({ message: 'That ingredient is itself made from other ingredients — composites cannot be nested.' });
+    if (parentIsSomeonesComponent.rowCount)
+      return res.status(409).json({ message: 'This ingredient is already used as a component of another ingredient — composites cannot be nested.' });
+
+    const result = await pool.query(`
+      INSERT INTO inv_ingredient_components (parent_ingredient_id, component_ingredient_id)
+      VALUES ($1,$2) RETURNING *
+    `, [parentId, componentId]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'This ingredient is already linked as a component.' });
+    console.error('Inventory ingredient-components POST error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/ingredient-components/:id', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return badRequest(res, 'Invalid id.');
+  try {
+    const result = await pool.query('DELETE FROM inv_ingredient_components WHERE id=$1 RETURNING id', [id]);
+    if (!result.rows.length) return res.status(404).json({ message: 'Component link not found.' });
+    res.json({ deleted: true, id });
+  } catch (err) {
+    console.error('Inventory ingredient-components DELETE error:', err);
     res.status(500).json({ error: err.message });
   }
 });

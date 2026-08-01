@@ -290,6 +290,32 @@
       </div>
     </div>
 
+    <!-- Ingredient components ("made from") modal -->
+    <div id="componentsModal" class="hidden inv-modal-overlay">
+      <div class="card inv-modal">
+        <h3 class="section-title mb-1">🧬 <span id="componentsIngName"></span> — <span data-i18n="inventory.madeFrom">Made from</span></h3>
+        <p class="text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.componentsHint">Link only — no usage quantities. One level only: a composite can't be made from another composite.</p>
+
+        <div id="componentsCurrentList" class="inv-chip-list mb-4"></div>
+
+        <div id="componentsAddSection">
+          <label class="inv-field-label" data-i18n="inventory.addComponent">Add component ingredient</label>
+          <input id="componentSearch" type="text" class="field-input mb-2" oninput="invOnComponentSearch()" data-i18n-placeholder="inventory.searchIngredients" placeholder="Search ingredients…"/>
+          <div id="componentResults" class="inv-link-results"></div>
+        </div>
+        <p id="componentsBlockedMsg" class="hidden text-xs mb-2" style="color:var(--loss)" data-i18n="inventory.componentsBlockedMsg">This ingredient is already used as a component of another ingredient, so it can't also be made of components itself.</p>
+
+        <div id="componentsUsedInWrap" class="hidden mt-4">
+          <label class="inv-field-label" data-i18n="inventory.usedIn">Used as a component in</label>
+          <div id="componentsUsedInList" class="inv-chip-list"></div>
+        </div>
+
+        <div class="flex items-center gap-2 mt-4">
+          <button type="button" onclick="invCloseComponents()" class="inv-btn" data-i18n="inventory.close">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Analysis detail modal -->
     <div id="analysisModal" class="hidden inv-modal-overlay">
       <div class="card inv-modal inv-modal--wide">
