@@ -166,21 +166,126 @@ pay-success screen (receipt).
 
 ## Offline behavior
 
+Hardened 2026-08-01 after an audit found the original queue could silently
+duplicate orders on a lost response, had no queue-size ceiling, and left the
+kitchen completely dark during an internet-down/LAN-up outage (this app is
+cloud-hosted — `/pos` and `/kds` devices on the same branch WiFi still both
+need the internet to reach the server and each other). See
+`services/pos/idempotency.js`, `services/pos/offlineClock.js`,
+`public/js/offlineQueue.js`, and `migrations/022_pos_offline_hardening.sql`.
+
 - The catalog is cached in `localStorage` on every successful load, so the
   item grid still renders instantly if `/api/pos/catalog` is unreachable.
 - Every order mutation (create/append/pay/cancel) goes through a 5-second
-  timeout. On a network failure (not a real server rejection — those still
-  show a normal error) it's queued in `localStorage['pos_offline_queue']` as
-  `{url, method, body, localId, ts}` and retried automatically every 15s (and
-  immediately on the browser's `online` event).
-- A new order created while offline gets a temporary `LOCAL-####` number and
-  is fully usable (cart, kitchen ticket print) — it just can't be paid or
-  cancelled until its create call reconciles with the server and gets a real
-  order number. An amber "⚠ Offline — N queued" banner shows the queue depth
-  the whole time.
-- KDS shows a connection dot (green = SSE connected, red = not) and
-  reconnects automatically, both via the browser's native EventSource retry
-  and immediately on the `online` event.
+  timeout. On a network failure it's queued in **IndexedDB**
+  (`pos_offline_db`, not `localStorage` — a far higher practical quota for a
+  long outage or a busy night) and drained automatically every 2s, respecting
+  each entry's own backoff, and immediately on the browser's `online` event.
+- **Idempotent replay.** Create-order, append-items, and pay each carry a
+  `client_mutation_id` (UUID, generated once before the first attempt —
+  live or queued). The server caches the result the first time it actually
+  commits (`pos_idempotent_requests`); a retried request with the same id
+  replays that ORIGINAL result instead of creating a second real row. This is
+  what actually prevents duplicate orders on a lost response, not just a
+  "best effort" retry.
+- **Retry policy.** A connectivity failure or a `5xx` retries with
+  exponential backoff (2s → 60s cap), never silently dropped. A genuine
+  `4xx` (a real rejection — e.g. the table got taken by someone else while
+  this device was offline) moves to a **dead-letter list** requiring
+  explicit staff action (retry or discard) from the sync panel — never
+  auto-retried forever, never silently discarded either.
+- **Dependency-aware draining.** Appending more items to an order whose own
+  create hasn't synced yet is queued as a dependent entry (referencing the
+  order's provisional number) rather than being refused — it resolves the
+  moment the create entry ahead of it succeeds. Cancelling an order that
+  hasn't synced yet needs no server round-trip at all: it just discards the
+  still-queued create.
+- A new order created while offline gets a **terminal-prefixed provisional
+  number** (e.g. `PP-POS-01-OFF-0007`, from `nextLocalOrderNumber()`) instead
+  of the old generic `LOCAL-####` — distinct across terminals by
+  construction, so two offline tablets never show the same provisional
+  number. It's stored on the order (and later the receipt) as
+  `provisional_number` for staff traceability even after it syncs to a real
+  `POS-YYMMDD-####` number. Printed tickets for an unsynced order carry a
+  bold "OFFLINE TICKET — provisional" marking (`print.js`).
+- **Ownership lock.** While a terminal is offline, it may only modify
+  (add/adjust/remove items, cancel, rename, change table #/dining option) an
+  order it created itself — other terminals' orders show read-only with a
+  "🔒 locked — offline" badge. Paying an order is never locked — any terminal
+  may complete any order, online or offline. This is a client-side guard
+  only (matches created_by against the logged-in terminal's own code); there
+  is no server-side enforcement of it.
+- **Status chip + panel.** A persistent chip (`#syncStatusChip`, top of
+  `/pos`) always shows Online / Offline (N queued) / Syncing / N need
+  attention. Tapping it opens a panel with the queued list, the dead-letter
+  list (retry/discard buttons), a **manual "Sync now"** button (don't wait
+  for the automatic drain if you want to check right away), and the last
+  successful sync time. A toast summarizes each completed sync batch (e.g.
+  "3 synced, 1 needs attention").
+- Offline order/kitchen/payment timestamps use the **device's own clock**
+  at the moment the action happened (bounds-checked server-side, ±5 min
+  future / 72h back) instead of the server's clock at whenever the sync
+  finally lands — so an order taken just before midnight and synced just
+  after still lands in the correct business day's reports.
+- **KDS was explicitly left out of this hardening pass** — it still only
+  shows a small connection dot (green/red), still has no offline queue of
+  its own, and still receives nothing new during an outage. See "Known gaps"
+  below.
+- KDS reconnects automatically via the browser's native EventSource retry
+  and immediately on the `online` event — that part is unchanged.
+
+### Known gaps (not fixed, on purpose)
+
+- **The kitchen display goes dark during an outage.** With the internet
+  down, `/kds` receives no new orders at all until connectivity returns —
+  there's no LAN-local fallback (e.g. auto-printing a paper ticket) wired
+  up. Staff must walk over and tell the kitchen directly for anything sent
+  while the status chip is red. This was scoped out deliberately, not
+  missed — see the "Internet or power outage" runbook below.
+- **Payment method is never restricted offline.** Cash, QR, and split
+  payments all stay selectable and payable while offline; there's no
+  server-side re-validation tied to connectivity either. This system has no
+  live payment-gateway verification even when fully online — QR payment has
+  always been staff-attested, not automatically confirmed — so this was
+  judged not worth restricting.
+- **No stale-write/version conflict detection.** The ownership lock above
+  covers the realistic case (two terminals both offline, one modifying the
+  other's order); a full `updated_at`-based conflict check with a
+  diff-for-staff-review was scoped out as unnecessary on top of that.
+
+## Internet or power outage — what to do
+
+1. Look at the top of the `/pos` screen. If it turns **red** and says
+   "⚠ Offline — N queued", the till has lost its connection — but it still
+   works.
+2. **Keep taking orders as normal.** Creating orders, adding items, and
+   taking payment all keep working exactly like usual while offline.
+3. Offline orders show a temporary number like `PP-POS-01-OFF-0007` instead
+   of the usual `POS-260801-0007` — that's normal. It becomes the real
+   number automatically once the connection is back; nothing needs to be
+   redone.
+4. **Important: the kitchen screen will NOT show these orders until the
+   connection comes back.** Walk over and tell the kitchen directly (or
+   write it down) for anything sent while the banner is red.
+5. Don't force-close the tablet while offline — leave the app open so it
+   can sync on its own. If it does get restarted, don't worry: nothing
+   queued is lost, it picks up right where it left off.
+6. Tap the red banner any time to see what's still waiting, and to tap
+   "Sync now" if you don't want to wait for it to retry on its own.
+7. **Keep every tablet on the shop WiFi even when the internet itself is
+   down** — printing (receipts and any manually reprinted kitchen ticket)
+   goes over that same WiFi to the print bridge, not over the internet, so
+   staying connected to it is what keeps printing working.
+8. Once the banner turns **green** ("● Online"), everything queued sends
+   itself within a few seconds, with a confirmation toast for each order.
+   If the panel ever shows something "needs attention," tell a manager
+   rather than redoing that order yourself.
+
+**Hardware note:** a UPS covering the WiFi router, the print-bridge PC, and
+the thermal printer keeps printing working through a power cut — receipts,
+and any kitchen ticket a cashier manually reprints. Tablets run on their own
+battery and don't need to be on the UPS, but printing depends on the shop's
+own LAN staying powered, not on the tablets alone.
 
 ## Loyverse is down — staff runbook
 
@@ -221,11 +326,15 @@ Run through this after any change that touches `routes/pos.js`,
       to the bridge instead and the printer (or a fake TCP listener) receives
       valid ESC/POS bytes.
 - [ ] **Offline create + reconnect recovery**: with dev tools network set to
-      offline, create an order — it should get a `LOCAL-####` number, show
-      the amber offline banner, and still let you print a kitchen ticket. Go
-      back online and confirm it reconciles to a real `POS-YYMMDD-####`
-      number automatically (within 15s, or immediately on the `online`
-      event) and the banner clears.
+      offline, create an order — it should get a terminal-prefixed
+      provisional number (e.g. `PP-POS-01-OFF-0007`), turn the status chip
+      red ("⚠ Offline — N queued"), and still let you print a kitchen
+      ticket (marked "OFFLINE TICKET"). Go back online and confirm it
+      reconciles to a real `POS-YYMMDD-####` number automatically (within
+      2s, or immediately on the `online` event) and the chip turns green.
+      Also see `test/pos-offline-proof.test.js` and
+      `test/pos-idempotency.test.js` for the automated proof that a retried
+      create/append/pay never duplicates.
 - [ ] **Catalog hot-reload**: edit an item's price/name on the Items page
       while `/pos` is open elsewhere; within 5 minutes (or immediately after
       an `?refresh=1`) the grid picks up the change without a manual reload.
@@ -294,3 +403,11 @@ run**, not something run automatically for you:
 Until all three are done, `/pos` and `/kds` on PROD will fail (the old
 dashboard-JWT login path no longer exists in the code at all — there's no
 backwards-compatible fallback).
+
+Separately, the offline-queue hardening (see "Offline behavior" above) needs
+`migrations/022_pos_offline_hardening.sql` run against PROD **before** this
+code is deployed there — idempotent, no ordering dependency on 011/020, but
+`routes/pos.js` now unconditionally queries `pos_idempotent_requests` on
+every create/append/pay, so deploying the code first would 500 every one of
+those calls (relation does not exist), not just silently lose the new
+protection.

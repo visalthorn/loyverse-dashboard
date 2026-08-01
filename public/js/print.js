@@ -56,7 +56,16 @@ const RECEIPT_STYLE = `
 
 const PAY_METHOD_LABELS = { cash: 'Cash', khqr: 'QR', both: 'Cash + QR' };
 
-export function receiptHTML(order) {
+// order.provisional_number carries the terminal-prefixed offline number
+// (e.g. PP-POS-01-OFF-0007, see offlineQueue.js's nextLocalOrderNumber())
+// whether it's still the client-side stand-in or a since-synced order that
+// happened to originate offline -- falls back to order_number/order.id if
+// somehow absent so a ticket never prints blank.
+function offlineBannerHTML() {
+  return `<div class="offline-banner">⚠ OFFLINE TICKET — provisional</div>`;
+}
+
+export function receiptHTML(order, opts = {}) {
   const itemRows = (order.items || []).map(it => `
     <div class="row"><span>${it.quantity} × ${esc(it.item_name)}</span><span>${khr(it.price * it.quantity)}</span></div>
     ${it.note ? `<div class="note">${esc(it.note)}</div>` : ''}
@@ -71,11 +80,17 @@ export function receiptHTML(order) {
        <div class="row"><span>QR</span><span>${khr(Number(order.total) - Number(order.cash_received))}</span></div>`;
   }
 
-  return `<!doctype html><html><head><meta charset="utf-8"><style>${RECEIPT_STYLE}</style></head><body>
+  const offline = !!(opts.offline || order._queued);
+  const displayNumber = offline ? (order.provisional_number || order.order_number) : order.order_number;
+
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${RECEIPT_STYLE}
+    .offline-banner { text-align:center; font-weight:800; font-size:13px; border:2px dashed #000; padding:3px 0; margin-bottom:6px; }
+  </style></head><body>
+    ${offline ? offlineBannerHTML() : ''}
     <div class="center bold" style="font-size:16px;">CHAB MOUTH</div>
     <div class="center" style="font-size:13px;">ចាប់មាត់</div>
     <div class="hr"></div>
-    <div class="row"><span>${esc(order.order_number)}</span><span>${cambodiaDatetime(order.paid_at || order.created_at)}</span></div>
+    <div class="row"><span>${esc(displayNumber)}</span><span>${cambodiaDatetime(order.paid_at || order.created_at)}</span></div>
     <div>${order.table_number ? 'Table ' + esc(order.table_number) : esc(order.dining_option)}</div>
     <div class="hr"></div>
     ${itemRows}
@@ -91,7 +106,7 @@ export function receiptHTML(order) {
   </body></html>`;
 }
 
-function kitchenTicketHTML(order) {
+function kitchenTicketHTML(order, opts = {}) {
   const itemRows = (order.items || []).map(it => `
     <div class="kitem">
       <div class="kqty">${it.quantity}×</div>
@@ -99,11 +114,15 @@ function kitchenTicketHTML(order) {
     </div>
   `).join('');
 
+  const offline = !!(opts.offline || order._queued);
+  const displayNumber = offline ? (order.provisional_number || order.order_number) : order.order_number;
+
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     @page { size: 80mm auto; margin: 0; }
     body { width: 72mm; margin: 0 auto; padding: 4mm 3mm; font-family: 'Noto Sans Khmer','Courier New',monospace; color: #000; }
     .center { text-align: center; }
     .hr { border-top: 2px dashed #000; margin: 6px 0; }
+    .offline-banner { text-align:center; font-weight:800; font-size:15px; border:2px dashed #000; padding:4px 0; margin-bottom:6px; }
     .korder { font-size: 26px; font-weight: 800; text-align: center; }
     .kmeta { font-size: 14px; text-align: center; margin-top: 2px; }
     .kitem { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #000; }
@@ -111,20 +130,21 @@ function kitchenTicketHTML(order) {
     .kname { font-size: 20px; font-weight: 700; }
     .knote { font-size: 14px; font-style: italic; font-weight: 400; }
   </style></head><body>
-    <div class="korder">${esc(order.order_number)}</div>
+    ${offline ? offlineBannerHTML() : ''}
+    <div class="korder">${esc(displayNumber)}</div>
     <div class="kmeta">${order.table_number ? 'Table ' + esc(order.table_number) : esc(order.dining_option)} · ${cambodiaDatetime(order.created_at)}</div>
     <div class="hr"></div>
     ${itemRows}
   </body></html>`;
 }
 
-async function sendToBridge(type, order) {
+async function sendToBridge(type, order, opts = {}) {
   const url = getBridgeUrl();
   try {
     const r = await fetch(url.replace(/\/$/, '') + '/print', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, order }),
+      body: JSON.stringify({ type, order, offline: !!(opts.offline || order._queued) }),
     });
     if (!r.ok) throw new Error('Bridge responded ' + r.status);
   } catch (err) {
@@ -135,12 +155,12 @@ async function sendToBridge(type, order) {
   }
 }
 
-export function printReceipt(order) {
-  if (getBridgeUrl()) { sendToBridge('receipt', order); return; }
-  printHTML(receiptHTML(order));
+export function printReceipt(order, opts = {}) {
+  if (getBridgeUrl()) { sendToBridge('receipt', order, opts); return; }
+  printHTML(receiptHTML(order, opts));
 }
 
-export function printKitchenTicket(order) {
-  if (getBridgeUrl()) { sendToBridge('kitchen', order); return; }
-  printHTML(kitchenTicketHTML(order));
+export function printKitchenTicket(order, opts = {}) {
+  if (getBridgeUrl()) { sendToBridge('kitchen', order, opts); return; }
+  printHTML(kitchenTicketHTML(order, opts));
 }

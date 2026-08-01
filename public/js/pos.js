@@ -4,7 +4,12 @@ import { getEl } from './utils.js';
 import { showConfirm, showPrompt } from './dialog.js';
 import { showToast } from './toast.js';
 import { printReceipt, printKitchenTicket, getBridgeUrl, setBridgeUrl, receiptHTML } from './print.js';
-import { mutate, onQueueChange, onReplaySuccess, onReplayRejected, nextLocalOrderNumber, startOfflineQueue } from './offlineQueue.js';
+import {
+  mutate, onQueueChange, onReplaySuccess, onReplayRejected, onDeadLetter, onSyncSummary,
+  onQueueNearLimit, onConnectivityChange, isOffline, getLastSyncAt, getQueueSnapshot,
+  retryDeadLetter, discardDeadLetter, cancelQueuedLocalOrder, nextLocalOrderNumber,
+  startOfflineQueue, syncNow,
+} from './offlineQueue.js';
 
 const CATALOG_VERSION_POLL_MS = 5 * 60 * 1000;
 const OPEN_ORDERS_POLL_MS     = 15 * 1000;
@@ -69,6 +74,27 @@ function cambodiaNaiveNow() {
   }).formatToParts(new Date());
   const get = t => parts.find(p => p.type === t).value;
   return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+}
+
+// ─── Ownership lock (offline only) ──────────────────────────────────────────
+// While this terminal is offline, it may only modify an order it created
+// itself -- pay stays open to any terminal regardless. Orders don't expose a
+// numeric terminal id to the client (deliberately -- see terminalAuth.js),
+// but every order already carries created_by = the terminal_id STRING code
+// it was made under, which the client already has from its own login.
+function isOwnOrder(order) {
+  if (!order) return true;
+  const info = getTerminalInfo();
+  if (!info) return true;
+  if (order._queued) return true; // only this terminal could possibly have a still-local draft of it
+  return order.created_by === info.terminal_id;
+}
+
+// Add items / adjust qty / remove item / cancel / rename / table# / dining
+// option all require ownership while offline. Pay does not -- callers check
+// pay separately (it's never blocked by this).
+function isOrderLocked(order) {
+  return isOffline() && !isOwnOrder(order);
 }
 
 // ─── Catalog ──────────────────────────────────────────────────────────────
@@ -242,6 +268,7 @@ function editCartNote(idx) {
 
 async function changeSentItemQty(itemId, delta) {
   if (!currentOrder) return;
+  if (isOrderLocked(currentOrder)) { showToast('Offline — this order belongs to another terminal.', 'error'); return; }
   const item = currentOrder.items.find(i => i.id === itemId);
   if (!item) return;
   const newQty = item.quantity + delta;
@@ -253,6 +280,7 @@ async function changeSentItemQty(itemId, delta) {
 
 async function removeSentItem(itemId) {
   if (!currentOrder) return;
+  if (isOrderLocked(currentOrder)) { showToast('Offline — this order belongs to another terminal.', 'error'); return; }
   const ok = await showConfirm('Remove this item from the order?', { danger: true, confirmText: 'Remove' });
   if (!ok) return;
   const { ok: success, data } = await mutate(`/api/pos/order-items/${itemId}`, 'DELETE', null);
@@ -278,8 +306,9 @@ function renderCart() {
   if (!persisted.length && !cart.length) {
     list.innerHTML = '<div id="emptyCartMsg">Cart is empty — tap items to add.</div>';
   } else {
+    const locked = isOrderLocked(currentOrder);
     const persistedHTML = persisted.map(it => {
-      const editable = it.id != null && it.kitchen_status !== 'done' && !(currentOrder && currentOrder._queued);
+      const editable = it.id != null && it.kitchen_status !== 'done' && !(currentOrder && currentOrder._queued) && !locked;
       if (!editable) {
         return `
           <div class="cart-line sent">
@@ -339,19 +368,20 @@ function renderCart() {
   getEl('subtotalValue').textContent = khr(subtotal);
   getEl('totalValue').textContent    = khr(total);
 
+  const isLocked = isOrderLocked(currentOrder);
   const badge = getEl('orderBadge');
   badge.innerHTML = currentOrder
-    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}`
+    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}${isLocked ? ' · <span class="locked-badge">🔒 locked — offline</span>' : ''}`
     : 'New order (not yet sent)';
 
   const hasDoneItem = !!(currentOrder && currentOrder.items && currentOrder.items.some(it => it.kitchen_status === 'done'));
-  getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status) && !hasDoneItem) ? 'block' : 'none';
+  getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status) && !hasDoneItem && !isLocked) ? 'block' : 'none';
 
   // Saved but not yet sent (either the auto-send on save failed, or this is
   // a previously-saved order reopened from the strip) -- offer a manual
   // retry right where the cashier is already looking.
   const retryBtn = getEl('sendToKitchenRetryBtn');
-  if (retryBtn) retryBtn.style.display = (currentOrder && currentOrder.status === 'open') ? 'flex' : 'none';
+  if (retryBtn) retryBtn.style.display = (currentOrder && currentOrder.status === 'open' && !isLocked) ? 'flex' : 'none';
 
   saveDraft();
 }
@@ -372,6 +402,7 @@ function renderDiningOptions() {
 // the change server-side when there's a real order to update.
 async function onDiningOptionSelect(opt) {
   if (opt === diningOption) return;
+  if (isOrderLocked(currentOrder)) { showToast('Offline — this order belongs to another terminal.', 'error'); return; }
   diningOption = opt;
   renderDiningOptions();
   saveDraft();
@@ -396,6 +427,7 @@ function onTableNumber(value) {
   getEl('tableNumber').classList.remove('invalid');
   saveDraft();
   if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
+  if (isOrderLocked(currentOrder)) { showToast('Offline — this order belongs to another terminal.', 'error'); return; }
   clearTimeout(tableNumberTimer);
   tableNumberTimer = setTimeout(async () => {
     const orderId = currentOrder.id;
@@ -418,6 +450,7 @@ function onOrderName(value) {
   orderName = value;
   saveDraft();
   if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
+  if (isOrderLocked(currentOrder)) return; // silent -- typing feedback isn't the place for a toast, renderCart()'s badge already shows locked
   clearTimeout(renameTimer);
   renameTimer = setTimeout(async () => {
     const orderId = currentOrder.id;
@@ -450,8 +483,11 @@ function pendingLinesPayload() {
 }
 
 // Builds a client-side stand-in for an order whose create call is still
-// sitting in the offline queue — no real id yet, so it can't be paid,
-// cancelled, or appended to until the create replays successfully.
+// sitting in the offline queue — no real id yet, so it can't be paid or
+// cancelled server-side until the create replays successfully (cancelling
+// it just discards the queued create locally, see cancelOrder()). Appending
+// MORE items is still possible while _queued -- persistCart() queues those
+// as a dependent entry chained on this order's own localId.
 function buildLocalOrder(localId, lines) {
   const items = lines.map(l => ({
     id: null, source_item_id: l.source_item_id, item_name: l.name, price: l.price,
@@ -459,10 +495,26 @@ function buildLocalOrder(localId, lines) {
   }));
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   return {
-    id: null, order_number: localId, status: 'open', name: orderName || null,
+    id: null, order_number: localId, provisional_number: localId, status: 'open', name: orderName || null,
     dining_option: diningOption, table_number: tableNumber || null,
     subtotal, discount: 0, total: subtotal,
     created_at: cambodiaNaiveNow(), items, _queued: true,
+  };
+}
+
+// Optimistic local application of newly-added lines onto currentOrder while
+// the real append call is still queued -- shared by both the "order itself
+// hasn't synced yet" and "order is real but append is offline" paths below.
+function applyOptimisticAppend(lines) {
+  const newItems = lines.map(l => ({
+    id: null, source_item_id: l.source_item_id, item_name: l.name, price: l.price,
+    quantity: l.quantity, note: l.note, kitchen_status: 'pending',
+  }));
+  const subtotal = Number(currentOrder.subtotal) + newItems.reduce((s, i) => s + i.price * i.quantity, 0);
+  currentOrder = {
+    ...currentOrder,
+    items: [...currentOrder.items, ...newItems],
+    subtotal, total: Math.max(0, subtotal - Number(currentOrder.discount)),
   };
 }
 
@@ -480,12 +532,14 @@ async function persistCart() {
       flagTableNumberRequired();
       return { ok: false, queued: false, message: 'Table # is required for dine-in orders.' };
     }
-    const localId = nextLocalOrderNumber();
+    const info = getTerminalInfo();
+    const localId = nextLocalOrderNumber(info ? info.terminal_id : null);
     const lines = cart.slice();
     const { ok, data, queued } = await mutate('/api/pos/orders', 'POST', {
       dining_option: diningOption, table_number: tableNumber || null,
       items: pendingLinesPayload(), name: orderName || null,
-    }, localId);
+      provisional_number: localId, client_time: new Date().toISOString(),
+    }, { idempotent: true, localId });
 
     if (queued) {
       currentOrder = buildLocalOrder(localId, lines);
@@ -498,23 +552,26 @@ async function persistCart() {
     return { ok: true, queued: false };
   }
 
+  const lines = cart.slice();
+
   if (currentOrder._queued) {
-    return { ok: false, queued: false, message: "This order hasn't synced yet — it'll retry automatically." };
+    // The create itself hasn't synced yet -- queue this append as a
+    // dependent action rather than refusing outright. The placeholder in
+    // the URL is resolved to the real order id the moment the create entry
+    // it depends on succeeds (see offlineQueue.js's drainOnce()).
+    const localId = currentOrder.order_number;
+    await mutate(`/api/pos/orders/{{LOCAL:${localId}}}/items`, 'POST',
+      { items: pendingLinesPayload(), client_time: new Date().toISOString() },
+      { idempotent: true, dependsOnLocalId: localId });
+    applyOptimisticAppend(lines);
+    cart = [];
+    return { ok: true, queued: true };
   }
 
-  const lines = cart.slice();
-  const { ok, data, queued } = await mutate(`/api/pos/orders/${currentOrder.id}/items`, 'POST', { items: pendingLinesPayload() });
+  const { ok, data, queued } = await mutate(`/api/pos/orders/${currentOrder.id}/items`, 'POST',
+    { items: pendingLinesPayload(), client_time: new Date().toISOString() }, { idempotent: true });
   if (queued) {
-    const newItems = lines.map(l => ({
-      id: null, source_item_id: l.source_item_id, item_name: l.name, price: l.price,
-      quantity: l.quantity, note: l.note, kitchen_status: 'pending',
-    }));
-    const subtotal = Number(currentOrder.subtotal) + newItems.reduce((s, i) => s + i.price * i.quantity, 0);
-    currentOrder = {
-      ...currentOrder,
-      items: [...currentOrder.items, ...newItems],
-      subtotal, total: Math.max(0, subtotal - Number(currentOrder.discount)),
-    };
+    applyOptimisticAppend(lines);
     cart = [];
     return { ok: true, queued: true };
   }
@@ -531,7 +588,7 @@ async function persistCart() {
 // lets the cashier force it without re-entering anything.
 async function attemptSendToKitchen(order) {
   if (!order || order.status !== 'open') return order;
-  const { ok, data, queued } = await mutate(`/api/pos/orders/${order.id}/send-to-kitchen`, 'POST', {});
+  const { ok, data, queued } = await mutate(`/api/pos/orders/${order.id}/send-to-kitchen`, 'POST', { client_time: new Date().toISOString() });
   if (queued || !ok) return order;
   return data.order;
 }
@@ -671,17 +728,19 @@ function updateChange() {
   else hint.textContent = '';
 }
 
+// Pay is never ownership-gated -- any terminal at the branch may complete
+// any order, online or offline (see isOrderLocked()'s doc comment).
 async function confirmPay() {
   if (!currentOrder || !selectedPayMethod) return;
   const total = computeTotals().total;
-  const body = { payment_method: selectedPayMethod };
+  const body = { payment_method: selectedPayMethod, client_time: new Date().toISOString() };
   if (selectedPayMethod === 'cash') body.cash_received = cashReceived;
   if (selectedPayMethod === 'both') {
     body.cash_received = cashReceived;
     body.khqr_received = total - cashReceived;
   }
 
-  const { ok, data, queued } = await mutate(`/api/pos/orders/${currentOrder.id}/pay`, 'POST', body);
+  const { ok, data, queued } = await mutate(`/api/pos/orders/${currentOrder.id}/pay`, 'POST', body, { idempotent: true });
 
   if (queued) {
     // Optimistic: the network is down, not the till — let the cashier keep
@@ -692,7 +751,7 @@ async function confirmPay() {
       cash_received: (selectedPayMethod === 'cash' || selectedPayMethod === 'both') ? cashReceived : null,
     };
     showToast(`Offline — payment queued for ${currentOrder.order_number}.`, 'error');
-    printReceipt(optimisticOrder);
+    printReceipt(optimisticOrder, { offline: true });
     showPaySuccess(optimisticOrder, change);
     loadOpenOrders();
     return;
@@ -730,17 +789,33 @@ function donePay() {
 async function cancelOrder() {
   if (orderLoading) { showToast('Still loading the order — try again in a moment.', 'error'); return; }
   if (!currentOrder) return;
-  if (currentOrder._queued) {
-    showToast("This order hasn't synced yet — it'll retry automatically.", 'error');
+  if (isOrderLocked(currentOrder)) {
+    showToast('Offline — you can only cancel orders this terminal created.', 'error');
     return;
   }
+
+  if (currentOrder._queued) {
+    // Nothing has ever reached the server for this order -- just drop its
+    // still-pending create (and anything chained to it) instead of queuing
+    // yet another call that would otherwise create-then-immediately-cancel
+    // a real order once connectivity returns.
+    const ok = await showConfirm("This order hasn't synced yet — discard it?", { danger: true, confirmText: 'Discard' });
+    if (!ok) return;
+    await cancelQueuedLocalOrder(currentOrder.order_number);
+    showToast('Discarded — never sent.');
+    clearDraft();
+    resetPanel();
+    loadOpenOrders();
+    return;
+  }
+
   const reason = await showPrompt('Cancel this order? This cannot be undone.', {
     title: 'Cancel Order', danger: true, confirmText: 'Cancel Order',
     placeholder: 'Reason for cancellation (optional)',
   });
   if (reason === null) return; // dismissed the dialog itself
 
-  const res = await mutate(`/api/pos/orders/${currentOrder.id}/cancel`, 'POST', { reason });
+  const res = await mutate(`/api/pos/orders/${currentOrder.id}/cancel`, 'POST', { reason, client_time: new Date().toISOString() });
   if (res.queued) {
     showToast('Offline — cancellation queued, will sync automatically.', 'error');
     clearDraft();
@@ -843,11 +918,12 @@ async function loadOpenOrders() {
     const status = orderStatusLabel(o);
     const baseMs = orderElapsedBaseMs(o);
     const elapsedText = baseMs ? formatSittingTime(Date.now() + ordersClockOffsetMs - baseMs) : '';
+    const rowLocked = isOrderLocked(o);
     row.innerHTML = `
       <div>
         <div class="or-title">${title}</div>
         <div class="or-sub">
-          ${tableLabel ? `${tableLabel} · ` : ''}<span class="or-status-badge status-${status.cls}">${esc(status.text)}</span>${elapsedText ? ` · ${elapsedText}` : ''}${o._queued ? ' · offline' : ''}
+          ${tableLabel ? `${tableLabel} · ` : ''}<span class="or-status-badge status-${status.cls}">${esc(status.text)}</span>${elapsedText ? ` · ${elapsedText}` : ''}${o._queued ? ' · offline' : ''}${rowLocked ? ' · <span class="locked-badge">🔒 locked</span>' : ''}
         </div>
       </div>
       <span class="or-total">${khr(o.total)}</span>
@@ -860,7 +936,7 @@ async function loadOpenOrders() {
     });
     row.querySelector('.chip-reprint').addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (o._queued) { printKitchenTicket(o); return; }
+      if (o._queued) { printKitchenTicket(o, { offline: true }); return; }
       const fresh = await fetchJSON(`/api/pos/orders/${o.id}`);
       if (fresh) printKitchenTicket(fresh.order);
     });
@@ -923,16 +999,131 @@ onReplayRejected((entry, data) => {
   loadOpenOrders();
 });
 
-onQueueChange(count => {
-  const el = getEl('offlineBanner');
-  if (!el) return;
-  if (count > 0) {
-    el.style.display = 'flex';
-    el.textContent = `⚠ Offline — ${count} queued`;
-  } else {
-    el.style.display = 'none';
-  }
+// Re-render whenever connectivity flips so the ownership lock (renderCart's
+// "locked — offline" badge, disabled steppers) updates immediately rather
+// than waiting on the next unrelated re-render.
+onConnectivityChange(() => { if (currentOrder) renderCart(); updateStatusChip(); });
+
+onQueueChange((pendingCount, deadCount) => updateStatusChip(pendingCount, deadCount));
+
+onDeadLetter(entry => {
+  showToast(`Needs attention: ${entry.lastError || 'a queued change was rejected'} — check the sync panel.`, 'error');
 });
+
+onSyncSummary(({ synced, deadLettered }) => {
+  if (!synced && !deadLettered) return;
+  const parts = [];
+  if (synced) parts.push(`${synced} synced`);
+  if (deadLettered) parts.push(`${deadLettered} need${deadLettered === 1 ? 's' : ''} attention`);
+  showToast(parts.join(', '), deadLettered ? 'error' : 'success');
+});
+
+onQueueNearLimit(count => {
+  showToast(`Offline queue is getting large (${count} items) — reconnect soon to avoid losing headroom.`, 'error');
+});
+
+// ─── Sync status chip + panel ───────────────────────────────────────────────
+
+async function updateStatusChip(pendingCount, deadCount) {
+  const chip = getEl('syncStatusChip');
+  if (!chip) return;
+  if (pendingCount === undefined || deadCount === undefined) {
+    const snap = await getQueueSnapshot();
+    pendingCount = snap.pending.length;
+    deadCount = snap.dead.length;
+  }
+  let label, cls;
+  if (isOffline()) {
+    label = `⚠ Offline${pendingCount ? ` — ${pendingCount} queued` : ''}`;
+    cls = 'chip-offline';
+  } else if (deadCount) {
+    label = `⚠ ${deadCount} need${deadCount === 1 ? 's' : ''} attention`;
+    cls = 'chip-attention';
+  } else if (pendingCount) {
+    label = `↻ Syncing — ${pendingCount} queued`;
+    cls = 'chip-syncing';
+  } else {
+    label = '● Online';
+    cls = 'chip-online';
+  }
+  chip.textContent = label;
+  chip.className = `sync-status-chip ${cls}`;
+}
+
+function fmtLastSync() {
+  const t = getLastSyncAt();
+  if (!t) return 'Not synced yet this session';
+  const diffSec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (diffSec < 60) return 'Last synced just now';
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return `Last synced ${min}m ago`;
+  const hr = Math.floor(min / 60);
+  return `Last synced ${hr}h ${min % 60}m ago`;
+}
+
+// Trims a queue entry's URL down to something readable in the panel without
+// exposing the full /api/pos prefix or numeric ids nobody on the floor cares about.
+function summarizeUrl(url) {
+  return url.replace('/api/pos', '').replace(/^\/orders\//, 'order ').replace(/^\/order-items\//, 'item ');
+}
+
+async function renderSyncPanel() {
+  const { pending, dead } = await getQueueSnapshot();
+  getEl('syncPanelLastSync').textContent = fmtLastSync();
+
+  const pendingList = getEl('syncPanelPending');
+  pendingList.innerHTML = pending.length
+    ? pending.map(e => `
+        <div class="sync-item">
+          <div class="sync-item-main">${esc(e.method)} ${esc(summarizeUrl(e.url))}</div>
+          <div class="sync-item-sub">${e.dependsOnLocalId ? `waiting on ${esc(e.dependsOnLocalId)}` : (e.attempt ? `retry attempt ${e.attempt}` : 'queued')}</div>
+        </div>`).join('')
+    : '<div class="sync-empty">Nothing queued.</div>';
+
+  const deadList = getEl('syncPanelDead');
+  deadList.innerHTML = dead.length
+    ? dead.map(e => `
+        <div class="sync-item sync-item--dead">
+          <div class="sync-item-main">${esc(e.method)} ${esc(summarizeUrl(e.url))}</div>
+          <div class="sync-item-sub">${esc(e.lastError || 'Rejected')}</div>
+          <div class="sync-item-actions">
+            <button type="button" class="inv-btn" data-retry="${e.id}">Retry</button>
+            <button type="button" class="inv-btn" data-discard="${e.id}">Discard</button>
+          </div>
+        </div>`).join('')
+    : '<div class="sync-empty">Nothing needs attention.</div>';
+
+  deadList.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', async () => {
+    await retryDeadLetter(parseInt(b.dataset.retry, 10));
+    await syncNow();
+    await renderSyncPanel();
+  }));
+  deadList.querySelectorAll('[data-discard]').forEach(b => b.addEventListener('click', async () => {
+    const ok = await showConfirm('Discard this item? This cannot be undone.', { danger: true, confirmText: 'Discard' });
+    if (!ok) return;
+    await discardDeadLetter(parseInt(b.dataset.discard, 10));
+    await renderSyncPanel();
+  }));
+}
+
+async function openSyncPanel() {
+  await renderSyncPanel();
+  getEl('syncPanelModal').classList.add('open');
+}
+function closeSyncPanel() { getEl('syncPanelModal').classList.remove('open'); }
+
+async function manualSyncNow() {
+  const btn = getEl('syncNowBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  await syncNow();
+  await renderSyncPanel();
+  loadOpenOrders();
+  if (btn) { btn.disabled = false; btn.textContent = 'Sync now'; }
+}
+
+window.posOpenSyncPanel  = openSyncPanel;
+window.posCloseSyncPanel = closeSyncPanel;
+window.posManualSyncNow  = manualSyncNow;
 
 // ─── Printer settings popover ───────────────────────────────────────────────
 

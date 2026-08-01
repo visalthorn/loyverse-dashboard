@@ -7,6 +7,8 @@ const { toCambodiaTime } = require('../utils/date');
 const { generateOrderNumber } = require('../services/pos/orderNumber');
 const { generateReceiptNumber } = require('../services/pos/receiptNumber');
 const { canTransition, TERMINAL } = require('../services/pos/stateMachine');
+const { findIdempotentResponse, recordIdempotentResponse } = require('../services/pos/idempotency');
+const { resolveActionTime } = require('../services/pos/offlineClock');
 
 const CATALOG_TTL_MS = 60 * 1000;
 let catalogCache = null; // { data, expiresAt }
@@ -118,10 +120,15 @@ async function loadCatalog() {
   };
 }
 
-async function fetchOrder(id) {
-  const orderRes = await pool.query(`SELECT * FROM pos_orders WHERE id = $1`, [id]);
+// executor defaults to the pool (post-commit reads); pass the in-transaction
+// `client` instead when building a response body that must be recorded in
+// the idempotency ledger and committed atomically with it (see POST /orders
+// and POST /orders/:id/items) -- pg's client and pool share the same
+// .query() signature, so this is a drop-in either way.
+async function fetchOrder(id, executor = pool) {
+  const orderRes = await executor.query(`SELECT * FROM pos_orders WHERE id = $1`, [id]);
   if (!orderRes.rows.length) return null;
-  const itemsRes = await pool.query(
+  const itemsRes = await executor.query(
     `SELECT id, source_item_id, item_name, price, quantity, note, kitchen_status
      FROM pos_order_items WHERE order_id = $1 ORDER BY id`,
     [id]
@@ -269,7 +276,7 @@ router.get('/orders/:id', requireTerminalAuth(['pos']), async (req, res) => {
 });
 
 router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
-  const { dining_option, table_number, discount, items, name } = req.body;
+  const { dining_option, table_number, discount, items, name, client_mutation_id, client_time, provisional_number } = req.body;
   if (!dining_option) return res.status(400).json({ message: 'dining_option is required.' });
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ message: 'At least one item is required.' });
@@ -279,6 +286,7 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
   if (discount !== undefined && !Number.isFinite(Number(discount))) {
     return res.status(400).json({ message: 'discount must be a number.' });
   }
+  if (tooLong(provisional_number, 40)) return res.status(400).json({ message: 'provisional_number is too long.' });
 
   const validDining = await getValidDiningOptions();
   if (!validDining.has(dining_option)) {
@@ -294,6 +302,15 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
   try {
     await client.query('BEGIN');
 
+    // A retried create (offline queue resending after the original response
+    // was lost) replays the cached result instead of inserting a second
+    // real order -- see services/pos/idempotency.js.
+    const cached = await findIdempotentResponse(client, client_mutation_id);
+    if (cached) {
+      await client.query('COMMIT');
+      return res.status(cached.statusCode).json(cached.body);
+    }
+
     if (tableNum) await assertTableNumberAvailable(client, req.terminal.branch_id, tableNum, null);
 
     const lines = await snapshotItems(client, items);
@@ -302,17 +319,22 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
     const total      = Math.max(0, subtotal - discountAmt);
 
     const orderNumber = await generateOrderNumber(client);
-    const now = toCambodiaTime(new Date());
+    // Uses the device's own timestamp of when the order was actually taken
+    // (bounds-checked) rather than the server's clock at whatever moment
+    // this request happens to finally be processed -- otherwise an order
+    // taken just before midnight but synced just after gets misattributed
+    // to the wrong Cambodia business day. See services/pos/offlineClock.js.
+    const now = toCambodiaTime(resolveActionTime(client_time));
 
     // Saved as 'open' -- not yet visible to KDS. The client immediately
     // follows up with POST /orders/:id/send-to-kitchen; if that fails, the
     // order is still safely saved and can be retried or added to later.
     const orderRes = await client.query(`
       INSERT INTO pos_orders
-        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name)
-      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11)
+        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name, provisional_number)
+      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12)
       RETURNING *
-    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, name || null]);
+    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, name || null, provisional_number || null]);
 
     const order = orderRes.rows[0];
 
@@ -328,9 +350,12 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
       [order.id, req.terminal.terminal_id, now]
     );
 
+    const responseBody = { order: await fetchOrder(order.id, client) };
+    await recordIdempotentResponse(client, client_mutation_id, 'create_order', order.id, 201, responseBody);
+
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.status(201).json({ order: await fetchOrder(order.id) });
+    res.status(201).json(responseBody);
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
@@ -366,7 +391,7 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), require
       return res.json({ order: await fetchOrder(id) });
     }
 
-    const now = toCambodiaTime(new Date());
+    const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(`UPDATE pos_orders SET status = 'sent_to_kitchen', sent_to_kitchen_at = $1, updated_at = $1 WHERE id = $2`, [now, id]);
     await client.query(
       `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'sent_to_kitchen',$2,$3)`,
@@ -478,7 +503,7 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireC
 
 router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
-  const { items } = req.body;
+  const { items, client_mutation_id, client_time } = req.body;
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ message: 'At least one item is required.' });
@@ -487,6 +512,14 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // Same lost-response protection as create -- a retried append must not
+    // double-add the same lines to a real order.
+    const cached = await findIdempotentResponse(client, client_mutation_id);
+    if (cached) {
+      await client.query('COMMIT');
+      return res.status(cached.statusCode).json(cached.body);
+    }
 
     const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
@@ -505,7 +538,7 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
     const addedSubtotal = lines.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const newSubtotal   = Number(order.subtotal) + addedSubtotal;
     const newTotal      = Math.max(0, newSubtotal - Number(order.discount));
-    const now = toCambodiaTime(new Date());
+    const now = toCambodiaTime(resolveActionTime(client_time));
 
     // New lines always start kitchen_status 'pending'. If the order had
     // already reached 'ready' or 'served', those brand-new pending items
@@ -533,9 +566,12 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
       );
     }
 
+    const responseBody = { order: await fetchOrder(id, client) };
+    await recordIdempotentResponse(client, client_mutation_id, 'append_items', id, 200, responseBody);
+
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(id) });
+    res.json(responseBody);
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
@@ -660,7 +696,7 @@ router.delete('/order-items/:id', requireTerminalAuth(['pos']), requireCsrf, asy
 
 async function completeOrder(req, res) {
   const id = parseId(req.params.id);
-  const { payment_method, cash_received, khqr_received } = req.body;
+  const { payment_method, cash_received, khqr_received, client_mutation_id } = req.body;
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
   if (!['cash', 'khqr', 'both'].includes(payment_method)) {
     return res.status(400).json({ message: 'Unknown payment_method.' });
@@ -669,6 +705,18 @@ async function completeOrder(req, res) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // A retried pay (offline queue resending after the original response
+    // was lost) replays the cached receipt instead of hitting the
+    // already-paid 409 -- canTransition() alone would make a retry safe
+    // from a SECOND receipt either way, but without this it would land in
+    // the dead-letter list as a false "rejection" even though the first
+    // attempt actually succeeded.
+    const cached = await findIdempotentResponse(client, client_mutation_id);
+    if (cached) {
+      await client.query('COMMIT');
+      return res.status(cached.statusCode).json(cached.body);
+    }
 
     const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
@@ -695,7 +743,12 @@ async function completeOrder(req, res) {
       }
     }
 
-    const now = toCambodiaTime(new Date());
+    // Bounds-checked client action time -- see services/pos/offlineClock.js.
+    // receipt_date drives every day-bucketed sales report, so this is the
+    // single most important place this matters: a payment actually taken
+    // at 23:55 must not land in the next day's report just because the sync
+    // happened at 00:10.
+    const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(`
       UPDATE pos_orders SET status = 'paid', payment_method = $1, cash_received = $2, paid_at = $3, updated_at = $3
       WHERE id = $4
@@ -703,15 +756,17 @@ async function completeOrder(req, res) {
 
     // Immutable financial record -- written once here, never updated again.
     // A refund later inserts its own new row (routes/receipts.js), it never
-    // touches this one.
+    // touches this one. provisional_number carries over from the order (set
+    // if it was created offline) purely for staff traceability/reprint
+    // matching against a paper ticket -- never used for anything financial.
     const receiptNumber = await generateReceiptNumber(client);
     const receiptRes = await client.query(`
       INSERT INTO pos_receipts
-        (receipt_number, order_id, branch_id, pos_terminal_id, dining_option, subtotal, discount, total, receipt_date, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        (receipt_number, order_id, branch_id, pos_terminal_id, dining_option, subtotal, discount, total, receipt_date, created_by, provisional_number)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING id
     `, [receiptNumber, order.id, order.branch_id, req.terminal.id, order.dining_option,
-        order.subtotal, order.discount, order.total, now, req.terminal.terminal_id]);
+        order.subtotal, order.discount, order.total, now, req.terminal.terminal_id, order.provisional_number]);
     const receiptId = receiptRes.rows[0].id;
 
     await client.query(`
@@ -748,10 +803,13 @@ async function completeOrder(req, res) {
       [id, req.terminal.terminal_id, now]
     );
 
+    const change = payment_method === 'cash' ? Number((cashReceivedVal - Number(order.total)).toFixed(0)) : 0;
+    const responseBody = { order: await fetchOrder(id, client), receipt_number: receiptNumber, change };
+    await recordIdempotentResponse(client, client_mutation_id, 'complete_order', id, 200, responseBody);
+
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    const change = payment_method === 'cash' ? Number((cashReceivedVal - Number(order.total)).toFixed(0)) : 0;
-    res.json({ order: await fetchOrder(id), receipt_number: receiptNumber, change });
+    res.json(responseBody);
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
@@ -789,7 +847,7 @@ router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireCsrf, asy
       throw httpError(409, 'Cannot cancel — some items are already prepared. Use a refund from the dashboard instead.');
     }
 
-    const now = toCambodiaTime(new Date());
+    const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(
       `UPDATE pos_orders SET status = 'cancelled', cancelled_at = $1, cancel_reason = $2, updated_at = $1 WHERE id = $3`,
       [now, reason || null, id]
@@ -1117,7 +1175,7 @@ router.post('/orders/:id/served', requireTerminalAuth(['kds']), requireCsrf, asy
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
     if (!canTransition(order.status, 'served')) throw httpError(409, `Cannot mark a ${order.status} order served.`);
 
-    const now = toCambodiaTime(new Date());
+    const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query('UPDATE pos_orders SET status = $1, served_at = $2, updated_at = $2 WHERE id = $3', ['served', now, id]);
     await client.query(
       `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'served',$2,$3)`,
