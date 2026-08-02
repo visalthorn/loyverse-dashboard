@@ -456,7 +456,7 @@ router.get('/refund-analysis', requireAuth, async (req, res) => {
              COUNT(*) FILTER (WHERE r.receipt_type = 'REFUND' AND r.cancelled_at IS NOT NULL) AS refunds,
              COUNT(*) FILTER (WHERE r.receipt_type = 'SALE'   AND r.cancelled_at IS NOT NULL) AS cancellations,
              COALESCE(SUM(r.total_money) FILTER (WHERE r.receipt_type = 'REFUND' AND r.cancelled_at IS NOT NULL), 0) AS refund_amount
-      FROM receipts r
+      FROM v_receipts_all r
       WHERE ${filter.clause}
       GROUP BY 1
       ORDER BY 1
