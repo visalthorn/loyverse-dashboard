@@ -24,7 +24,17 @@ const kdsClients = new Set();
 
 function broadcastOrdersChanged() {
   const payload = `data: ${JSON.stringify({ type: 'orders_changed' })}\n\n`;
-  for (const res of kdsClients) res.write(payload);
+  for (const res of kdsClients) {
+    // A socket that died without its 'close' handler having fired yet (a
+    // common abrupt-WiFi-drop pattern on kitchen tablets) throws on write --
+    // one dead client must never take down the broadcast for every other
+    // still-connected KDS station.
+    try {
+      res.write(payload);
+    } catch {
+      kdsClients.delete(res);
+    }
+  }
 }
 
 // Discovered in Phase 1 from receipt_payments: only ('Cash','CASH') and
@@ -435,32 +445,47 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), require
   }
 });
 
+// All three of these single-field PATCH routes now share the same shape:
+// BEGIN + SELECT ... FOR UPDATE so the staleness check and the write are
+// atomic against a concurrent PATCH/cancel/pay on the same order, instead of
+// two separate bare pool.query() calls racing each other.
 router.patch('/orders/:id/name', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
   const { name, base_version } = req.body;
   if (tooLong(name, 100)) return res.status(400).json({ message: 'name is too long (max 100 characters).' });
 
+  const client = await pool.connect();
   try {
-    const orderRes = await pool.query('SELECT branch_id, version FROM pos_orders WHERE id = $1', [id]);
+    await client.query('BEGIN');
+    const orderRes = await client.query('SELECT status, branch_id, version FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
-      return res.status(404).json({ message: 'Order not found.' });
+      throw httpError(404, 'Order not found.');
+    }
+    const order = orderRes.rows[0];
+    if (TERMINAL.has(order.status)) {
+      throw httpError(409, `Cannot rename a ${order.status} order.`);
     }
     // Non-blocking notice, not a rejection (POS revision, 2026-08-02): a
     // stale base_version still gets applied (last-write-wins) -- the caller
     // just gets told so it can toast "this order changed elsewhere" instead
     // of silently overwriting with no signal.
-    const wasStale = isStaleVersion(base_version, orderRes.rows[0].version);
+    const wasStale = isStaleVersion(base_version, order.version);
 
-    const result = await pool.query(
-      `UPDATE pos_orders SET name = $1, version = version + 1, updated_at = $2 WHERE id = $3 AND branch_id = $4 RETURNING id`,
-      [(name || '').trim() || null, toCambodiaTime(new Date()), id, req.terminal.branch_id]
+    await client.query(
+      `UPDATE pos_orders SET name = $1, version = version + 1, updated_at = $2 WHERE id = $3`,
+      [(name || '').trim() || null, toCambodiaTime(new Date()), id]
     );
-    if (!result.rowCount) return res.status(404).json({ message: 'Order not found.' });
-    res.json({ order: await fetchOrder(id), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) });
+    const responseBody = { order: await fetchOrder(id, client), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) };
+    await client.query('COMMIT');
+    res.json(responseBody);
   } catch (err) {
-    console.error('POS order rename error:', err);
-    res.status(500).json({ error: err.message });
+    await client.query('ROLLBACK');
+    const status = err.statusCode || 500;
+    if (status >= 500) console.error('POS order rename error:', err);
+    res.status(status).json({ message: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -471,31 +496,38 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCs
   if (tooLong(table_number, 20)) return res.status(400).json({ message: 'table_number is too long (max 20 characters).' });
   const tableNum = (table_number || '').trim() || null;
 
+  const client = await pool.connect();
   try {
-    const orderRes = await pool.query('SELECT status, branch_id, dining_option, version FROM pos_orders WHERE id = $1', [id]);
+    await client.query('BEGIN');
+    const orderRes = await client.query('SELECT status, branch_id, dining_option, version FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
-      return res.status(404).json({ message: 'Order not found.' });
+      throw httpError(404, 'Order not found.');
     }
     const order = orderRes.rows[0];
     if (TERMINAL.has(order.status)) {
-      return res.status(409).json({ message: `Cannot change table number on a ${order.status} order.` });
+      throw httpError(409, `Cannot change table number on a ${order.status} order.`);
     }
     if (order.dining_option === DINE_IN_LABEL && !tableNum) {
-      return res.status(400).json({ message: 'table_number is required for dine-in orders.' });
+      throw httpError(400, 'table_number is required for dine-in orders.');
     }
     const wasStale = isStaleVersion(base_version, order.version);
-    if (tableNum) await assertTableNumberAvailable(pool, req.terminal.branch_id, tableNum, id);
+    if (tableNum) await assertTableNumberAvailable(client, req.terminal.branch_id, tableNum, id);
 
-    await pool.query(
+    await client.query(
       `UPDATE pos_orders SET table_number = $1, version = version + 1, updated_at = $2 WHERE id = $3`,
       [tableNum, toCambodiaTime(new Date()), id]
     );
+    const responseBody = { order: await fetchOrder(id, client), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) };
+    await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(id), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) });
+    res.json(responseBody);
   } catch (err) {
+    await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS table-number error:', err);
     res.status(status).json({ message: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -513,27 +545,36 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireC
     return res.status(400).json({ message: 'Unknown dining_option.' });
   }
 
+  const client = await pool.connect();
   try {
-    const orderRes = await pool.query('SELECT status, branch_id, table_number, version FROM pos_orders WHERE id = $1', [id]);
+    await client.query('BEGIN');
+    const orderRes = await client.query('SELECT status, branch_id, table_number, version FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
-      return res.status(404).json({ message: 'Order not found.' });
+      throw httpError(404, 'Order not found.');
     }
-    if (TERMINAL.has(orderRes.rows[0].status)) {
-      return res.status(409).json({ message: `Cannot change dining option on a ${orderRes.rows[0].status} order.` });
+    const order = orderRes.rows[0];
+    if (TERMINAL.has(order.status)) {
+      throw httpError(409, `Cannot change dining option on a ${order.status} order.`);
     }
-    if (dining_option === DINE_IN_LABEL && !orderRes.rows[0].table_number) {
-      return res.status(400).json({ message: 'Set a table number before switching this order to dine-in.' });
+    if (dining_option === DINE_IN_LABEL && !order.table_number) {
+      throw httpError(400, 'Set a table number before switching this order to dine-in.');
     }
-    const wasStale = isStaleVersion(base_version, orderRes.rows[0].version);
+    const wasStale = isStaleVersion(base_version, order.version);
 
-    await pool.query(
+    await client.query(
       `UPDATE pos_orders SET dining_option = $1, version = version + 1, updated_at = $2 WHERE id = $3`,
       [dining_option, toCambodiaTime(new Date()), id]
     );
-    res.json({ order: await fetchOrder(id), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) });
+    const responseBody = { order: await fetchOrder(id, client), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) };
+    await client.query('COMMIT');
+    res.json(responseBody);
   } catch (err) {
-    console.error('POS dining-option error:', err);
-    res.status(500).json({ error: err.message });
+    await client.query('ROLLBACK');
+    const status = err.statusCode || 500;
+    if (status >= 500) console.error('POS dining-option error:', err);
+    res.status(status).json({ message: err.message });
+  } finally {
+    client.release();
   }
 });
 

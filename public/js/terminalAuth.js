@@ -155,7 +155,7 @@ export function terminalApiDelete(url)            { return request('DELETE', url
 // via localStorage so neither can be used to bypass the lock.
 
 let idleTimer = null;
-let idleTimeoutMs = 8 * 60 * 1000;
+let idleTimeoutMs = 30 * 60 * 1000;
 let lockOverlayEl = null;
 
 function clearIdleTimer() { clearTimeout(idleTimer); }
@@ -291,7 +291,7 @@ function showLockOverlay() {
 
 /** Starts (or restarts) the idle watch. Call once per app boot / after login. */
 export function startIdleWatch(idleMinutes) {
-  idleTimeoutMs = (Number(idleMinutes) || 8) * 60 * 1000;
+  idleTimeoutMs = (Number(idleMinutes) || 30) * 60 * 1000;
   ['pointerdown', 'keydown', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, () => { if (!lockOverlayEl) armIdleTimer(); }, { passive: true });
   });

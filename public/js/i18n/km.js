@@ -155,6 +155,7 @@ export const km = {
   'receipts.tabLoyverse': 'Loyverse',
   'receipts.tabOwn': 'បង្កាន់ដៃផ្ទាល់ខ្លួន',
   'receipts.tabCancellations': 'ការលុបចោល',
+  'receipts.thBranch': 'សាខា',
   'receipts.terminal': 'ស្ថានីយ៍',
   'receipts.cancelledOrders': 'ការបញ្ជាទិញដែលបានលុបចោល',
   'receipts.cancelledItems': 'ទំនិញដែលបានលុបចោល/កាត់បន្ថយ',

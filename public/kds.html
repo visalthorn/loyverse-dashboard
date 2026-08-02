@@ -74,7 +74,8 @@
   }
   .order-card.elapsed-ok { border-color: var(--gain); }
   .order-card.elapsed-warn  { border-color: var(--accent); }
-  .order-card.elapsed-danger { border-color: var(--loss); }
+  .order-card.elapsed-danger { border-color: var(--loss); animation: danger-pulse 1.4s ease-in-out infinite; }
+  @keyframes danger-pulse { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 3px var(--loss); } }
   .order-card.dimmed { opacity: 0.75; }
 
   .oc-head {
@@ -114,7 +115,7 @@
   .oc-item:active { background: var(--bg-surface-alt); }
   .oc-item .qty { font-weight: 800; font-family: var(--font-num); min-width: 28px; }
   .oc-item .name { flex: 1; font-size: 15px; font-weight: 600; }
-  .oc-item .note { display: block; font-size: 12px; font-style: italic; color: var(--accent-strong); margin-top: 2px; }
+  .oc-item .note { display: block; font-size: 14px; font-weight: 700; color: var(--accent-contrast); background: var(--accent-strong); border-radius: 6px; padding: 2px 8px; margin-top: 4px; }
   .oc-item.status-pending    .name, .oc-item.status-pending .qty    { color: var(--text-primary); }
   .oc-item.status-preparing  .name, .oc-item.status-preparing .qty  { color: var(--accent-strong); }
   .oc-item.status-done       .name, .oc-item.status-done .qty       { color: var(--gain); text-decoration: line-through; }
@@ -143,6 +144,8 @@
   }
   .ready-chip .rc-title { font-weight: 800; font-size: 14px; }
   .ready-chip .rc-sub { font-size: 11px; opacity: .8; }
+  .ready-chip.confirm-serve { background: var(--accent); color: var(--accent-contrast); animation: confirm-pulse 1s ease-in-out infinite; }
+  @keyframes confirm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
   #emptyReadyMsg { font-size: 12px; color: var(--text-dim); }
 
   /* ── Finished / Cancelled orders dialogs ─────────────────────────────

@@ -252,12 +252,12 @@ function removeCartLine(idx) {
   renderCart();
 }
 
-function editCartNote(idx) {
+async function editCartNote(idx) {
   const line = cart[idx];
   if (!line) return;
-  const note = window.prompt('Note for ' + line.name, line.note || '');
+  const note = await showPrompt(`Note for ${line.name}`, { defaultValue: line.note || '', placeholder: 'e.g. no ice, extra spicy' });
   if (note === null) return;
-  line.note = note.trim() || null;
+  line.note = note || null;
   renderCart();
 }
 
@@ -286,42 +286,51 @@ function closeCancelItemModal() {
   getEl('cancelItemModal').classList.remove('open');
 }
 
+let confirmCancelItemInFlight = false;
 async function confirmCancelItem() {
-  if (!currentOrder || !cancelItemTarget) return;
+  if (!currentOrder || !cancelItemTarget || confirmCancelItemInFlight) return;
   const qty = parseInt(getEl('cancelItemQty').value, 10);
   if (!Number.isInteger(qty) || qty < 1 || qty > cancelItemTarget.quantity) {
     showToast(`Enter a quantity between 1 and ${cancelItemTarget.quantity}.`, 'error');
     return;
   }
-  const reason = getEl('cancelItemReason').value.trim() || undefined;
-  const itemId = cancelItemTarget.id;
-  const fullRemoval = qty >= cancelItemTarget.quantity;
+  confirmCancelItemInFlight = true;
+  const btn = getEl('cancelItemConfirmBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const reason = getEl('cancelItemReason').value.trim() || undefined;
+    const itemId = cancelItemTarget.id;
+    const fullRemoval = qty >= cancelItemTarget.quantity;
 
-  const { ok, data, queued } = await mutate(
-    `/api/pos/orders/${currentOrder.id}/items/${itemId}/cancel`, 'POST',
-    { qty, reason, client_time: new Date().toISOString() }, { idempotent: true }
-  );
-  closeCancelItemModal();
+    const { ok, data, queued } = await mutate(
+      `/api/pos/orders/${currentOrder.id}/items/${itemId}/cancel`, 'POST',
+      { qty, reason, client_time: new Date().toISOString() }, { idempotent: true }
+    );
+    closeCancelItemModal();
 
-  if (queued) {
-    // Optimistic local update -- reflect the cancellation immediately,
-    // reconciled once the queued call actually syncs.
-    const remaining = cancelItemTarget.quantity - qty;
-    const items = fullRemoval
-      ? currentOrder.items.filter(i => i.id !== itemId)
-      : currentOrder.items.map(i => i.id === itemId ? { ...i, quantity: remaining } : i);
-    const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-    currentOrder = { ...currentOrder, items, subtotal, total: Math.max(0, subtotal - Number(currentOrder.discount)) };
-    renderCart();
-    showToast('Offline — cancellation queued, will sync automatically.', 'error');
-    return;
-  }
-  if (ok && data.order) {
-    currentOrder = data.order;
-    renderCart();
-    showToast(fullRemoval ? 'Item removed.' : `Quantity reduced by ${qty}.`);
-  } else if (!ok) {
-    showToast(data.message || 'Failed to cancel item.', 'error');
+    if (queued) {
+      // Optimistic local update -- reflect the cancellation immediately,
+      // reconciled once the queued call actually syncs.
+      const remaining = cancelItemTarget.quantity - qty;
+      const items = fullRemoval
+        ? currentOrder.items.filter(i => i.id !== itemId)
+        : currentOrder.items.map(i => i.id === itemId ? { ...i, quantity: remaining } : i);
+      const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+      currentOrder = { ...currentOrder, items, subtotal, total: Math.max(0, subtotal - Number(currentOrder.discount)) };
+      renderCart();
+      showToast('Offline — cancellation queued, will sync automatically.', 'error');
+      return;
+    }
+    if (ok && data.order) {
+      currentOrder = data.order;
+      renderCart();
+      showToast(fullRemoval ? 'Item removed.' : `Quantity reduced by ${qty}.`);
+    } else if (!ok) {
+      showToast(data.message || 'Failed to cancel item.', 'error');
+    }
+  } finally {
+    confirmCancelItemInFlight = false;
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -429,8 +438,12 @@ async function onDiningOptionSelect(opt) {
   renderDiningOptions();
   saveDraft();
   if (!currentOrder || currentOrder._queued) return;
-  const { ok, data } = await mutate(`/api/pos/orders/${currentOrder.id}/dining-option`, 'PATCH', { dining_option: opt, base_version: currentOrder.version });
-  if (ok && data.order) {
+  const orderId = currentOrder.id;
+  const { ok, data } = await mutate(`/api/pos/orders/${orderId}/dining-option`, 'PATCH', { dining_option: opt, base_version: currentOrder.version });
+  // Guard against the panel having moved on to a different (or no) order
+  // while this request was in flight -- otherwise order A's response can
+  // silently clobber order B back onto the screen.
+  if (ok && data.order && currentOrder && currentOrder.id === orderId) {
     currentOrder = data.order;
     renderCart();
     if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
@@ -457,6 +470,7 @@ function onTableNumber(value) {
   if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
   clearTimeout(tableNumberTimer);
   tableNumberTimer = setTimeout(async () => {
+    if (!currentOrder) return; // panel was reset while this was pending
     const orderId = currentOrder.id;
     const { ok, data, queued } = await mutate(`/api/pos/orders/${orderId}/table-number`, 'PATCH', { table_number: tableNumber, base_version: currentOrder.version });
     if (queued) {
@@ -480,6 +494,7 @@ function onOrderName(value) {
   if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
   clearTimeout(renameTimer);
   renameTimer = setTimeout(async () => {
+    if (!currentOrder) return; // panel was reset while this was pending
     const orderId = currentOrder.id;
     const { ok, data } = await mutate(`/api/pos/orders/${orderId}/name`, 'PATCH', { name: orderName, base_version: currentOrder.version });
     if (ok && data.order && currentOrder && currentOrder.id === orderId) {
@@ -493,6 +508,10 @@ function onOrderName(value) {
 // ─── Order lifecycle ───────────────────────────────────────────────────────
 
 function resetPanel() {
+  // Cancel any pending debounced table#/name save -- otherwise it fires
+  // later against whatever order (or no order) is on screen by then.
+  clearTimeout(tableNumberTimer);
+  clearTimeout(renameTimer);
   currentOrder = null;
   cart = [];
   diningOption = config.dining_options[0] || null;
@@ -621,43 +640,57 @@ async function attemptSendToKitchen(order) {
   return data.order;
 }
 
+// Guards against a fast double-tap firing two real requests before the
+// first one's response lands -- persistCart() mints a fresh
+// client_mutation_id per call, so idempotency doesn't dedupe a genuine
+// double-submit the way it dedupes a lost-response retry.
+let saveOrderInFlight = false;
 async function saveOrder() {
-  const wasNew = !currentOrder;
-  const result = await persistCart();
-  if (!result.ok) { showToast(result.message || 'Failed to save.', 'error'); return; }
+  if (saveOrderInFlight) return;
+  saveOrderInFlight = true;
+  const btn = getEl('saveOrderBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const wasNew = !currentOrder;
+    const result = await persistCart();
+    if (!result.ok) { showToast(result.message || 'Failed to save.', 'error'); return; }
 
-  let savedOrder = currentOrder;
+    let savedOrder = currentOrder;
 
-  if (result.queued) {
-    // Fully offline -- can't attempt the send-to-kitchen call yet since
-    // there's no real order id. reconcileLocalOrder() picks this up once
-    // the create itself syncs. Still clear the panel -- the order is safely
-    // queued (visible in Open Orders), and leaving it on screen just invites
-    // the next customer's items to land on top of it by mistake.
-    showToast(`Offline — order queued as ${savedOrder.order_number}. Will sync and send automatically.`, 'error');
-    clearDraft();
-    resetPanel();
+    if (result.queued) {
+      // Fully offline -- can't attempt the send-to-kitchen call yet since
+      // there's no real order id. reconcileLocalOrder() picks this up once
+      // the create itself syncs. Still clear the panel -- the order is safely
+      // queued (visible in Open Orders), and leaving it on screen just invites
+      // the next customer's items to land on top of it by mistake.
+      showToast(`Offline — order queued as ${savedOrder.order_number}. Will sync and send automatically.`, 'error');
+      clearDraft();
+      resetPanel();
+      loadOpenOrders();
+      return;
+    }
+
+    savedOrder = await attemptSendToKitchen(savedOrder);
+    currentOrder = savedOrder;
+
+    if (savedOrder.status !== 'open') {
+      // Any successfully saved order clears the panel -- whether it was brand
+      // new or an existing order reopened and re-saved -- so the next
+      // customer never gets typed on top of the previous one by accident.
+      showToast(wasNew ? `Sent to kitchen — ${savedOrder.order_number}` : 'Items sent to kitchen.');
+      clearDraft();
+      resetPanel();
+    } else {
+      // Couldn't reach the kitchen -- stays on screen so the retry button
+      // (shown for status === 'open') is right where the cashier is looking.
+      showToast(`Saved as ${savedOrder.order_number} — couldn't reach the kitchen. Tap "Send to Kitchen" to retry.`, 'error');
+      renderCart();
+    }
     loadOpenOrders();
-    return;
+  } finally {
+    saveOrderInFlight = false;
+    if (btn) btn.disabled = false;
   }
-
-  savedOrder = await attemptSendToKitchen(savedOrder);
-  currentOrder = savedOrder;
-
-  if (savedOrder.status !== 'open') {
-    // Any successfully saved order clears the panel -- whether it was brand
-    // new or an existing order reopened and re-saved -- so the next
-    // customer never gets typed on top of the previous one by accident.
-    showToast(wasNew ? `Sent to kitchen — ${savedOrder.order_number}` : 'Items sent to kitchen.');
-    clearDraft();
-    resetPanel();
-  } else {
-    // Couldn't reach the kitchen -- stays on screen so the retry button
-    // (shown for status === 'open') is right where the cashier is looking.
-    showToast(`Saved as ${savedOrder.order_number} — couldn't reach the kitchen. Tap "Send to Kitchen" to retry.`, 'error');
-    renderCart();
-  }
-  loadOpenOrders();
 }
 
 async function retrySendToKitchen() {
@@ -773,8 +806,13 @@ function updateChange() {
 // requireTerminalRole -- the Pay button itself only exists on a supervisor
 // terminal (see applyRoleUI), but a queued pay replaying after a dashboard
 // role change still needs a friendly surface instead of a raw 403.
+let confirmPayInFlight = false;
 async function confirmPay() {
-  if (!currentOrder || !selectedPayMethod) return;
+  if (!currentOrder || !selectedPayMethod || confirmPayInFlight) return;
+  confirmPayInFlight = true;
+  const btn = getEl('payConfirmBtn');
+  if (btn) btn.disabled = true;
+  try {
   const total = computeTotals().total;
   const body = { payment_method: selectedPayMethod, client_time: new Date().toISOString() };
   if (selectedPayMethod === 'cash') body.cash_received = cashReceived;
@@ -808,6 +846,10 @@ async function confirmPay() {
   showToast(`Paid — ${data.order.order_number}`);
   showPaySuccess(data.order, data.change);
   loadOpenOrders();
+  } finally {
+    confirmPayInFlight = false;
+    if (btn) btn.disabled = false;
+  }
 }
 
 function showPaySuccess(order, change) {
@@ -831,47 +873,52 @@ function donePay() {
   resetPanel();
 }
 
+let cancelOrderInFlight = false;
 async function cancelOrder() {
   if (orderLoading) { showToast('Still loading the order — try again in a moment.', 'error'); return; }
-  if (!currentOrder) return;
+  if (!currentOrder || cancelOrderInFlight) return;
+  cancelOrderInFlight = true;
+  try {
+    if (currentOrder._queued) {
+      // Nothing has ever reached the server for this order -- just drop its
+      // still-pending create (and anything chained to it) instead of queuing
+      // yet another call that would otherwise create-then-immediately-cancel
+      // a real order once connectivity returns.
+      const ok = await showConfirm("This order hasn't synced yet — discard it?", { danger: true, confirmText: 'Discard' });
+      if (!ok) return;
+      await cancelQueuedLocalOrder(currentOrder.order_number);
+      showToast('Discarded — never sent.');
+      clearDraft();
+      resetPanel();
+      loadOpenOrders();
+      return;
+    }
 
-  if (currentOrder._queued) {
-    // Nothing has ever reached the server for this order -- just drop its
-    // still-pending create (and anything chained to it) instead of queuing
-    // yet another call that would otherwise create-then-immediately-cancel
-    // a real order once connectivity returns.
-    const ok = await showConfirm("This order hasn't synced yet — discard it?", { danger: true, confirmText: 'Discard' });
-    if (!ok) return;
-    await cancelQueuedLocalOrder(currentOrder.order_number);
-    showToast('Discarded — never sent.');
+    const reason = await showPrompt('Cancel this order? This cannot be undone.', {
+      title: 'Cancel Order', danger: true, confirmText: 'Cancel Order',
+      placeholder: 'Reason for cancellation (optional)',
+    });
+    if (reason === null) return; // dismissed the dialog itself
+
+    const res = await mutate(`/api/pos/orders/${currentOrder.id}/cancel`, 'POST', { reason, client_time: new Date().toISOString() });
+    if (res.queued) {
+      showToast('Offline — cancellation queued, will sync automatically.', 'error');
+      clearDraft();
+      resetPanel();
+      loadOpenOrders();
+      return;
+    }
+    if (!res.ok) {
+      showToast(res.data.message || 'Failed to cancel order.', 'error');
+      return;
+    }
+    showToast('Order cancelled.');
     clearDraft();
     resetPanel();
     loadOpenOrders();
-    return;
+  } finally {
+    cancelOrderInFlight = false;
   }
-
-  const reason = await showPrompt('Cancel this order? This cannot be undone.', {
-    title: 'Cancel Order', danger: true, confirmText: 'Cancel Order',
-    placeholder: 'Reason for cancellation (optional)',
-  });
-  if (reason === null) return; // dismissed the dialog itself
-
-  const res = await mutate(`/api/pos/orders/${currentOrder.id}/cancel`, 'POST', { reason, client_time: new Date().toISOString() });
-  if (res.queued) {
-    showToast('Offline — cancellation queued, will sync automatically.', 'error');
-    clearDraft();
-    resetPanel();
-    loadOpenOrders();
-    return;
-  }
-  if (!res.ok) {
-    showToast(res.data.message || 'Failed to cancel order.', 'error');
-    return;
-  }
-  showToast('Order cancelled.');
-  clearDraft();
-  resetPanel();
-  loadOpenOrders();
 }
 
 // Order-terminal counterpart to Pay -- pushes the order to awaiting_payment
@@ -971,10 +1018,21 @@ function formatSittingTime(ms) {
 // just pre-filtered to what a supervisor is settling. See openToSettle().
 let settleModeActive = false;
 
+// fetchJSON resolves to null on ANY non-2xx (403/500/network blip alike) with
+// no toast of its own -- flagged once per failure streak (not every 15s poll
+// tick) so a genuine outage/permission problem is visible instead of just
+// quietly rendering "No open orders." forever.
+let openOrdersLoadFailed = false;
 async function loadOpenOrders() {
   const data = await fetchJSON('/api/pos/orders?status=active');
-  const orders = data ? data.orders.slice() : [];
-  if (data && data.server_now) ordersClockOffsetMs = new Date(data.server_now).getTime() - Date.now();
+  if (!data) {
+    if (!openOrdersLoadFailed && !isOffline()) showToast('Could not refresh open orders — check connection.', 'error');
+    openOrdersLoadFailed = true;
+    return;
+  }
+  openOrdersLoadFailed = false;
+  const orders = data.orders.slice();
+  if (data.server_now) ordersClockOffsetMs = new Date(data.server_now).getTime() - Date.now();
   // The server has no idea a still-offline order exists yet — keep it
   // visible in the list locally until its create call reconciles.
   if (currentOrder && currentOrder._queued && !orders.some(o => o.order_number === currentOrder.order_number)) {
@@ -1060,7 +1118,7 @@ async function loadOrderIntoPanel(id) {
   orderLoading = true;
   const data = await fetchJSON(`/api/pos/orders/${id}`);
   orderLoading = false;
-  if (!data) return;
+  if (!data) { showToast('Could not open that order — try again.', 'error'); return; }
   applyOrderToPanel(data.order);
 }
 
@@ -1425,7 +1483,7 @@ async function startApp(terminal, idleTimeoutMinutes) {
 
   if (!appStarted) {
     appStarted = true;
-    startIdleWatch(idleTimeoutMinutes ?? (info && info.idle_timeout_minutes) ?? 8);
+    startIdleWatch(idleTimeoutMinutes ?? (info && info.idle_timeout_minutes) ?? 30);
     startOfflineQueue();
     setInterval(pollCatalogVersion, CATALOG_VERSION_POLL_MS);
     setInterval(loadOpenOrders, OPEN_ORDERS_POLL_MS);

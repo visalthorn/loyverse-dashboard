@@ -156,6 +156,7 @@ export const en = {
   'receipts.tabLoyverse': 'Loyverse',
   'receipts.tabOwn': 'Own Receipts',
   'receipts.tabCancellations': 'Cancellations',
+  'receipts.thBranch': 'Branch',
   'receipts.terminal': 'Terminal',
   'receipts.cancelledOrders': 'Cancelled Orders',
   'receipts.cancelledItems': 'Cancelled / Reduced Items',

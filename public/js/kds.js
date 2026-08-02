@@ -18,6 +18,11 @@ const SAFETY_POLL_MS = 30 * 1000;
 let orders = [];        // raw orders from /kds/active (sent_to_kitchen | preparing | ready)
 let clockOffsetMs = 0;  // (server "now" ms) - (Date.now() at fetch time)
 let finishedModalOpen = false; // finished-orders lookback shows in a dialog, never replaces the active board
+
+// Ready-strip tap-to-confirm (see render()) -- first tap on a chip arms a
+// 3s confirm window instead of marking served immediately.
+let confirmingServeId = null;
+let confirmingServeTimer = null;
 let finishedVisibleIds = []; // order ids currently rendered in the finished modal -- what a "Clear" tap dismisses
 
 const DISMISSED_KEY = 'kds_dismissed_finished_orders';
@@ -132,9 +137,25 @@ function render() {
   } else {
     for (const order of ready) {
       const chip = document.createElement('div');
-      chip.className = 'ready-chip';
-      chip.innerHTML = `<span class="rc-title">${esc(cardTitle(order))}</span><span class="rc-sub">${esc(badgeText(order))}</span>`;
-      chip.onclick = () => markServed(order.id);
+      const confirming = order.id === confirmingServeId;
+      chip.className = confirming ? 'ready-chip confirm-serve' : 'ready-chip';
+      chip.innerHTML = `<span class="rc-title">${esc(cardTitle(order))}</span><span class="rc-sub">${confirming ? 'Tap again to confirm' : esc(badgeText(order))}</span>`;
+      // A crowded strip touched by busy hands shouldn't drop an order off
+      // the ready list on a single mis-tap -- first tap arms a 3s confirm
+      // window (re-tap to actually mark served), matching how easy it is
+      // to accidentally brush this strip while grabbing a plate.
+      chip.onclick = () => {
+        if (confirming) {
+          clearTimeout(confirmingServeTimer);
+          confirmingServeId = null;
+          markServed(order.id);
+        } else {
+          confirmingServeId = order.id;
+          clearTimeout(confirmingServeTimer);
+          confirmingServeTimer = setTimeout(() => { confirmingServeId = null; render(); }, 3000);
+          render();
+        }
+      };
       strip.appendChild(chip);
     }
   }
@@ -300,7 +321,7 @@ function renderCancelledCard(order) {
     row.className = 'oc-item status-cancelled';
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}</span>
+      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
     `;
     itemsEl.appendChild(row);
   }
@@ -334,7 +355,7 @@ function renderFinishedCard(order) {
     row.className = 'oc-item status-done';
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}</span>
+      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
     `;
     itemsEl.appendChild(row);
   }
@@ -369,7 +390,7 @@ function renderCard(order) {
     row.className = `oc-item status-${item.kitchen_status}`;
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">${esc(item.note)}</span>` : ''}</span>
+      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
     `;
     row.onclick = () => cycleItemStatus(item.id, item.kitchen_status);
     itemsEl.appendChild(row);
@@ -399,7 +420,10 @@ function tickElapsed() {
     card.classList.toggle('elapsed-warn',   cls === 'elapsed-warn');
     card.classList.toggle('elapsed-danger', cls === 'elapsed-danger');
     const label = card.querySelector('.oc-elapsed');
-    if (label) label.textContent = '⏱ ' + formatElapsed(elapsedMs);
+    // Danger gets its own glyph, not just a color shift -- color-only
+    // urgency cues are easy to miss at a glance and unreadable for
+    // colorblind staff.
+    if (label) label.textContent = (cls === 'elapsed-danger' ? '⚠ ' : '⏱ ') + formatElapsed(elapsedMs);
   });
 }
 
