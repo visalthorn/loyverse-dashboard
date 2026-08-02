@@ -76,13 +76,12 @@ function cambodiaNaiveNow() {
   return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
-// ─── Terminal role (POS audit, 2026-08-02) ──────────────────────────────────
-// Devices are fully shared now -- any terminal may edit any branch order,
-// online or offline (races are resolved by per-row version conflicts, see
-// offlineQueue.js/routes/pos.js, not by terminal identity). Only payment,
-// cancelling an unpaid order, and discounts are restricted, and that's
-// enforced server-side by requireTerminalRole -- this is UI convenience only
-// (hiding buttons that would 403) and must never be trusted as the control.
+// ─── Terminal role (POS audit, 2026-08-02; revised 2026-08-02) ──────────────
+// Devices are fully shared -- any terminal may fetch, resume, edit, cancel an
+// item on, or cancel entirely any open order in the branch, online or
+// offline. Only completing PAYMENT is role-gated (requireTerminalRole on the
+// server) -- this client-side check is UI convenience only (hiding a button
+// that would 403) and must never be trusted as the control.
 function myRole() {
   const info = getTerminalInfo();
   return info ? info.role : null;
@@ -262,26 +261,68 @@ function editCartNote(idx) {
   renderCart();
 }
 
-async function changeSentItemQty(itemId, delta) {
+// ─── Cancel Item (POS revision, 2026-08-02) ─────────────────────────────────
+// Replaces the old qty stepper + separate remove-line control with a single
+// action, available on both Order and Supervisor terminals, on ANY item
+// regardless of kitchen_status (pending/preparing/done -- no difference).
+let cancelItemTarget = null; // { id, item_name, quantity }
+
+function openCancelItemModal(itemId) {
   if (!currentOrder) return;
   const item = currentOrder.items.find(i => i.id === itemId);
   if (!item) return;
-  const newQty = item.quantity + delta;
-  if (newQty < 1) { removeSentItem(itemId); return; }
-  const { ok, data } = await mutate(`/api/pos/order-items/${itemId}`, 'PATCH', { quantity: newQty, base_version: item.version });
-  if (ok && data.order) { currentOrder = data.order; renderCart(); }
-  else if (!ok) showToast(data.message || 'Failed to update item.', 'error');
+  cancelItemTarget = item;
+  getEl('cancelItemName').textContent = `${item.item_name} (qty ${item.quantity})`;
+  const qtyInput = getEl('cancelItemQty');
+  qtyInput.value = item.quantity;
+  qtyInput.max = item.quantity;
+  qtyInput.min = 1;
+  getEl('cancelItemReason').value = '';
+  getEl('cancelItemModal').classList.add('open');
 }
 
-async function removeSentItem(itemId) {
-  if (!currentOrder) return;
-  const item = currentOrder.items.find(i => i.id === itemId);
-  if (!item) return;
-  const ok = await showConfirm('Remove this item from the order?', { danger: true, confirmText: 'Remove' });
-  if (!ok) return;
-  const { ok: success, data } = await mutate(`/api/pos/order-items/${itemId}`, 'DELETE', { base_version: item.version });
-  if (success && data.order) { currentOrder = data.order; renderCart(); }
-  else if (!success) showToast(data.message || 'Failed to remove item.', 'error');
+function closeCancelItemModal() {
+  cancelItemTarget = null;
+  getEl('cancelItemModal').classList.remove('open');
+}
+
+async function confirmCancelItem() {
+  if (!currentOrder || !cancelItemTarget) return;
+  const qty = parseInt(getEl('cancelItemQty').value, 10);
+  if (!Number.isInteger(qty) || qty < 1 || qty > cancelItemTarget.quantity) {
+    showToast(`Enter a quantity between 1 and ${cancelItemTarget.quantity}.`, 'error');
+    return;
+  }
+  const reason = getEl('cancelItemReason').value.trim() || undefined;
+  const itemId = cancelItemTarget.id;
+  const fullRemoval = qty >= cancelItemTarget.quantity;
+
+  const { ok, data, queued } = await mutate(
+    `/api/pos/orders/${currentOrder.id}/items/${itemId}/cancel`, 'POST',
+    { qty, reason, client_time: new Date().toISOString() }, { idempotent: true }
+  );
+  closeCancelItemModal();
+
+  if (queued) {
+    // Optimistic local update -- reflect the cancellation immediately,
+    // reconciled once the queued call actually syncs.
+    const remaining = cancelItemTarget.quantity - qty;
+    const items = fullRemoval
+      ? currentOrder.items.filter(i => i.id !== itemId)
+      : currentOrder.items.map(i => i.id === itemId ? { ...i, quantity: remaining } : i);
+    const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+    currentOrder = { ...currentOrder, items, subtotal, total: Math.max(0, subtotal - Number(currentOrder.discount)) };
+    renderCart();
+    showToast('Offline — cancellation queued, will sync automatically.', 'error');
+    return;
+  }
+  if (ok && data.order) {
+    currentOrder = data.order;
+    renderCart();
+    showToast(fullRemoval ? 'Item removed.' : `Quantity reduced by ${qty}.`);
+  } else if (!ok) {
+    showToast(data.message || 'Failed to cancel item.', 'error');
+  }
 }
 
 function computeTotals() {
@@ -302,32 +343,20 @@ function renderCart() {
   if (!persisted.length && !cart.length) {
     list.innerHTML = '<div id="emptyCartMsg">Cart is empty — tap items to add.</div>';
   } else {
+    // Cancel Item is available on any real (already-synced) line regardless
+    // of kitchen_status -- pending/preparing/done make no difference. A line
+    // with no id yet (still-local, order._queued) has nothing server-side to
+    // cancel until its create call syncs.
     const persistedHTML = persisted.map(it => {
-      const editable = it.id != null && it.kitchen_status !== 'done' && !(currentOrder && currentOrder._queued);
-      if (!editable) {
-        return `
-          <div class="cart-line sent">
-            <div class="cl-info">
-              <div class="cl-name">${esc(it.item_name)}</div>
-              <div class="cl-price">${khr(it.price)} × ${it.quantity}${it.note ? ` · ${esc(it.note)}` : ''}</div>
-            </div>
-            <div class="cl-total">${khr(it.price * it.quantity)}</div>
-          </div>
-        `;
-      }
+      const canCancel = it.id != null;
       return `
         <div class="cart-line sent">
           <div class="cl-info">
             <div class="cl-name">${esc(it.item_name)}</div>
-            <div class="cl-price">${khr(it.price)}${it.note ? ` · <span class="cl-note">${esc(it.note)}</span>` : ''}</div>
-          </div>
-          <div class="qty-stepper">
-            <button type="button" data-sent-dec="${it.id}">−</button>
-            <span class="qty-val">${it.quantity}</span>
-            <button type="button" data-sent-inc="${it.id}">+</button>
+            <div class="cl-price">${khr(it.price)} × ${it.quantity}${it.note ? ` · ${esc(it.note)}` : ''}</div>
           </div>
           <div class="cl-total">${khr(it.price * it.quantity)}</div>
-          <button class="cl-remove" type="button" data-sent-remove="${it.id}">✕</button>
+          ${canCancel ? `<button class="cl-remove" type="button" data-sent-cancel="${it.id}" title="Cancel item">✕</button>` : ''}
         </div>
       `;
     }).join('');
@@ -354,9 +383,7 @@ function renderCart() {
     list.querySelectorAll('[data-dec]').forEach(b => b.addEventListener('click', () => changeCartQty(parseInt(b.dataset.dec), -1)));
     list.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => removeCartLine(parseInt(b.dataset.remove))));
     list.querySelectorAll('[data-note-idx]').forEach(el => el.addEventListener('click', () => editCartNote(parseInt(el.dataset.noteIdx))));
-    list.querySelectorAll('[data-sent-inc]').forEach(b => b.addEventListener('click', () => changeSentItemQty(parseInt(b.dataset.sentInc, 10), 1)));
-    list.querySelectorAll('[data-sent-dec]').forEach(b => b.addEventListener('click', () => changeSentItemQty(parseInt(b.dataset.sentDec, 10), -1)));
-    list.querySelectorAll('[data-sent-remove]').forEach(b => b.addEventListener('click', () => removeSentItem(parseInt(b.dataset.sentRemove, 10))));
+    list.querySelectorAll('[data-sent-cancel]').forEach(b => b.addEventListener('click', () => openCancelItemModal(parseInt(b.dataset.sentCancel, 10))));
   }
 
   const { subtotal, total } = computeTotals();
@@ -368,10 +395,10 @@ function renderCart() {
     ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}`
     : 'New order (not yet sent)';
 
-  // Cancelling an unpaid order is supervisor-only (server enforces via
-  // requireTerminalRole -- this is just hiding a button that would 403).
-  const hasDoneItem = !!(currentOrder && currentOrder.items && currentOrder.items.some(it => it.kitchen_status === 'done'));
-  getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status) && !hasDoneItem && isSupervisor()) ? 'block' : 'none';
+  // Cancel Order is available on any role, any open order, regardless of
+  // kitchen_status (POS revision, 2026-08-02) -- the accountability
+  // mechanism is the audit trail, not an access restriction.
+  getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status)) ? 'block' : 'none';
 
   // Saved but not yet sent (either the auto-send on save failed, or this is
   // a previously-saved order reopened from the strip) -- offer a manual
@@ -403,8 +430,13 @@ async function onDiningOptionSelect(opt) {
   saveDraft();
   if (!currentOrder || currentOrder._queued) return;
   const { ok, data } = await mutate(`/api/pos/orders/${currentOrder.id}/dining-option`, 'PATCH', { dining_option: opt, base_version: currentOrder.version });
-  if (ok && data.order) { currentOrder = data.order; renderCart(); }
-  else if (!ok) showToast(data.message || 'Failed to update dining option.', 'error');
+  if (ok && data.order) {
+    currentOrder = data.order;
+    renderCart();
+    if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
+  } else if (!ok) {
+    showToast(data.message || 'Failed to update dining option.', 'error');
+  }
 }
 
 function onSearch(value) { searchTerm = value; renderItemGrid(); }
@@ -434,6 +466,7 @@ function onTableNumber(value) {
     if (ok && data.order && currentOrder && currentOrder.id === orderId) {
       currentOrder = data.order;
       renderCart();
+      if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
     } else if (!ok) {
       showToast(data.message || 'Failed to update table number.', 'error');
     }
@@ -452,6 +485,7 @@ function onOrderName(value) {
     if (ok && data.order && currentOrder && currentOrder.id === orderId) {
       currentOrder = data.order;
       renderCart();
+      if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
     }
   }, 600);
 }
@@ -597,9 +631,12 @@ async function saveOrder() {
   if (result.queued) {
     // Fully offline -- can't attempt the send-to-kitchen call yet since
     // there's no real order id. reconcileLocalOrder() picks this up once
-    // the create itself syncs.
+    // the create itself syncs. Still clear the panel -- the order is safely
+    // queued (visible in Open Orders), and leaving it on screen just invites
+    // the next customer's items to land on top of it by mistake.
     showToast(`Offline — order queued as ${savedOrder.order_number}. Will sync and send automatically.`, 'error');
-    renderCart();
+    clearDraft();
+    resetPanel();
     loadOpenOrders();
     return;
   }
@@ -608,9 +645,15 @@ async function saveOrder() {
   currentOrder = savedOrder;
 
   if (savedOrder.status !== 'open') {
+    // Any successfully saved order clears the panel -- whether it was brand
+    // new or an existing order reopened and re-saved -- so the next
+    // customer never gets typed on top of the previous one by accident.
     showToast(wasNew ? `Sent to kitchen — ${savedOrder.order_number}` : 'Items sent to kitchen.');
-    if (wasNew) { clearDraft(); resetPanel(); } else renderCart();
+    clearDraft();
+    resetPanel();
   } else {
+    // Couldn't reach the kitchen -- stays on screen so the retry button
+    // (shown for status === 'open') is right where the cashier is looking.
     showToast(`Saved as ${savedOrder.order_number} — couldn't reach the kitchen. Tap "Send to Kitchen" to retry.`, 'error');
     renderCart();
   }
@@ -751,7 +794,6 @@ async function confirmPay() {
       cash_received: (selectedPayMethod === 'cash' || selectedPayMethod === 'both') ? cashReceived : null,
     };
     showToast(`Offline — payment queued for ${currentOrder.order_number}.`, 'error');
-    printReceipt(optimisticOrder, { offline: true });
     showPaySuccess(optimisticOrder, change);
     loadOpenOrders();
     return;
@@ -764,7 +806,6 @@ async function confirmPay() {
   }
 
   showToast(`Paid — ${data.order.order_number}`);
-  printReceipt(data.order); // the one auto-print left: a completed sale should always hand over a receipt
   showPaySuccess(data.order, data.change);
   loadOpenOrders();
 }
@@ -824,7 +865,6 @@ async function cancelOrder() {
     return;
   }
   if (!res.ok) {
-    if (res.status === 403) { showSupervisorRequiredDialog(); return; }
     showToast(res.data.message || 'Failed to cancel order.', 'error');
     return;
   }
@@ -1045,6 +1085,10 @@ async function reconcileLocalOrder(localId, realOrder) {
 onReplaySuccess((entry, data) => {
   if (entry.localId && data && data.order) reconcileLocalOrder(entry.localId, data.order);
   else loadOpenOrders();
+  // A queued edit that landed on a since-changed order still applied
+  // (last-write-wins) -- surface the same non-blocking notice a live edit
+  // would have gotten, instead of silently vanishing into the sync log.
+  if (data && data.notice) showToast('A queued change was applied on top of a newer version of the order.', 'error');
 });
 
 // A queued request that replays and comes back genuinely rejected (not just
@@ -1133,21 +1177,6 @@ function summarizeUrl(url) {
   return url.replace('/api/pos', '').replace(/^\/orders\//, 'order ').replace(/^\/order-items\//, 'item ');
 }
 
-// Human-readable diff for a version-conflict dead-letter (see
-// isStaleVersion in routes/pos.js) -- built from this entry's own attempted
-// body against the fresh server row it was rejected against, so staff see
-// exactly what changed instead of a generic 409 message.
-const CONFLICT_FIELD_LABELS = { name: 'name', table_number: 'table number', dining_option: 'dining option', quantity: 'quantity' };
-function describeConflict(e) {
-  if (!e.conflict) return null;
-  if (e.method === 'DELETE') return 'This item changed since you went offline — check before removing it again.';
-  const cur = e.conflictCurrent;
-  const body = e.body || {};
-  const fields = Object.keys(CONFLICT_FIELD_LABELS).filter(f => f in body);
-  if (!cur || !fields.length) return 'This order changed since you went offline.';
-  return fields.map(f => `${CONFLICT_FIELD_LABELS[f]} is now "${cur[f] ?? '—'}" (you had "${body[f] ?? '—'}")`).join('; ');
-}
-
 async function renderSyncPanel() {
   const { pending, dead } = await getQueueSnapshot();
   getEl('syncPanelLastSync').textContent = fmtLastSync();
@@ -1166,7 +1195,7 @@ async function renderSyncPanel() {
     ? dead.map(e => `
         <div class="sync-item sync-item--dead">
           <div class="sync-item-main">${esc(e.method)} ${esc(summarizeUrl(e.url))}</div>
-          <div class="sync-item-sub">${esc(describeConflict(e) || e.lastError || 'Rejected')}</div>
+          <div class="sync-item-sub">${esc(e.lastError || 'Rejected')}</div>
           <div class="sync-item-actions">
             <button type="button" class="inv-btn" data-retry="${e.id}">Retry</button>
             <button type="button" class="inv-btn" data-discard="${e.id}">Discard</button>
@@ -1336,6 +1365,8 @@ window.posReadyToBill     = readyToBill;
 window.posReprintReceipt  = reprintReceipt;
 window.posDonePay         = donePay;
 window.posCancelOrder     = cancelOrder;
+window.posCloseCancelItemModal = closeCancelItemModal;
+window.posConfirmCancelItem    = confirmCancelItem;
 window.posNewOrder        = () => { clearDraft(); resetPanel(); };
 window.posLockNow         = lockNow;
 window.posOpenSettings    = openSettings;

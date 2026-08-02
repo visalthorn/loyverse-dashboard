@@ -19,6 +19,7 @@ const branchesRouter    = require('./branches');
 const posRouter         = require('./pos');
 const terminalAuthRouter = require('./terminalAuth');
 const terminalsRouter    = require('./terminals');
+const cancellationsRouter = require('./cancellations');
 
 router.use('/api/auth',        authRouter);
 router.use('/api',             analyticsRouter);
@@ -38,6 +39,7 @@ router.use('/api/branches',    branchesRouter);
 router.use('/api/pos',         posRouter);
 router.use('/api/terminal',    terminalAuthRouter);
 router.use('/api',             terminalsRouter);
+router.use('/api/dashboard',   cancellationsRouter);
 
 router.get('/login',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
 router.get('/pos',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'pos.html')));

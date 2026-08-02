@@ -11,7 +11,7 @@ import { getCsrfToken, refreshSession, terminalLogout } from './terminalAuth.js'
 // Queue entry shape:
 //   { id (autoincrement), url, method, body, clientMutationId,
 //     localId, dependsOnLocalId, status: 'pending'|'dead',
-//     attempt, nextAttemptAt, lastError, conflict, conflictCurrent, createdAt }
+//     attempt, nextAttemptAt, lastError, createdAt }
 //
 // - clientMutationId: attached to body.client_mutation_id for
 //   idempotency-sensitive endpoints (create order, append items, pay) --
@@ -29,12 +29,8 @@ import { getCsrfToken, refreshSession, terminalLogout } from './terminalAuth.js'
 //   rule violation once the world changed, e.g. the table got taken by
 //   someone else while this device was offline) -- requires explicit staff
 //   action (retry or discard) from the queue panel, never auto-retried and
-//   never silently dropped.
-// - conflict / conflictCurrent: set on a dead-letter caused specifically by
-//   an optimistic-concurrency version mismatch (see routes/pos.js
-//   isStaleVersion) -- conflictCurrent is the fresh server row, letting the
-//   dead-letter panel render a readable diff against this entry's own
-//   `body` instead of just the raw rejection message.
+//   never silently dropped. Order-field version conflicts no longer land
+//   here (POS revision, 2026-08-02) -- see isStaleVersion in routes/pos.js.
 
 const DB_NAME       = 'pos_offline_db';
 const DB_VERSION    = 1;
@@ -392,13 +388,11 @@ async function drainOnce() {
 
     // 4xx -- a real business-rule rejection once the world changed (or a
     // stale request). Requires a human to look at it -- never auto-retried,
-    // never silently dropped. A version conflict (POS audit, 2026-08-02)
-    // carries the fresh server row so the dead-letter panel can render a
-    // readable diff instead of just the raw message.
+    // never silently dropped. Version conflicts on order-field edits no
+    // longer land here (POS revision, 2026-08-02) -- those apply
+    // last-write-wins server-side and come back as a 200 + notice instead.
     entry.status = 'dead';
     entry.lastError = result.data.message || `Rejected (${result.status})`;
-    entry.conflict = result.data.conflict === true;
-    entry.conflictCurrent = result.data.current || null;
     await idbPut(entry);
     deadLettered++; progress = true;
     if (replayRejectedListener) replayRejectedListener(entry, result.data);

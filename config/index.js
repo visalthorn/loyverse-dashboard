@@ -15,9 +15,8 @@ module.exports = {
   deviceTokenDays:       90,
   // How long a terminal can sit idle before the lock overlay covers it --
   // a person check, not a device check (Section 6 of the terminal-auth
-  // redesign). KDS defaults longer since a kitchen screen is meant to be
-  // glanceable rather than actively operated.
-  idleTimeoutMinutes:    { pos: 8, kds: 30 },
+  // redesign). Same for both terminal types.
+  idleTimeoutMinutes:    { pos: 30, kds: 30 },
   isProd:                (process.env.ENV || 'UAT') === 'PROD',
   tz:                    'Asia/Phnom_Penh',
   env:                   process.env.ENV || 'UAT',

@@ -18,8 +18,14 @@ let selectedId  = null;
 let isLoading   = false;
 let filterStart = '';
 let filterEnd   = '';
-let receiptSource = 'own'; // 'loyverse' | 'own'
+let receiptSource = 'own'; // 'loyverse' | 'own' | 'cancellations'
 let ownBranchId = null;
+
+let cancellationsFiltersMounted = false;
+let cancellationsBranchId = null;
+let cancellationsStart = '';
+let cancellationsEnd = '';
+let cancellationsTerminalId = '';
 
 // ─── Formatters (receipts-specific) ─────────────────────────────────────────
 
@@ -93,18 +99,33 @@ export function switchReceiptSource(source) {
   selectedId  = null;
   getEl('receiptTabLoyverse')?.classList.toggle('active', source === 'loyverse');
   getEl('receiptTabOwn')?.classList.toggle('active', source === 'own');
+  getEl('receiptTabCancellations')?.classList.toggle('active', source === 'cancellations');
   getEl('ownBranchFilterRow')?.classList.toggle('hidden', source !== 'own');
   getEl('liveOrdersCard')?.classList.toggle('hidden', source !== 'own');
+
+  // Cancellations is a different shape entirely (two small activity tables,
+  // not a paginated receipt list + detail panel) -- swap the whole layout
+  // rather than reusing the receipts table.
+  getEl('statsRow')?.classList.toggle('hidden', source === 'cancellations');
+  getEl('receiptsLayoutSection')?.classList.toggle('hidden', source === 'cancellations');
+  getEl('cancellationsSection')?.classList.toggle('hidden', source !== 'cancellations');
+
   const empty = getEl('detailEmpty'), content = getEl('detailContent'), panel = getEl('detailPanel');
   if (empty && content && panel) { empty.classList.remove('hidden'); content.classList.add('hidden'); panel.classList.remove('active'); }
+
   if (source === 'own') {
     mountOwnBranchFilter();
     loadLiveOrders();
     startLiveOrdersPoll();
+    loadReceipts();
+  } else if (source === 'cancellations') {
+    stopLiveOrdersPoll();
+    if (!cancellationsFiltersMounted) { mountCancellationsFilters(); cancellationsFiltersMounted = true; }
+    else loadCancellations();
   } else {
     stopLiveOrdersPoll();
+    loadReceipts();
   }
-  loadReceipts();
 }
 
 function mountOwnBranchFilter() {
@@ -115,6 +136,77 @@ function mountOwnBranchFilter() {
   renderBranchFilter(getEl('ownBranchFilterMount'), {
     onChange: (branchId) => { ownBranchId = branchId; loadReceipts(); },
   });
+}
+
+// ─── Cancellations tab (POS revision, 2026-08-02) ───────────────────────────
+// Accountability view replacing the removed ownership/kitchen-status
+// restrictions on cancel-order and cancel-item -- reads GET
+// /api/dashboard/cancellations (routes/cancellations.js), which itself reads
+// the general pos_order_events activity log.
+
+function mountCancellationsFilters() {
+  cancellationsBranchId = state.branchId ?? null;
+  renderBranchFilter(getEl('cancellationsBranchFilterMount'), {
+    onChange: (branchId) => { cancellationsBranchId = branchId; loadCancellations(); },
+  });
+  // renderDateFilter fires onChange once immediately on mount, which is what
+  // triggers the first loadCancellations() call -- no separate initial load needed.
+  renderDateFilter(getEl('cancellationsDateFilterMount'), {
+    presets: [{ key: 'yesterday', labelKey: 'common.yesterday' }, { key: 'last10', labelKey: 'common.last10Days' }],
+    defaultPreset: 'last10',
+    onChange: ({ start, end }) => { cancellationsStart = start; cancellationsEnd = end; loadCancellations(); },
+  });
+}
+
+export function onCancellationsTerminalChange(value) {
+  cancellationsTerminalId = value;
+  loadCancellations();
+}
+
+export async function loadCancellations() {
+  const params = new URLSearchParams();
+  if (cancellationsBranchId)   params.set('branch_id', cancellationsBranchId);
+  if (cancellationsStart)      params.set('start', cancellationsStart);
+  if (cancellationsEnd)        params.set('end', cancellationsEnd);
+  if (cancellationsTerminalId) params.set('terminal_id', cancellationsTerminalId);
+
+  const data = await fetchJSON(`/api/dashboard/cancellations?${params}`);
+  const orders = data ? data.orders : [];
+  const items  = data ? data.items  : [];
+
+  // The per-branch terminal list is admin-only (routes/branches.js) and a
+  // manager can view this tab -- so the terminal filter is populated from
+  // whatever terminals actually appear in the current result set instead.
+  const termSel = getEl('cancellationsTerminalFilter');
+  if (termSel) {
+    const seen = new Map();
+    [...orders, ...items].forEach(r => { if (r.terminal_id) seen.set(r.terminal_id, r.terminal_name || r.terminal_id); });
+    const current = termSel.value;
+    termSel.innerHTML = `<option value="">${t('receipts.typeAll')}</option>` +
+      [...seen.entries()].map(([id, name]) => `<option value="${esc(id)}"${id === current ? ' selected' : ''}>${esc(name)}</option>`).join('');
+  }
+
+  const ordersBody = getEl('cancelledOrdersTbody');
+  ordersBody.innerHTML = orders.length ? orders.map(r => `
+    <tr class="border-b border-[color:var(--border-subtle)]">
+      <td class="py-2 pr-3">${esc(formatDate(r.created_at))}</td>
+      <td class="py-2 pr-3">${esc(r.branch_name || '—')}</td>
+      <td class="py-2 pr-3">${esc(r.terminal_name || r.terminal_id || '—')}</td>
+      <td class="py-2 pr-3">${esc(r.order_number)}</td>
+      <td class="py-2 pr-3 text-right">${r.order_total != null ? formatCurrency(r.order_total) : '—'}</td>
+      <td class="py-2">${esc(r.reason || '—')}</td>
+    </tr>`).join('') : `<tr><td colspan="6" class="empty-state">${t('receipts.noCancellations')}</td></tr>`;
+
+  const itemsBody = getEl('cancelledItemsTbody');
+  itemsBody.innerHTML = items.length ? items.map(r => `
+    <tr class="border-b border-[color:var(--border-subtle)]">
+      <td class="py-2 pr-3">${esc(formatDate(r.created_at))}</td>
+      <td class="py-2 pr-3">${esc(r.branch_name || '—')}</td>
+      <td class="py-2 pr-3">${esc(r.terminal_name || r.terminal_id || '—')}</td>
+      <td class="py-2 pr-3">${esc(r.order_number)}</td>
+      <td class="py-2 pr-3">${esc(r.item_name || '—')} × ${r.qty_removed ?? '—'}${r.qty_remaining ? ` (kept ${r.qty_remaining})` : ''}</td>
+      <td class="py-2">${esc(r.reason || '—')}</td>
+    </tr>`).join('') : `<tr><td colspan="6" class="empty-state">${t('receipts.noCancellations')}</td></tr>`;
 }
 
 export function onApiFilterChange() { loadReceipts(); }

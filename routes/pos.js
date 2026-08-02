@@ -60,14 +60,14 @@ function tooLong(str, max) {
   return typeof str === 'string' && str.length > max;
 }
 
-// Optimistic-concurrency guard backing offline-queue conflict detection
-// (POS audit, 2026-08-02). base_version is the version the client last saw
-// for this row; omitted by a live/older client, in which case the check is
-// skipped entirely (a live click always targets what's currently on
-// screen). A mismatch means the row moved under a since-queued edit -- the
-// caller rejects with 409 { conflict: true } instead of silently
-// overwriting, so the offline queue dead-letters it for a human to resolve
-// rather than losing someone's change.
+// Non-blocking staleness check (POS revision, 2026-08-02): base_version is
+// the version the client last saw for this row; omitted by a live/older
+// client, in which case the check is skipped entirely (a live click always
+// targets what's currently on screen). A mismatch means the row moved under
+// a since-queued edit -- callers apply the write anyway (last-write-wins)
+// and flag `notice: true` on the response so the client can toast "this
+// order changed elsewhere" instead of silently overwriting with no signal.
+// Never rejects.
 function isStaleVersion(base_version, currentVersion) {
   return base_version !== undefined && base_version !== null && Number(base_version) !== currentVersion;
 }
@@ -146,6 +146,19 @@ async function fetchOrder(id, executor = pool) {
     [id]
   );
   return { ...orderRes.rows[0], items: itemsRes.rows };
+}
+
+// General POS-activity log, not cancellation-specific -- every event carries
+// branch_id (denormalized, same pattern as pos_orders.branch_id) and
+// detail.terminal_name for free, so a future event type needs no schema
+// change, only a new `event` string and whatever `detail` shape it wants.
+async function logOrderEvent(client, { orderId, branchId, event, terminal, created_at, detail }) {
+  await client.query(
+    `INSERT INTO pos_order_events (order_id, branch_id, event, actor, detail, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [orderId, branchId, event, terminal.terminal_id,
+     JSON.stringify({ terminal_name: terminal.name, ...(detail || {}) }), created_at || toCambodiaTime(new Date())]
+  );
 }
 
 // Validates + snapshots a requested line-item list against the live catalog,
@@ -362,10 +375,7 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
       `, [order.id, line.source_item_id, line.name, line.price, line.quantity, line.note]);
     }
 
-    await client.query(
-      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'created',$2,$3)`,
-      [order.id, req.terminal.terminal_id, now]
-    );
+    await logOrderEvent(client, { orderId: order.id, branchId: order.branch_id, event: 'created', terminal: req.terminal, created_at: now });
 
     const responseBody = { order: await fetchOrder(order.id, client) };
     await recordIdempotentResponse(client, client_mutation_id, 'create_order', order.id, 201, responseBody);
@@ -410,10 +420,7 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), require
 
     const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(`UPDATE pos_orders SET status = 'sent_to_kitchen', sent_to_kitchen_at = $1, updated_at = $1 WHERE id = $2`, [now, id]);
-    await client.query(
-      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'sent_to_kitchen',$2,$3)`,
-      [id, req.terminal.terminal_id, now]
-    );
+    await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'sent_to_kitchen', terminal: req.terminal, created_at: now });
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
@@ -439,19 +446,18 @@ router.patch('/orders/:id/name', requireTerminalAuth(['pos']), requireCsrf, asyn
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
       return res.status(404).json({ message: 'Order not found.' });
     }
-    if (isStaleVersion(base_version, orderRes.rows[0].version)) {
-      return res.status(409).json({
-        message: 'This order changed since you went offline.', conflict: true,
-        current: await fetchOrder(id), attempted: { name },
-      });
-    }
+    // Non-blocking notice, not a rejection (POS revision, 2026-08-02): a
+    // stale base_version still gets applied (last-write-wins) -- the caller
+    // just gets told so it can toast "this order changed elsewhere" instead
+    // of silently overwriting with no signal.
+    const wasStale = isStaleVersion(base_version, orderRes.rows[0].version);
 
     const result = await pool.query(
       `UPDATE pos_orders SET name = $1, version = version + 1, updated_at = $2 WHERE id = $3 AND branch_id = $4 RETURNING id`,
       [(name || '').trim() || null, toCambodiaTime(new Date()), id, req.terminal.branch_id]
     );
     if (!result.rowCount) return res.status(404).json({ message: 'Order not found.' });
-    res.json({ order: await fetchOrder(id) });
+    res.json({ order: await fetchOrder(id), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) });
   } catch (err) {
     console.error('POS order rename error:', err);
     res.status(500).json({ error: err.message });
@@ -477,12 +483,7 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCs
     if (order.dining_option === DINE_IN_LABEL && !tableNum) {
       return res.status(400).json({ message: 'table_number is required for dine-in orders.' });
     }
-    if (isStaleVersion(base_version, order.version)) {
-      return res.status(409).json({
-        message: 'This order changed since you went offline.', conflict: true,
-        current: await fetchOrder(id), attempted: { table_number: tableNum },
-      });
-    }
+    const wasStale = isStaleVersion(base_version, order.version);
     if (tableNum) await assertTableNumberAvailable(pool, req.terminal.branch_id, tableNum, id);
 
     await pool.query(
@@ -490,7 +491,7 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCs
       [tableNum, toCambodiaTime(new Date()), id]
     );
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(id) });
+    res.json({ order: await fetchOrder(id), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) });
   } catch (err) {
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS table-number error:', err);
@@ -523,18 +524,13 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireC
     if (dining_option === DINE_IN_LABEL && !orderRes.rows[0].table_number) {
       return res.status(400).json({ message: 'Set a table number before switching this order to dine-in.' });
     }
-    if (isStaleVersion(base_version, orderRes.rows[0].version)) {
-      return res.status(409).json({
-        message: 'This order changed since you went offline.', conflict: true,
-        current: await fetchOrder(id), attempted: { dining_option },
-      });
-    }
+    const wasStale = isStaleVersion(base_version, orderRes.rows[0].version);
 
     await pool.query(
       `UPDATE pos_orders SET dining_option = $1, version = version + 1, updated_at = $2 WHERE id = $3`,
       [dining_option, toCambodiaTime(new Date()), id]
     );
-    res.json({ order: await fetchOrder(id) });
+    res.json({ order: await fetchOrder(id), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) });
   } catch (err) {
     console.error('POS dining-option error:', err);
     res.status(500).json({ error: err.message });
@@ -599,10 +595,7 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
                 subtotal = $2, total = $3, version = version + 1, updated_at = $1 WHERE id = $4`,
         [now, newSubtotal, newTotal, id]
       );
-      await client.query(
-        `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'items_added_after_ready',$2,$3)`,
-        [id, req.terminal.terminal_id, now]
-      );
+      await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'items_added_after_ready', terminal: req.terminal, created_at: now });
     } else {
       await client.query(
         `UPDATE pos_orders SET subtotal = $1, total = $2, version = version + 1, updated_at = $3 WHERE id = $4`,
@@ -626,104 +619,61 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
   }
 });
 
-router.patch('/order-items/:id', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
-  const id = parseId(req.params.id);
-  const qty = parseInt(req.body.quantity, 10);
-  const { base_version } = req.body;
-  if (!id) return res.status(400).json({ message: 'Invalid item id.' });
-  if (!Number.isInteger(qty) || qty < 1 || qty > 100) {
-    return res.status(400).json({ message: 'quantity must be a number between 1 and 100.' });
-  }
+// Cancel Item -- replaces the old qty stepper (PATCH) and remove-line (DELETE)
+// routes with one code path (POS revision, 2026-08-02). Deliberately no role
+// gate and NO kitchen_status check of any kind: cancelling/reducing a line
+// that's already 'preparing' or 'done' must always succeed -- that's the
+// specific rule that silently didn't work before and is why this endpoint
+// exists. qty omitted = remove the whole line; qty = how much to remove (not
+// the resulting quantity).
+router.post('/orders/:id/items/:itemId/cancel', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
+  const orderId = parseId(req.params.id);
+  const itemId  = parseId(req.params.itemId);
+  const { reason } = req.body;
+  if (!orderId || !itemId) return res.status(400).json({ message: 'Invalid order or item id.' });
+  if (tooLong(reason, 200)) return res.status(400).json({ message: 'reason is too long (max 200 characters).' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const itemRes = await client.query('SELECT * FROM pos_order_items WHERE id = $1 FOR UPDATE', [id]);
+    const itemRes = await client.query('SELECT * FROM pos_order_items WHERE id = $1 AND order_id = $2 FOR UPDATE', [itemId, orderId]);
     if (!itemRes.rows.length) throw httpError(404, 'Order item not found.');
     const item = itemRes.rows[0];
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [item.order_id]);
+    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [orderId]);
     const order = orderRes.rows[0];
-    if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order item not found.');
+    if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
     if (TERMINAL.has(order.status)) throw httpError(409, `Cannot edit items on a ${order.status} order.`);
-    if (item.kitchen_status === 'done') throw httpError(409, "This item has already been prepared and can't be changed.");
-    // Scoped to this ITEM's own version, not the whole order -- a concurrent
-    // edit to a *different* line on the same order must never conflict here.
-    if (isStaleVersion(base_version, item.version)) {
-      await client.query('COMMIT'); // read-only so far, nothing to roll back
-      return res.status(409).json({
-        message: 'This item changed since you went offline.', conflict: true,
-        current: item, attempted: { quantity: qty },
-      });
+
+    const qtyToRemove = req.body.qty === undefined ? item.quantity : parseInt(req.body.qty, 10);
+    if (!Number.isInteger(qtyToRemove) || qtyToRemove < 1 || qtyToRemove > item.quantity) {
+      throw httpError(400, `qty must be a number between 1 and ${item.quantity}.`);
+    }
+    const remaining = item.quantity - qtyToRemove;
+
+    if (remaining <= 0) {
+      const countRes = await client.query('SELECT COUNT(*) AS n FROM pos_order_items WHERE order_id = $1', [orderId]);
+      if (parseInt(countRes.rows[0].n, 10) <= 1) {
+        throw httpError(409, 'Cannot remove the last item — cancel the order instead.');
+      }
+      await client.query('DELETE FROM pos_order_items WHERE id = $1', [itemId]);
+    } else {
+      await client.query('UPDATE pos_order_items SET quantity = $1, version = version + 1 WHERE id = $2', [remaining, itemId]);
     }
 
-    await client.query('UPDATE pos_order_items SET quantity = $1, version = version + 1 WHERE id = $2', [qty, id]);
-
-    const itemsRes  = await client.query('SELECT price, quantity FROM pos_order_items WHERE order_id = $1', [order.id]);
+    const itemsRes  = await client.query('SELECT price, quantity FROM pos_order_items WHERE order_id = $1', [orderId]);
     const newSubtotal = itemsRes.rows.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
     const newTotal     = Math.max(0, newSubtotal - Number(order.discount));
-    const now = toCambodiaTime(new Date());
+    const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(
       `UPDATE pos_orders SET subtotal = $1, total = $2, version = version + 1, updated_at = $3 WHERE id = $4`,
-      [newSubtotal, newTotal, now, order.id]
+      [newSubtotal, newTotal, now, orderId]
     );
 
-    await client.query('COMMIT');
-    broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(order.id) });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    const status = err.statusCode || 500;
-    if (status >= 500) console.error('POS order-item quantity error:', err);
-    res.status(status).json({ message: err.message });
-  } finally {
-    client.release();
-  }
-});
-
-router.delete('/order-items/:id', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
-  const id = parseId(req.params.id);
-  const { base_version } = req.body;
-  if (!id) return res.status(400).json({ message: 'Invalid item id.' });
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const itemRes = await client.query('SELECT * FROM pos_order_items WHERE id = $1 FOR UPDATE', [id]);
-    if (!itemRes.rows.length) throw httpError(404, 'Order item not found.');
-    const item = itemRes.rows[0];
-
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [item.order_id]);
-    const order = orderRes.rows[0];
-    if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order item not found.');
-    if (TERMINAL.has(order.status)) throw httpError(409, `Cannot edit items on a ${order.status} order.`);
-    if (item.kitchen_status === 'done') throw httpError(409, "This item has already been prepared and can't be removed.");
-    if (isStaleVersion(base_version, item.version)) {
-      await client.query('COMMIT'); // read-only so far, nothing to roll back
-      return res.status(409).json({
-        message: 'This item changed since you went offline.', conflict: true,
-        current: item, attempted: { deleted: true },
-      });
-    }
-
-    const countRes = await client.query('SELECT COUNT(*) AS n FROM pos_order_items WHERE order_id = $1', [order.id]);
-    if (parseInt(countRes.rows[0].n, 10) <= 1) {
-      throw httpError(409, 'Cannot remove the last item — cancel the order instead.');
-    }
-
-    await client.query('DELETE FROM pos_order_items WHERE id = $1', [id]);
-
-    const itemsRes  = await client.query('SELECT price, quantity FROM pos_order_items WHERE order_id = $1', [order.id]);
-    const newSubtotal = itemsRes.rows.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
-    const newTotal     = Math.max(0, newSubtotal - Number(order.discount));
-    const now = toCambodiaTime(new Date());
-    await client.query(
-      `UPDATE pos_orders SET subtotal = $1, total = $2, version = version + 1, updated_at = $3 WHERE id = $4`,
-      [newSubtotal, newTotal, now, order.id]
-    );
-
+    // Carried over from the old DELETE route: if every remaining KDS-relevant
+    // item is already done, auto-advance the order to 'ready' -- this REACTS
+    // to kitchen_status, it never blocks on it.
     const allItemsRes = await client.query(`
       SELECT poi.kitchen_status
       FROM pos_order_items poi
@@ -733,23 +683,29 @@ router.delete('/order-items/:id', requireTerminalAuth(['pos']), requireCsrf, asy
           SELECT 1 FROM kds_terminal_categories ktc
           WHERE ktc.category_id = COALESCE(i.custom_category_id, i.category_id)
         )
-    `, [order.id]);
+    `, [orderId]);
     const allDone = allItemsRes.rows.length > 0 && allItemsRes.rows.every(i => i.kitchen_status === 'done');
     if (allDone && order.status !== 'ready' && order.status !== 'served' && !TERMINAL.has(order.status)) {
-      await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, order.id]);
-      await client.query(
-        `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'ready',$2,$3)`,
-        [order.id, req.terminal.terminal_id, now]
-      );
+      await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, orderId]);
+      await logOrderEvent(client, { orderId, branchId: order.branch_id, event: 'ready', terminal: req.terminal, created_at: now });
     }
+
+    await logOrderEvent(client, {
+      orderId, branchId: order.branch_id, event: 'item_cancelled', terminal: req.terminal, created_at: now,
+      detail: {
+        item_id: itemId, item_name: item.item_name,
+        qty_removed: qtyToRemove, qty_remaining: Math.max(0, remaining),
+        reason: reason || null,
+      },
+    });
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(order.id) });
+    res.json({ order: await fetchOrder(orderId) });
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
-    if (status >= 500) console.error('POS order-item delete error:', err);
+    if (status >= 500) console.error('POS cancel item error:', err);
     res.status(status).json({ message: err.message });
   } finally {
     client.release();
@@ -861,10 +817,7 @@ async function completeOrder(req, res) {
 
     await client.query(`UPDATE pos_orders SET receipt_id = $1 WHERE id = $2`, [receiptId, id]);
 
-    await client.query(
-      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'paid',$2,$3)`,
-      [id, req.terminal.terminal_id, now]
-    );
+    await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'paid', terminal: req.terminal, created_at: now });
 
     const change = payment_method === 'cash' ? Number((cashReceivedVal - Number(order.total)).toFixed(0)) : 0;
     const responseBody = { order: await fetchOrder(id, client), receipt_number: receiptNumber, change };
@@ -914,10 +867,7 @@ router.post('/orders/:id/ready-to-bill', requireTerminalAuth(['pos']), requireCs
       `UPDATE pos_orders SET status = 'awaiting_payment', version = version + 1, updated_at = $1 WHERE id = $2`,
       [now, id]
     );
-    await client.query(
-      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'awaiting_payment',$2,$3)`,
-      [id, req.terminal.terminal_id, now]
-    );
+    await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'awaiting_payment', terminal: req.terminal, created_at: now });
 
     const responseBody = { order: await fetchOrder(id, client) };
     await recordIdempotentResponse(client, req.body.client_mutation_id, 'ready_to_bill', id, 200, responseBody);
@@ -935,7 +885,10 @@ router.post('/orders/:id/ready-to-bill', requireTerminalAuth(['pos']), requireCs
   }
 });
 
-router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireTerminalRole('supervisor'), requireCsrf, async (req, res) => {
+// Any order or supervisor terminal in the branch may cancel any open order --
+// no role gate, no kitchen_status check (POS revision, 2026-08-02). The
+// accountability mechanism is the audit row below, not an access restriction.
+router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   const { reason } = req.body;
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
@@ -951,23 +904,15 @@ router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireTerminalR
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
     if (!canTransition(order.status, 'cancelled')) throw httpError(409, `Cannot cancel a ${order.status} order.`);
 
-    const doneItemsRes = await client.query(
-      `SELECT 1 FROM pos_order_items WHERE order_id = $1 AND kitchen_status = 'done' LIMIT 1`,
-      [id]
-    );
-    if (doneItemsRes.rows.length) {
-      throw httpError(409, 'Cannot cancel — some items are already prepared. Use a refund from the dashboard instead.');
-    }
-
     const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(
       `UPDATE pos_orders SET status = 'cancelled', cancelled_at = $1, cancel_reason = $2, updated_at = $1 WHERE id = $3`,
       [now, reason || null, id]
     );
-    await client.query(
-      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'cancelled',$2,$3)`,
-      [id, req.terminal.terminal_id, now]
-    );
+    await logOrderEvent(client, {
+      orderId: id, branchId: order.branch_id, event: 'cancelled', terminal: req.terminal, created_at: now,
+      detail: { order_total: order.total, reason: reason || null },
+    });
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
@@ -1172,10 +1117,7 @@ router.patch('/order-items/:id/kitchen-status', requireTerminalAuth(['kds']), re
 
     if (allDone && order.status !== 'ready' && order.status !== 'served' && !TERMINAL.has(order.status)) {
       await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, order.id]);
-      await client.query(
-        `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'ready',$2,$3)`,
-        [order.id, req.terminal.terminal_id, now]
-      );
+      await logOrderEvent(client, { orderId: order.id, branchId: order.branch_id, event: 'ready', terminal: req.terminal, created_at: now });
     } else if (order.status === 'sent_to_kitchen' && status !== 'pending') {
       // Kitchen starting work on any line bumps the order itself into
       // 'preparing' so the order-level state machine can later advance to
@@ -1252,10 +1194,7 @@ router.post('/orders/:id/ready', requireTerminalAuth(['kds']), requireCsrf, asyn
 
     if (fullyReady) {
       await client.query('UPDATE pos_orders SET status = $1, updated_at = $2 WHERE id = $3', ['ready', now, id]);
-      await client.query(
-        `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'ready',$2,$3)`,
-        [id, req.terminal.terminal_id, now]
-      );
+      await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'ready', terminal: req.terminal, created_at: now });
     }
     // else: this station's part is done, but other station(s) still have
     // pending items -- no status change, order stays visible everywhere.
@@ -1289,10 +1228,7 @@ router.post('/orders/:id/served', requireTerminalAuth(['kds']), requireCsrf, asy
 
     const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query('UPDATE pos_orders SET status = $1, served_at = $2, updated_at = $2 WHERE id = $3', ['served', now, id]);
-    await client.query(
-      `INSERT INTO pos_order_events (order_id, event, actor, created_at) VALUES ($1,'served',$2,$3)`,
-      [id, req.terminal.terminal_id, now]
-    );
+    await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'served', terminal: req.terminal, created_at: now });
 
     await client.query('COMMIT');
     broadcastOrdersChanged();

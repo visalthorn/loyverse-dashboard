@@ -187,6 +187,7 @@
     <div class="flex gap-2" id="receiptSourceTabs">
       <button id="receiptTabLoyverse" onclick="switchReceiptSource('loyverse')" class="receipt-source-tab" data-i18n="receipts.tabLoyverse">Loyverse</button>
       <button id="receiptTabOwn" onclick="switchReceiptSource('own')" class="receipt-source-tab active" data-i18n="receipts.tabOwn">Own Receipts</button>
+      <button id="receiptTabCancellations" onclick="switchReceiptSource('cancellations')" class="receipt-source-tab" data-i18n="receipts.tabCancellations">Cancellations</button>
     </div>
 
     <!-- Own-POS: branch filter (shown only on the Own tab) -->
@@ -231,8 +232,66 @@
       </div>
     </div>
 
+    <!-- Cancellations tab (shown only when that tab is active) -->
+    <div id="cancellationsSection" class="hidden space-y-4">
+      <div class="card">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div id="cancellationsBranchFilterMount"></div>
+          <div id="cancellationsDateFilterMount"></div>
+          <div>
+            <label class="block text-xs text-[color:var(--text-secondary)] mb-1" data-i18n="receipts.terminal">Terminal</label>
+            <select id="cancellationsTerminalFilter" class="filter-input" onchange="onCancellationsTerminalChange(this.value)">
+              <option value="" data-i18n="receipts.typeAll">All</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title mb-3" data-i18n="receipts.cancelledOrders">🚫 Cancelled Orders</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left">
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thDate">Date</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thBranch">Branch</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.terminal">Terminal</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thOrder">Order</th>
+                <th class="pb-2 pr-3 font-medium text-right" data-i18n="receipts.thTotal">Total</th>
+                <th class="pb-2 font-medium" data-i18n="receipts.reason">Reason</th>
+              </tr>
+            </thead>
+            <tbody id="cancelledOrdersTbody">
+              <tr><td colspan="6" class="empty-state" data-i18n="receipts.loading">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title mb-3" data-i18n="receipts.cancelledItems">✂️ Cancelled / Reduced Items</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left">
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thDate">Date</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thBranch">Branch</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.terminal">Terminal</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thOrder">Order</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.detail">Detail</th>
+                <th class="pb-2 font-medium" data-i18n="receipts.reason">Reason</th>
+              </tr>
+            </thead>
+            <tbody id="cancelledItemsTbody">
+              <tr><td colspan="6" class="empty-state" data-i18n="receipts.loading">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Main two-column layout -->
-    <div class="receipts-layout">
+    <div class="receipts-layout" id="receiptsLayoutSection">
 
       <!-- Left: list + filters -->
       <div class="space-y-4">
