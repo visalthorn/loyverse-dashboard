@@ -201,13 +201,16 @@ function fmtLastLogin(ts) {
 
 function renderTerminals() {
   const tbody = getEl('terminalsTableBody');
+  const warning = getEl('noSupervisorWarning');
   if (!tbody) return;
   if (!terminalBranchId) {
-    tbody.innerHTML = `<tr><td colspan="5" class="py-10 text-center text-[color:var(--text-secondary)]">${t('branches.selectBranchFirst')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-center text-[color:var(--text-secondary)]">${t('branches.selectBranchFirst')}</td></tr>`;
+    if (warning) warning.classList.add('hidden');
     return;
   }
   if (!terminals.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="py-10 text-center text-[color:var(--text-secondary)]">${t('branches.noTerminals')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-center text-[color:var(--text-secondary)]">${t('branches.noTerminals')}</td></tr>`;
+    if (warning) warning.classList.add('hidden');
     return;
   }
   const isPos = terminalTab === 'pos';
@@ -222,6 +225,13 @@ function renderTerminals() {
         </button>
         ${isLocked(term) ? `<button onclick="unlockTerminal(${term.id})" class="badge" style="cursor:pointer;background:var(--loss-soft, var(--bg-surface-alt));color:var(--loss);margin-left:4px;" title="${esc(new Date(term.locked_until).toLocaleString())}">${t('branches.lockedBadge')}</button>` : ''}
       </td>
+      <td class="py-2.5 pr-3 text-center">
+        ${isPos
+          ? `<button onclick="changeTerminalRole(${term.id})" class="badge" style="cursor:pointer;background:${term.role === 'supervisor' ? 'var(--accent-soft)' : 'var(--bg-surface-alt)'};color:${term.role === 'supervisor' ? 'var(--accent-strong)' : 'var(--text-muted)'}">
+              ${term.role === 'supervisor' ? t('branches.roleSupervisor') : t('branches.roleOrder')}
+            </button>`
+          : '<span class="text-[color:var(--text-muted)]">—</span>'}
+      </td>
       <td class="py-2.5 pr-3 text-xs text-[color:var(--text-secondary)]">${fmtLastLogin(term.last_login_at)}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
         <button onclick="resetTerminalPasscode(${term.id})" class="text-xs text-[color:var(--accent-strong)] hover:underline mr-3">${t('branches.resetPasscode')}</button>
@@ -229,6 +239,25 @@ function renderTerminals() {
         ${isPos ? '' : `<button onclick="openCategoriesModal(${term.id})" class="text-xs text-[color:var(--accent-strong)] hover:underline">${t('branches.categories')}</button>`}
       </td>
     </tr>`).join('');
+
+  if (warning) {
+    const noSupervisors = isPos && terminals.some(term => term.is_active) && !terminals.some(term => term.is_active && term.role === 'supervisor');
+    warning.classList.toggle('hidden', !noSupervisors);
+  }
+}
+
+export async function changeTerminalRole(id) {
+  const term = terminals.find(x => x.id === id);
+  if (!term) return;
+  const nextRole = term.role === 'supervisor' ? 'order' : 'supervisor';
+  const confirmMsg = nextRole === 'supervisor'
+    ? t('branches.makeSupervisorConfirm', { name: term.name || term.terminal_id })
+    : t('branches.makeOrderConfirm', { name: term.name || term.terminal_id });
+  const ok = await showConfirm(confirmMsg);
+  if (!ok) return;
+  const res = await apiPatch(`/api/pos-terminals/${id}/role`, { role: nextRole });
+  if (res.ok) loadTerminals();
+  else showToast(res.data.error || t('branches.saveFailed'), 'error');
 }
 
 export async function unlockTerminal(id) {
@@ -347,12 +376,20 @@ function buildModalShell(bodyHtml) {
 
 export function openCreateTerminalModal() {
   if (!terminalBranchId) { showToast(t('branches.selectBranchFirst'), 'error'); return; }
+  const isPos = terminalTab === 'pos';
   const overlay = buildModalShell(`
     <h2 style="margin:0 0 14px;font-size:16px;font-weight:700;">${t('branches.createTerminalTitle')}</h2>
     <input id="newTerminalId" type="text" maxlength="20" placeholder="${t('branches.terminalIdPlaceholder')}"
       class="field-input" style="margin-bottom:8px;text-transform:uppercase;"/>
     <input id="newTerminalName" type="text" maxlength="100" placeholder="${t('branches.terminalNamePlaceholder')}"
-      class="field-input" style="margin-bottom:16px;"/>
+      class="field-input" style="margin-bottom:${isPos ? '8px' : '16px'};"/>
+    ${isPos ? `
+    <select id="newTerminalRole" class="field-input" style="margin-bottom:4px;">
+      <option value="order">${t('branches.roleOrder')}</option>
+      <option value="supervisor">${t('branches.roleSupervisor')}</option>
+    </select>
+    <p style="font-size:11px;color:var(--text-secondary);margin:0 0 16px;">${t('branches.roleHelperText')}</p>
+    ` : ''}
     <div style="display:flex;gap:10px;">
       <button id="createTerminalCancelBtn" type="button" class="btn-ghost" style="flex:1;">${t('dialog.cancel')}</button>
       <button id="createTerminalSubmitBtn" type="button" class="btn-accent" style="flex:1;">${t('branches.createBtn')}</button>
@@ -362,8 +399,9 @@ export function openCreateTerminalModal() {
   overlay.querySelector('#createTerminalSubmitBtn').addEventListener('click', async () => {
     const terminalId = overlay.querySelector('#newTerminalId').value.trim().toUpperCase();
     const name       = overlay.querySelector('#newTerminalName').value.trim();
+    const role       = isPos ? overlay.querySelector('#newTerminalRole').value : undefined;
     if (!terminalId) { showToast(t('branches.terminalIdRequired'), 'error'); return; }
-    const res = await apiPost(`/api/branches/${terminalBranchId}/${terminalEndpoint()}`, { terminal_id: terminalId, name });
+    const res = await apiPost(`/api/branches/${terminalBranchId}/${terminalEndpoint()}`, { terminal_id: terminalId, name, role });
     if (res.ok) {
       overlay.remove();
       showToast(t('branches.terminalCreated'), 'success');

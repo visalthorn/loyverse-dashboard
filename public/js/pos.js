@@ -1,7 +1,7 @@
 import { getTerminalInfo, showTerminalLogin, terminalLogout, clearDeviceTerminalId, bootSession, startIdleWatch, lockNow } from './terminalAuth.js';
 import { fetchTerminalJSON as fetchJSON } from './terminalAuth.js';
 import { getEl } from './utils.js';
-import { showConfirm, showPrompt } from './dialog.js';
+import { showConfirm, showPrompt, showAlert } from './dialog.js';
 import { showToast } from './toast.js';
 import { printReceipt, printKitchenTicket, getBridgeUrl, setBridgeUrl, receiptHTML } from './print.js';
 import {
@@ -76,25 +76,21 @@ function cambodiaNaiveNow() {
   return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
-// ─── Ownership lock (offline only) ──────────────────────────────────────────
-// While this terminal is offline, it may only modify an order it created
-// itself -- pay stays open to any terminal regardless. Orders don't expose a
-// numeric terminal id to the client (deliberately -- see terminalAuth.js),
-// but every order already carries created_by = the terminal_id STRING code
-// it was made under, which the client already has from its own login.
-function isOwnOrder(order) {
-  if (!order) return true;
+// ─── Terminal role (POS audit, 2026-08-02) ──────────────────────────────────
+// Devices are fully shared now -- any terminal may edit any branch order,
+// online or offline (races are resolved by per-row version conflicts, see
+// offlineQueue.js/routes/pos.js, not by terminal identity). Only payment,
+// cancelling an unpaid order, and discounts are restricted, and that's
+// enforced server-side by requireTerminalRole -- this is UI convenience only
+// (hiding buttons that would 403) and must never be trusted as the control.
+function myRole() {
   const info = getTerminalInfo();
-  if (!info) return true;
-  if (order._queued) return true; // only this terminal could possibly have a still-local draft of it
-  return order.created_by === info.terminal_id;
+  return info ? info.role : null;
 }
+function isSupervisor() { return myRole() === 'supervisor'; }
 
-// Add items / adjust qty / remove item / cancel / rename / table# / dining
-// option all require ownership while offline. Pay does not -- callers check
-// pay separately (it's never blocked by this).
-function isOrderLocked(order) {
-  return isOffline() && !isOwnOrder(order);
+async function showSupervisorRequiredDialog() {
+  await showAlert('Ask a supervisor to complete this order at a supervisor terminal.', { title: 'Supervisor required' });
 }
 
 // ─── Catalog ──────────────────────────────────────────────────────────────
@@ -268,22 +264,22 @@ function editCartNote(idx) {
 
 async function changeSentItemQty(itemId, delta) {
   if (!currentOrder) return;
-  if (isOrderLocked(currentOrder)) { showToast('Offline — this order belongs to another terminal.', 'error'); return; }
   const item = currentOrder.items.find(i => i.id === itemId);
   if (!item) return;
   const newQty = item.quantity + delta;
   if (newQty < 1) { removeSentItem(itemId); return; }
-  const { ok, data } = await mutate(`/api/pos/order-items/${itemId}`, 'PATCH', { quantity: newQty });
+  const { ok, data } = await mutate(`/api/pos/order-items/${itemId}`, 'PATCH', { quantity: newQty, base_version: item.version });
   if (ok && data.order) { currentOrder = data.order; renderCart(); }
   else if (!ok) showToast(data.message || 'Failed to update item.', 'error');
 }
 
 async function removeSentItem(itemId) {
   if (!currentOrder) return;
-  if (isOrderLocked(currentOrder)) { showToast('Offline — this order belongs to another terminal.', 'error'); return; }
+  const item = currentOrder.items.find(i => i.id === itemId);
+  if (!item) return;
   const ok = await showConfirm('Remove this item from the order?', { danger: true, confirmText: 'Remove' });
   if (!ok) return;
-  const { ok: success, data } = await mutate(`/api/pos/order-items/${itemId}`, 'DELETE', null);
+  const { ok: success, data } = await mutate(`/api/pos/order-items/${itemId}`, 'DELETE', { base_version: item.version });
   if (success && data.order) { currentOrder = data.order; renderCart(); }
   else if (!success) showToast(data.message || 'Failed to remove item.', 'error');
 }
@@ -306,9 +302,8 @@ function renderCart() {
   if (!persisted.length && !cart.length) {
     list.innerHTML = '<div id="emptyCartMsg">Cart is empty — tap items to add.</div>';
   } else {
-    const locked = isOrderLocked(currentOrder);
     const persistedHTML = persisted.map(it => {
-      const editable = it.id != null && it.kitchen_status !== 'done' && !(currentOrder && currentOrder._queued) && !locked;
+      const editable = it.id != null && it.kitchen_status !== 'done' && !(currentOrder && currentOrder._queued);
       if (!editable) {
         return `
           <div class="cart-line sent">
@@ -368,20 +363,21 @@ function renderCart() {
   getEl('subtotalValue').textContent = khr(subtotal);
   getEl('totalValue').textContent    = khr(total);
 
-  const isLocked = isOrderLocked(currentOrder);
   const badge = getEl('orderBadge');
   badge.innerHTML = currentOrder
-    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}${isLocked ? ' · <span class="locked-badge">🔒 locked — offline</span>' : ''}`
+    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}`
     : 'New order (not yet sent)';
 
+  // Cancelling an unpaid order is supervisor-only (server enforces via
+  // requireTerminalRole -- this is just hiding a button that would 403).
   const hasDoneItem = !!(currentOrder && currentOrder.items && currentOrder.items.some(it => it.kitchen_status === 'done'));
-  getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status) && !hasDoneItem && !isLocked) ? 'block' : 'none';
+  getEl('cancelOrderBtn').style.display = (currentOrder && !['paid', 'cancelled'].includes(currentOrder.status) && !hasDoneItem && isSupervisor()) ? 'block' : 'none';
 
   // Saved but not yet sent (either the auto-send on save failed, or this is
   // a previously-saved order reopened from the strip) -- offer a manual
   // retry right where the cashier is already looking.
   const retryBtn = getEl('sendToKitchenRetryBtn');
-  if (retryBtn) retryBtn.style.display = (currentOrder && currentOrder.status === 'open' && !isLocked) ? 'flex' : 'none';
+  if (retryBtn) retryBtn.style.display = (currentOrder && currentOrder.status === 'open') ? 'flex' : 'none';
 
   saveDraft();
 }
@@ -402,13 +398,13 @@ function renderDiningOptions() {
 // the change server-side when there's a real order to update.
 async function onDiningOptionSelect(opt) {
   if (opt === diningOption) return;
-  if (isOrderLocked(currentOrder)) { showToast('Offline — this order belongs to another terminal.', 'error'); return; }
   diningOption = opt;
   renderDiningOptions();
   saveDraft();
   if (!currentOrder || currentOrder._queued) return;
-  const { ok, data } = await mutate(`/api/pos/orders/${currentOrder.id}/dining-option`, 'PATCH', { dining_option: opt });
+  const { ok, data } = await mutate(`/api/pos/orders/${currentOrder.id}/dining-option`, 'PATCH', { dining_option: opt, base_version: currentOrder.version });
   if (ok && data.order) { currentOrder = data.order; renderCart(); }
+  else if (!ok) showToast(data.message || 'Failed to update dining option.', 'error');
 }
 
 function onSearch(value) { searchTerm = value; renderItemGrid(); }
@@ -427,11 +423,10 @@ function onTableNumber(value) {
   getEl('tableNumber').classList.remove('invalid');
   saveDraft();
   if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
-  if (isOrderLocked(currentOrder)) { showToast('Offline — this order belongs to another terminal.', 'error'); return; }
   clearTimeout(tableNumberTimer);
   tableNumberTimer = setTimeout(async () => {
     const orderId = currentOrder.id;
-    const { ok, data, queued } = await mutate(`/api/pos/orders/${orderId}/table-number`, 'PATCH', { table_number: tableNumber });
+    const { ok, data, queued } = await mutate(`/api/pos/orders/${orderId}/table-number`, 'PATCH', { table_number: tableNumber, base_version: currentOrder.version });
     if (queued) {
       showToast('Offline — table number queued, will sync automatically.', 'error');
       return;
@@ -450,11 +445,10 @@ function onOrderName(value) {
   orderName = value;
   saveDraft();
   if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
-  if (isOrderLocked(currentOrder)) return; // silent -- typing feedback isn't the place for a toast, renderCart()'s badge already shows locked
   clearTimeout(renameTimer);
   renameTimer = setTimeout(async () => {
     const orderId = currentOrder.id;
-    const { ok, data } = await mutate(`/api/pos/orders/${orderId}/name`, 'PATCH', { name: orderName });
+    const { ok, data } = await mutate(`/api/pos/orders/${orderId}/name`, 'PATCH', { name: orderName, base_version: currentOrder.version });
     if (ok && data.order && currentOrder && currentOrder.id === orderId) {
       currentOrder = data.order;
       renderCart();
@@ -676,8 +670,12 @@ async function openPayModal() {
   getEl('payConfirmBtn').disabled = true;
   getEl('payModalTotal').textContent = khr(computeTotals().total);
 
+  // Offline: cash only -- there's no way to verify a QR scan without
+  // connectivity, so khqr/both aren't offered while the queue is holding
+  // this device's requests.
+  const availableMethods = isOffline() ? config.payment_methods.filter(m => m.code === 'cash') : config.payment_methods;
   const box = getEl('payMethodButtons');
-  box.innerHTML = config.payment_methods.map(m => `
+  box.innerHTML = availableMethods.map(m => `
     <button type="button" class="pay-method-btn" data-code="${m.code}">${m.label}</button>
   `).join('');
   box.querySelectorAll('.pay-method-btn').forEach(btn => {
@@ -728,8 +726,10 @@ function updateChange() {
   else hint.textContent = '';
 }
 
-// Pay is never ownership-gated -- any terminal at the branch may complete
-// any order, online or offline (see isOrderLocked()'s doc comment).
+// Payment requires a supervisor terminal, enforced server-side by
+// requireTerminalRole -- the Pay button itself only exists on a supervisor
+// terminal (see applyRoleUI), but a queued pay replaying after a dashboard
+// role change still needs a friendly surface instead of a raw 403.
 async function confirmPay() {
   if (!currentOrder || !selectedPayMethod) return;
   const total = computeTotals().total;
@@ -740,7 +740,7 @@ async function confirmPay() {
     body.khqr_received = total - cashReceived;
   }
 
-  const { ok, data, queued } = await mutate(`/api/pos/orders/${currentOrder.id}/pay`, 'POST', body, { idempotent: true });
+  const { ok, status, data, queued } = await mutate(`/api/pos/orders/${currentOrder.id}/pay`, 'POST', body, { idempotent: true });
 
   if (queued) {
     // Optimistic: the network is down, not the till — let the cashier keep
@@ -757,7 +757,11 @@ async function confirmPay() {
     return;
   }
 
-  if (!ok) { showToast(data.message || 'Payment failed.', 'error'); return; }
+  if (!ok) {
+    if (status === 403) { closePayModal(); showSupervisorRequiredDialog(); return; }
+    showToast(data.message || 'Payment failed.', 'error');
+    return;
+  }
 
   showToast(`Paid — ${data.order.order_number}`);
   printReceipt(data.order); // the one auto-print left: a completed sale should always hand over a receipt
@@ -789,10 +793,6 @@ function donePay() {
 async function cancelOrder() {
   if (orderLoading) { showToast('Still loading the order — try again in a moment.', 'error'); return; }
   if (!currentOrder) return;
-  if (isOrderLocked(currentOrder)) {
-    showToast('Offline — you can only cancel orders this terminal created.', 'error');
-    return;
-  }
 
   if (currentOrder._queued) {
     // Nothing has ever reached the server for this order -- just drop its
@@ -823,8 +823,46 @@ async function cancelOrder() {
     loadOpenOrders();
     return;
   }
-  if (!res.ok) { showToast(res.data.message || 'Failed to cancel order.', 'error'); return; }
+  if (!res.ok) {
+    if (res.status === 403) { showSupervisorRequiredDialog(); return; }
+    showToast(res.data.message || 'Failed to cancel order.', 'error');
+    return;
+  }
   showToast('Order cancelled.');
+  clearDraft();
+  resetPanel();
+  loadOpenOrders();
+}
+
+// Order-terminal counterpart to Pay -- pushes the order to awaiting_payment
+// instead of completing it, so a supervisor terminal picks up payment from
+// its To Settle list. No role gate: any order terminal may bill an order it
+// or another order terminal took.
+async function readyToBill() {
+  const ready = await ensureOrderPersisted();
+  if (!ready) return;
+  const total = computeTotals().total;
+  const ok = await showConfirm(`Ready to bill ${currentOrder.order_number} — total ${khr(total)}?`, { confirmText: 'Ready to Bill' });
+  if (!ok) return;
+
+  const { ok: success, status, data, queued } = await mutate(
+    `/api/pos/orders/${currentOrder.id}/ready-to-bill`, 'POST',
+    { client_time: new Date().toISOString() }, { idempotent: true }
+  );
+
+  if (queued) {
+    showToast(`Offline — will be billed once a supervisor is reached, ${currentOrder.order_number} queued.`, 'error');
+    clearDraft();
+    resetPanel();
+    loadOpenOrders();
+    return;
+  }
+  if (!success) {
+    if (status === 403) { showSupervisorRequiredDialog(); return; }
+    showToast(data.message || 'Failed to mark ready to bill.', 'error');
+    return;
+  }
+  showToast(`${data.order.order_number} sent for billing.`);
   clearDraft();
   resetPanel();
   loadOpenOrders();
@@ -863,6 +901,7 @@ function orderTableLabel(o) {
 // latter carries a mix of already-'done' and freshly-'pending' items, which
 // is exactly what distinguishes it from a first-time send.
 function orderStatusLabel(o) {
+  if (o.status === 'awaiting_payment') return { text: 'Awaiting Payment', cls: 'awaiting-payment' };
   if (o.status === 'served')    return { text: 'Finished', cls: 'finished' };
   if (o.status === 'ready')     return { text: 'Ready',    cls: 'ready' };
   if (o.status === 'preparing') return { text: 'Cooking',  cls: 'cooking' };
@@ -887,6 +926,11 @@ function formatSittingTime(ms) {
   return `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`;
 }
 
+// Toggled by the "To Settle" entry point (supervisor terminals only) --
+// reuses this same fetch/modal instead of a separate polling pipeline,
+// just pre-filtered to what a supervisor is settling. See openToSettle().
+let settleModeActive = false;
+
 async function loadOpenOrders() {
   const data = await fetchJSON('/api/pos/orders?status=active');
   const orders = data ? data.orders.slice() : [];
@@ -901,16 +945,28 @@ async function loadOpenOrders() {
   countEl.textContent = orders.length || '';
   countEl.dataset.count = String(orders.length);
 
+  const toSettle = orders.filter(o => o.status === 'awaiting_payment');
+  const settleCountEl = getEl('toSettleCount');
+  if (settleCountEl) {
+    settleCountEl.textContent = toSettle.length || '';
+    settleCountEl.dataset.count = String(toSettle.length);
+  }
+
   // Rebuilt every poll cycle regardless of whether the modal is open --
   // matches the previous strip's behavior and keeps the list correct the
   // instant it's opened, without a separate "is this visible" check.
+  const shownOrders = settleModeActive
+    ? [...toSettle, ...orders.filter(o => o.status === 'served')]
+        .sort((a, b) => (orderElapsedBaseMs(a) || 0) - (orderElapsedBaseMs(b) || 0)) // oldest first
+    : orders;
+
   const list = getEl('openOrdersList');
-  if (!orders.length) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:20px 0;">No open orders.</div>';
+  if (!shownOrders.length) {
+    list.innerHTML = `<div style="text-align:center;color:var(--text-secondary);padding:20px 0;">${settleModeActive ? 'Nothing to settle.' : 'No open orders.'}</div>`;
     return;
   }
   list.innerHTML = '';
-  orders.forEach(o => {
+  shownOrders.forEach(o => {
     const row = document.createElement('div');
     row.className = 'order-row-item';
     const title = o.name ? esc(o.name) : o.order_number;
@@ -918,12 +974,11 @@ async function loadOpenOrders() {
     const status = orderStatusLabel(o);
     const baseMs = orderElapsedBaseMs(o);
     const elapsedText = baseMs ? formatSittingTime(Date.now() + ordersClockOffsetMs - baseMs) : '';
-    const rowLocked = isOrderLocked(o);
     row.innerHTML = `
       <div>
         <div class="or-title">${title}</div>
         <div class="or-sub">
-          ${tableLabel ? `${tableLabel} · ` : ''}<span class="or-status-badge status-${status.cls}">${esc(status.text)}</span>${elapsedText ? ` · ${elapsedText}` : ''}${o._queued ? ' · offline' : ''}${rowLocked ? ' · <span class="locked-badge">🔒 locked</span>' : ''}
+          ${tableLabel ? `${tableLabel} · ` : ''}<span class="or-status-badge status-${status.cls}">${esc(status.text)}</span>${elapsedText ? ` · ${elapsedText}` : ''}${o._queued ? ' · offline' : ''}
         </div>
       </div>
       <span class="or-total">${khr(o.total)}</span>
@@ -944,8 +999,22 @@ async function loadOpenOrders() {
   });
 }
 
-function openOrdersModal()  { getEl('ordersModal').classList.add('open'); }
-function closeOrdersModal() { getEl('ordersModal').classList.remove('open'); }
+function openOrdersModal() {
+  settleModeActive = false;
+  getEl('ordersModalTitle').textContent = 'Open Orders';
+  loadOpenOrders();
+  getEl('ordersModal').classList.add('open');
+}
+function openToSettle() {
+  settleModeActive = true;
+  getEl('ordersModalTitle').textContent = 'To Settle';
+  loadOpenOrders();
+  getEl('ordersModal').classList.add('open');
+}
+function closeOrdersModal() {
+  settleModeActive = false;
+  getEl('ordersModal').classList.remove('open');
+}
 
 async function loadOrderIntoPanel(id) {
   orderLoading = true;
@@ -999,10 +1068,7 @@ onReplayRejected((entry, data) => {
   loadOpenOrders();
 });
 
-// Re-render whenever connectivity flips so the ownership lock (renderCart's
-// "locked — offline" badge, disabled steppers) updates immediately rather
-// than waiting on the next unrelated re-render.
-onConnectivityChange(() => { if (currentOrder) renderCart(); updateStatusChip(); });
+onConnectivityChange(() => updateStatusChip());
 
 onQueueChange((pendingCount, deadCount) => updateStatusChip(pendingCount, deadCount));
 
@@ -1067,6 +1133,21 @@ function summarizeUrl(url) {
   return url.replace('/api/pos', '').replace(/^\/orders\//, 'order ').replace(/^\/order-items\//, 'item ');
 }
 
+// Human-readable diff for a version-conflict dead-letter (see
+// isStaleVersion in routes/pos.js) -- built from this entry's own attempted
+// body against the fresh server row it was rejected against, so staff see
+// exactly what changed instead of a generic 409 message.
+const CONFLICT_FIELD_LABELS = { name: 'name', table_number: 'table number', dining_option: 'dining option', quantity: 'quantity' };
+function describeConflict(e) {
+  if (!e.conflict) return null;
+  if (e.method === 'DELETE') return 'This item changed since you went offline — check before removing it again.';
+  const cur = e.conflictCurrent;
+  const body = e.body || {};
+  const fields = Object.keys(CONFLICT_FIELD_LABELS).filter(f => f in body);
+  if (!cur || !fields.length) return 'This order changed since you went offline.';
+  return fields.map(f => `${CONFLICT_FIELD_LABELS[f]} is now "${cur[f] ?? '—'}" (you had "${body[f] ?? '—'}")`).join('; ');
+}
+
 async function renderSyncPanel() {
   const { pending, dead } = await getQueueSnapshot();
   getEl('syncPanelLastSync').textContent = fmtLastSync();
@@ -1085,7 +1166,7 @@ async function renderSyncPanel() {
     ? dead.map(e => `
         <div class="sync-item sync-item--dead">
           <div class="sync-item-main">${esc(e.method)} ${esc(summarizeUrl(e.url))}</div>
-          <div class="sync-item-sub">${esc(e.lastError || 'Rejected')}</div>
+          <div class="sync-item-sub">${esc(describeConflict(e) || e.lastError || 'Rejected')}</div>
           <div class="sync-item-actions">
             <button type="button" class="inv-btn" data-retry="${e.id}">Retry</button>
             <button type="button" class="inv-btn" data-discard="${e.id}">Discard</button>
@@ -1215,6 +1296,7 @@ function closeReceipts() {
 }
 
 window.posOpenOrdersModal     = openOrdersModal;
+window.posOpenToSettle        = openToSettle;
 window.posCloseOrdersModal    = closeOrdersModal;
 window.posOpenReceipts        = openReceipts;
 window.posCloseReceipts       = closeReceipts;
@@ -1250,6 +1332,7 @@ window.posOnCashReceived  = onCashReceived;
 window.posCashQuick       = cashQuick;
 window.posCashExact       = cashExact;
 window.posConfirmPay      = confirmPay;
+window.posReadyToBill     = readyToBill;
 window.posReprintReceipt  = reprintReceipt;
 window.posDonePay         = donePay;
 window.posCancelOrder     = cancelOrder;
@@ -1274,6 +1357,22 @@ document.addEventListener('click', (e) => {
 
 window.posToggleNavMenu = toggleNavMenu;
 
+// Role is fixed for the life of a terminal session (a dashboard role change
+// only takes effect for THAT terminal's next request/login, not this
+// already-open tab) -- set once at boot rather than re-derived on every
+// renderCart(). Order terminals get "Ready to Bill" instead of Pay, and only
+// see the To Settle entry point if they're a supervisor.
+function applyRoleUI(info) {
+  const supervisor = info && info.role === 'supervisor';
+  const payBtn = getEl('payBtn');
+  if (payBtn) {
+    payBtn.textContent = supervisor ? '💳 Pay' : '🧾 Ready to Bill';
+    payBtn.onclick = supervisor ? openPayModal : readyToBill;
+  }
+  const settleBtn = getEl('toSettleBtn');
+  if (settleBtn) settleBtn.style.display = supervisor ? '' : 'none';
+}
+
 let appStarted = false;
 
 async function startApp(terminal, idleTimeoutMinutes) {
@@ -1281,6 +1380,7 @@ async function startApp(terminal, idleTimeoutMinutes) {
   const nameEl = getEl('navMenuTerminalName');
   if (nameEl && info) nameEl.textContent = info.name || info.terminal_id;
   if (info) document.title = info.name || info.terminal_id;
+  applyRoleUI(info);
 
   const configData = await fetchJSON('/api/pos/config');
   if (configData) config = configData;

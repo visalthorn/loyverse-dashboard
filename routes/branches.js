@@ -138,7 +138,7 @@ router.get('/:id/pos-terminals', async (req, res) => {
   if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
   try {
     const result = await pool.query(
-      `SELECT id, terminal_id, name, is_active, last_login_at, locked_until, created_at
+      `SELECT id, terminal_id, name, is_active, role, last_login_at, locked_until, created_at
        FROM pos_terminals WHERE branch_id = $1 AND deleted_at IS NULL ORDER BY terminal_id`,
       [branchId]
     );
@@ -154,6 +154,7 @@ router.post('/:id/pos-terminals', async (req, res) => {
   if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
   const terminalId = (req.body.terminal_id || '').trim();
   const name = (req.body.name || '').trim() || null;
+  const role = req.body.role === 'supervisor' ? 'supervisor' : 'order';
   if (!terminalId || terminalId.length > 20) {
     return res.status(400).json({ error: 'terminal_id is required (max 20 characters).' });
   }
@@ -161,10 +162,10 @@ router.post('/:id/pos-terminals', async (req, res) => {
     const passcode = generatePasscode();
     const hash = await bcrypt.hash(passcode, 10);
     const result = await pool.query(
-      `INSERT INTO pos_terminals (branch_id, terminal_id, name, passcode_hash, created_by)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, terminal_id, name, is_active, created_at`,
-      [branchId, terminalId, name, hash, req.user.username]
+      `INSERT INTO pos_terminals (branch_id, terminal_id, name, passcode_hash, created_by, role)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, terminal_id, name, is_active, role, created_at`,
+      [branchId, terminalId, name, hash, req.user.username, role]
     );
     res.status(201).json({ terminal: result.rows[0], passcode });
   } catch (err) {

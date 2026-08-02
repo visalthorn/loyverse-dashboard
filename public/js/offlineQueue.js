@@ -11,7 +11,7 @@ import { getCsrfToken, refreshSession, terminalLogout } from './terminalAuth.js'
 // Queue entry shape:
 //   { id (autoincrement), url, method, body, clientMutationId,
 //     localId, dependsOnLocalId, status: 'pending'|'dead',
-//     attempt, nextAttemptAt, lastError, createdAt }
+//     attempt, nextAttemptAt, lastError, conflict, conflictCurrent, createdAt }
 //
 // - clientMutationId: attached to body.client_mutation_id for
 //   idempotency-sensitive endpoints (create order, append items, pay) --
@@ -30,6 +30,11 @@ import { getCsrfToken, refreshSession, terminalLogout } from './terminalAuth.js'
 //   someone else while this device was offline) -- requires explicit staff
 //   action (retry or discard) from the queue panel, never auto-retried and
 //   never silently dropped.
+// - conflict / conflictCurrent: set on a dead-letter caused specifically by
+//   an optimistic-concurrency version mismatch (see routes/pos.js
+//   isStaleVersion) -- conflictCurrent is the fresh server row, letting the
+//   dead-letter panel render a readable diff against this entry's own
+//   `body` instead of just the raw rejection message.
 
 const DB_NAME       = 'pos_offline_db';
 const DB_VERSION    = 1;
@@ -387,9 +392,13 @@ async function drainOnce() {
 
     // 4xx -- a real business-rule rejection once the world changed (or a
     // stale request). Requires a human to look at it -- never auto-retried,
-    // never silently dropped.
+    // never silently dropped. A version conflict (POS audit, 2026-08-02)
+    // carries the fresh server row so the dead-letter panel can render a
+    // readable diff instead of just the raw message.
     entry.status = 'dead';
     entry.lastError = result.data.message || `Rejected (${result.status})`;
+    entry.conflict = result.data.conflict === true;
+    entry.conflictCurrent = result.data.current || null;
     await idbPut(entry);
     deadLettered++; progress = true;
     if (replayRejectedListener) replayRejectedListener(entry, result.data);

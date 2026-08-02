@@ -52,6 +52,27 @@ router.post('/kds-terminals/:id/reset-passcode', async (req, res) => {
   }
 });
 
+router.patch('/pos-terminals/:id/role', async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) return res.status(404).json({ error: 'Terminal not found' });
+  const { role } = req.body;
+  if (role !== 'order' && role !== 'supervisor') {
+    return res.status(400).json({ error: "role must be 'order' or 'supervisor'." });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE pos_terminals SET role = $1, updated_at = NOW()
+       WHERE id = $2 AND deleted_at IS NULL RETURNING id, role`,
+      [role, id]
+    );
+    if (!result.rowCount) return res.status(404).json({ error: 'Terminal not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('pos-terminal role error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.patch('/pos-terminals/:id/toggle', async (req, res) => {
   const id = parseId(req.params.id);
   if (id === null) return res.status(404).json({ error: 'Terminal not found' });

@@ -41,20 +41,22 @@
     padding: 0 16px;
     background: var(--bg-surface); border-bottom: 1px solid var(--border);
   }
-  #openOrdersBtn {
+  #openOrdersBtn, #toSettleBtn {
     position: relative; flex: 0 0 auto; height: 48px; padding: 0 18px;
     border-radius: 10px; border: 1px solid var(--border-strong);
     background: var(--bg-surface-alt); color: var(--text-primary);
     font-weight: 600; font-size: 13px; cursor: pointer;
   }
-  #openOrdersBtn .count-badge {
+  #openOrdersBtn .count-badge, #toSettleBtn .count-badge {
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 20px; height: 20px; padding: 0 5px; margin-left: 8px;
     border-radius: 10px; background: var(--accent); color: var(--accent-contrast);
     font-size: 11px; font-weight: 700; font-family: var(--font-num); vertical-align: middle;
   }
   #openOrdersBtn .count-badge:empty,
-  #openOrdersBtn .count-badge[data-count="0"] { display: none; }
+  #openOrdersBtn .count-badge[data-count="0"],
+  #toSettleBtn .count-badge:empty,
+  #toSettleBtn .count-badge[data-count="0"] { display: none; }
   /* Vertical order list (inside #ordersModal) -- replaces the old horizontal
      chip strip, which stopped being scannable once more than a few orders
      were open at once. */
@@ -72,6 +74,7 @@
   .or-status-badge.status-cooking     { color: var(--accent-strong); }
   .or-status-badge.status-ready       { color: var(--gain); }
   .or-status-badge.status-finished    { color: var(--text-secondary); }
+  .or-status-badge.status-awaiting-payment { color: var(--accent-strong); }
   .order-row-item .chip-reprint {
     position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
     width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border);
@@ -339,8 +342,6 @@
   .sync-status-chip.chip-attention { background: #b45309;       color: #fff; }
   .sync-status-chip.chip-syncing   { background: var(--accent); color: var(--accent-contrast); }
 
-  .locked-badge { color: var(--loss); }
-
   #syncPanelModal {
     position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
     align-items: center; justify-content: center; z-index: 500;
@@ -399,6 +400,7 @@
 
   <div id="topStrip">
     <button id="openOrdersBtn" onclick="window.posOpenOrdersModal()">📋 Orders<span id="openOrdersCount" class="count-badge" data-count="0"></span></button>
+    <button id="toSettleBtn" style="display:none;" onclick="window.posOpenToSettle()">💵 To Settle<span id="toSettleCount" class="count-badge" data-count="0"></span></button>
     <button id="newOrderBtn" onclick="window.posNewOrder()">+ New Order</button>
     <button id="navMenuBtn" onclick="window.posToggleNavMenu()" title="Menu">☰</button>
   </div>
@@ -526,7 +528,7 @@
 
 <div id="ordersModal">
   <div id="ordersModalCard">
-    <h2 style="margin:0 0 12px;font-size:18px;">Open Orders</h2>
+    <h2 id="ordersModalTitle" style="margin:0 0 12px;font-size:18px;">Open Orders</h2>
     <div id="openOrdersList" style="max-height:60vh;overflow-y:auto;margin-bottom:12px;"></div>
     <div class="modal-actions" style="margin-top:8px;">
       <button type="button" onclick="window.posCloseOrdersModal()" style="flex:1;height:48px;border-radius:10px;border:1px solid var(--border-strong);background:none;color:var(--text-primary);cursor:pointer;">Close</button>

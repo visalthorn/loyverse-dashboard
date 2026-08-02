@@ -120,7 +120,10 @@ router.post('/login', terminalLoginRateLimit, async (req, res) => {
     );
     const deviceId = deviceRes.rows[0].id;
 
-    const terminalInfo = { type, terminal_id: record.terminal_id, branch_id: record.branch_id, name: record.name };
+    const terminalInfo = {
+      type, terminal_id: record.terminal_id, branch_id: record.branch_id, name: record.name,
+      role: type === 'pos' ? record.role : null,
+    };
 
     res.cookie('cm_device', rawDeviceToken, deviceCookieOpts());
     mintSessionCookie(res, { ...terminalInfo, id: record.id }, deviceId);
@@ -161,7 +164,10 @@ router.post('/session/refresh', async (req, res) => {
       [new Date(Date.now() + DEVICE_TOKEN_MS), device.id]
     );
 
-    const terminalInfo = { type: device.terminal_type, terminal_id: record.terminal_id, branch_id: record.branch_id, name: record.name };
+    const terminalInfo = {
+      type: device.terminal_type, terminal_id: record.terminal_id, branch_id: record.branch_id, name: record.name,
+      role: device.terminal_type === 'pos' ? record.role : null,
+    };
 
     res.cookie('cm_device', rawDeviceToken, deviceCookieOpts()); // slide the browser-side expiry too
     mintSessionCookie(res, { ...terminalInfo, id: record.id }, device.id);
