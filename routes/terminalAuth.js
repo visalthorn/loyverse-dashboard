@@ -121,7 +121,7 @@ router.post('/login', terminalLoginRateLimit, async (req, res) => {
     const deviceId = deviceRes.rows[0].id;
 
     const terminalInfo = {
-      type, terminal_id: record.terminal_id, branch_id: record.branch_id, name: record.name,
+      id: record.id, type, terminal_id: record.terminal_id, branch_id: record.branch_id, name: record.name,
       role: type === 'pos' ? record.role : null,
     };
 
@@ -165,7 +165,7 @@ router.post('/session/refresh', async (req, res) => {
     );
 
     const terminalInfo = {
-      type: device.terminal_type, terminal_id: record.terminal_id, branch_id: record.branch_id, name: record.name,
+      id: record.id, type: device.terminal_type, terminal_id: record.terminal_id, branch_id: record.branch_id, name: record.name,
       role: device.terminal_type === 'pos' ? record.role : null,
     };
 

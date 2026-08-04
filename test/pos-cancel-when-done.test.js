@@ -55,19 +55,29 @@ test('setup: create an order with one line', async () => {
   assert.equal(body.order.items.length, 1);
 });
 
-test('cancel is blocked once the item is done', async () => {
+// Deliberately no kitchen_status gate on order-level cancel either (POS
+// revision, 2026-08-02, see the comment above router.post('/orders/:id/cancel')
+// in routes/pos.js): any order/supervisor terminal may cancel any open order
+// regardless of item prep state. Accountability is the pos_order_events audit
+// row, not an access restriction.
+test('cancel succeeds even once the item is done, and is recorded in the audit log', async () => {
   await pool.query(`UPDATE pos_order_items SET kitchen_status = 'done' WHERE id = $1`, [itemId]);
+  const res = await fetch(`${base}/api/pos/orders/${orderId}/cancel`, authed({ method: 'POST', body: JSON.stringify({ reason: 'customer left' }) }));
+  assert.equal(res.status, 200);
+
+  const order = await pool.query(`SELECT status FROM pos_orders WHERE id = $1`, [orderId]);
+  assert.equal(order.rows[0].status, 'cancelled');
+
+  const event = await pool.query(
+    `SELECT detail FROM pos_order_events WHERE order_id = $1 AND event = 'cancelled' ORDER BY id DESC LIMIT 1`, [orderId]
+  );
+  assert.equal(event.rows.length, 1);
+  assert.equal(event.rows[0].detail.reason, 'customer left');
+});
+
+test('cancelling an already-cancelled order is rejected', async () => {
   const res = await fetch(`${base}/api/pos/orders/${orderId}/cancel`, authed({ method: 'POST', body: JSON.stringify({}) }));
   assert.equal(res.status, 409);
   const body = await res.json();
-  assert.match(body.message, /already prepared/i);
-
-  const order = await pool.query(`SELECT status FROM pos_orders WHERE id = $1`, [orderId]);
-  assert.equal(order.rows[0].status, 'open');
-});
-
-test('cancel succeeds once the item is back to pending', async () => {
-  await pool.query(`UPDATE pos_order_items SET kitchen_status = 'pending' WHERE id = $1`, [itemId]);
-  const res = await fetch(`${base}/api/pos/orders/${orderId}/cancel`, authed({ method: 'POST', body: JSON.stringify({}) }));
-  assert.equal(res.status, 200);
+  assert.equal(body.code, 'ORDER_TERMINAL');
 });

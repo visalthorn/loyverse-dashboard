@@ -18,8 +18,12 @@ before(async () => {
   branchId = branch.rows[0].id;
 
   const hash = await bcrypt.hash('000000', 10);
+  // role: 'supervisor' -- POST /orders/:id/pay and /complete require a
+  // supervisor terminal (see requireTerminalRole in routes/pos.js); this file
+  // is testing the pay/complete flow itself, not role gating (see
+  // pos-order-lock.test.js for that), so it needs a terminal allowed to pay.
   const term = await pool.query(`
-    INSERT INTO pos_terminals (name, branch_id, terminal_id, passcode_hash) VALUES ($1,$2,$3,$4) RETURNING id
+    INSERT INTO pos_terminals (name, branch_id, terminal_id, passcode_hash, role) VALUES ($1,$2,$3,$4,'supervisor') RETURNING id
   `, [`T-POS-${SUFFIX}`, branchId, `T-POS-${SUFFIX}`, hash]);
   terminalDbId = term.rows[0].id;
   terminalId = `T-POS-${SUFFIX}`;

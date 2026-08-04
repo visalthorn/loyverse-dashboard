@@ -17,6 +17,12 @@ function toCambodiaTime(date) {
   return dayjs.utc(date).tz(TZ).format('YYYY-MM-DD HH:mm:ss');
 }
 
+// e.g. "3:45 PM" -- used to auto-name a POS order at creation time (see
+// routes/pos.js), never staff-editable.
+function formatCambodiaClockTime(date) {
+  return dayjs.utc(date).tz(TZ).format('h:mm A');
+}
+
 function buildPeriodFilter(period, startDate, endDate, alias = 'r', firstParam = 1, colName = 'receipt_date') {
   const col = `${alias}.${colName}`;
   if (startDate && endDate) {
@@ -169,7 +175,7 @@ function getPrevPeriodDateRange(period, startDate, endDate) {
 }
 
 module.exports = {
-  toCambodiaTime,
+  toCambodiaTime, formatCambodiaClockTime,
   buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL,
   getPeriodDateRange, getPrevPeriodDateRange,
   growth,

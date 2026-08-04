@@ -6,7 +6,7 @@ const { jwtSecret } = require('../config');
 const app = require('../app');
 const pool = require('../db');
 
-let server, base, branchId, orderId, receiptId, refundId;
+let server, base, branchId, orderId, receiptId;
 const SUFFIX = Date.now();
 const adminToken = jwt.sign({ id: 1, username: 't-admin', role: 'admin' }, jwtSecret);
 const viewerToken = jwt.sign({ id: 2, username: 't-viewer', role: 'viewer' }, jwtSecret);
@@ -37,11 +37,6 @@ before(async () => {
 });
 
 after(async () => {
-  if (refundId) {
-    await pool.query(`DELETE FROM pos_receipt_payments WHERE receipt_id = $1`, [refundId]);
-    await pool.query(`DELETE FROM pos_receipt_items WHERE receipt_id = $1`, [refundId]);
-    await pool.query(`DELETE FROM pos_receipts WHERE id = $1`, [refundId]);
-  }
   await pool.query(`DELETE FROM pos_receipt_payments WHERE receipt_id = $1`, [receiptId]);
   await pool.query(`DELETE FROM pos_receipt_items WHERE receipt_id = $1`, [receiptId]);
   await pool.query(`DELETE FROM pos_receipts WHERE id = $1`, [receiptId]);
@@ -59,25 +54,28 @@ test('viewer cannot refund', async () => {
   assert.equal(res.status, 403);
 });
 
-test('admin refund inserts a new cancelled row and leaves the original untouched', async () => {
+test('admin refund marks the same row cancelled, no second row', async () => {
+  const before = await pool.query(`SELECT COUNT(*) AS n FROM pos_receipts WHERE order_id = $1`, [orderId]);
+  assert.equal(Number(before.rows[0].n), 1);
+
   const res = await fetch(`${base}/api/receipts/${receiptId}/refund`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
     body: JSON.stringify({ reason: 'Customer complaint' }),
   });
-  assert.equal(res.status, 201);
+  assert.equal(res.status, 200);
   const body = await res.json();
-  refundId = body.receipt_id;
-  assert.notEqual(refundId, receiptId);
+  assert.equal(body.receipt_id, receiptId);
 
-  const orig = await pool.query(`SELECT cancelled_at FROM pos_receipts WHERE id = $1`, [receiptId]);
-  assert.equal(orig.rows[0].cancelled_at, null);
+  const orig = await pool.query(`SELECT cancelled_at, cancel_reason, total FROM pos_receipts WHERE id = $1`, [receiptId]);
+  assert.notEqual(orig.rows[0].cancelled_at, null);
+  assert.equal(orig.rows[0].cancel_reason, 'Customer complaint');
+  assert.equal(Number(orig.rows[0].total), 9000);
 
-  const copy = await pool.query(`SELECT * FROM pos_receipts WHERE id = $1`, [refundId]);
-  assert.notEqual(copy.rows[0].cancelled_at, null);
-  assert.equal(Number(copy.rows[0].total), 9000);
-  assert.equal(copy.rows[0].order_id, orderId);
+  const after = await pool.query(`SELECT COUNT(*) AS n FROM pos_receipts WHERE order_id = $1`, [orderId]);
+  assert.equal(Number(after.rows[0].n), 1);
 
-  const items = await pool.query(`SELECT * FROM pos_receipt_items WHERE receipt_id = $1`, [refundId]);
+  // Items stayed on the original row -- nothing was copied to a new one.
+  const items = await pool.query(`SELECT * FROM pos_receipt_items WHERE receipt_id = $1`, [receiptId]);
   assert.equal(items.rows.length, 1);
 });
 

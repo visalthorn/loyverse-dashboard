@@ -63,19 +63,18 @@ test('branch filter narrows the result set', async () => {
   await pool.query(`DELETE FROM branches WHERE id = $1`, [otherBranch.rows[0].id]);
 });
 
-test('refundable is true for a fresh sale and false once refunded', async () => {
+test('refundable is true for a fresh sale, false and type REFUND once refunded', async () => {
   const res = await fetch(`${base}/api/receipts?source=own&per_page=500`, {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
   const body = await res.json();
   const row = body.receipts.find(r => r.id === receiptId);
   assert.equal(row.refundable, true);
+  assert.equal(row.receipt_type, 'SALE');
 
-  const refundRes = await pool.query(`
-    INSERT INTO pos_receipts (receipt_number, order_id, branch_id, dining_option, subtotal, discount, total, receipt_date, cancelled_at, created_by)
-    VALUES ($1,$2,$3,'ក្នុងហាង',7000,0,7000,NOW(),NOW(),'tester') RETURNING id
-  `, [`T-ORRF-${SUFFIX}`, orderId, branchId]);
-  const refundId = refundRes.rows[0].id;
+  // Refunding now flips this SAME row -- no sibling row is inserted (see
+  // routes/receipts.js POST /:id/refund, 2026-08-04).
+  await pool.query(`UPDATE pos_receipts SET cancelled_at = NOW(), cancel_reason = 'test' WHERE id = $1`, [receiptId]);
 
   const res2 = await fetch(`${base}/api/receipts?source=own&per_page=500`, {
     headers: { Authorization: `Bearer ${adminToken}` },
@@ -83,6 +82,9 @@ test('refundable is true for a fresh sale and false once refunded', async () => 
   const body2 = await res2.json();
   const row2 = body2.receipts.find(r => r.id === receiptId);
   assert.equal(row2.refundable, false);
+  assert.equal(row2.receipt_type, 'REFUND');
 
-  await pool.query(`DELETE FROM pos_receipts WHERE id = $1`, [refundId]);
+  // Still exactly one row for this order -- refunding never adds a second.
+  const count = await pool.query(`SELECT COUNT(*) AS n FROM pos_receipts WHERE order_id = $1`, [orderId]);
+  assert.equal(Number(count.rows[0].n), 1);
 });

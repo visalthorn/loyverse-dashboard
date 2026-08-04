@@ -43,6 +43,9 @@ after(async () => {
 });
 
 const authed = (opts = {}) => ({ ...opts, headers: { ...posHeaders, ...(opts.headers || {}) } });
+function cancelItem(itemId, body = {}) {
+  return fetch(`${base}/api/pos/orders/${orderId}/items/${itemId}/cancel`, authed({ method: 'POST', body: JSON.stringify(body) }));
+}
 
 test('setup: create an order with two lines and send to kitchen', async () => {
   const diningRow = await pool.query(`SELECT DISTINCT dining_option FROM receipts WHERE dining_option IS NOT NULL LIMIT 1`);
@@ -61,31 +64,33 @@ test('setup: create an order with two lines and send to kitchen', async () => {
   assert.equal(body.order.items.length, 2);
 });
 
-test('PATCH quantity recomputes order totals', async () => {
-  const res = await fetch(`${base}/api/pos/order-items/${itemId1}`, authed({ method: 'PATCH', body: JSON.stringify({ quantity: 5 }) }));
+// The old PATCH quantity / DELETE line routes were replaced by this single
+// cancel endpoint (POS revision, 2026-08-02, see routes/pos.js) -- qty is how
+// much to remove, not the resulting quantity.
+test('cancelling part of a line (qty < quantity) reduces it and recomputes totals', async () => {
+  const res = await cancelItem(itemId1, { qty: 1 }); // item1 starts at qty 2
   assert.equal(res.status, 200);
   const body = await res.json();
   const line1 = body.order.items.find(i => i.id === itemId1);
-  assert.equal(line1.quantity, 5);
-  assert.equal(Number(body.order.subtotal), 4000 * 5 + 4000 * 1);
+  assert.equal(line1.quantity, 1);
+  assert.equal(Number(body.order.subtotal), 4000 * 1 + 4000 * 1);
 });
 
-test('a done item cannot be changed', async () => {
+// Deliberately no kitchen_status gate (see the route's own comment): cancelling
+// a line already 'done' must succeed -- that's the specific rule this endpoint
+// exists to guarantee, unlike the old PATCH/DELETE routes it replaced.
+test('cancelling an item already marked done still succeeds (no kitchen_status gate, by design)', async () => {
   await pool.query(`UPDATE pos_order_items SET kitchen_status = 'done' WHERE id = $1`, [itemId1]);
-  const res = await fetch(`${base}/api/pos/order-items/${itemId1}`, authed({ method: 'PATCH', body: JSON.stringify({ quantity: 1 }) }));
-  assert.equal(res.status, 409);
-  await pool.query(`UPDATE pos_order_items SET kitchen_status = 'pending' WHERE id = $1`, [itemId1]);
-});
-
-test('DELETE removes a line and recomputes totals', async () => {
-  const res = await fetch(`${base}/api/pos/order-items/${itemId2}`, authed({ method: 'DELETE' }));
+  const res = await cancelItem(itemId1); // qty omitted = remove the whole remaining line
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.order.items.length, 1);
-  assert.equal(Number(body.order.subtotal), 4000 * 5);
+  assert.equal(Number(body.order.subtotal), 4000 * 1);
 });
 
-test('cannot delete the last remaining item', async () => {
-  const res = await fetch(`${base}/api/pos/order-items/${itemId1}`, authed({ method: 'DELETE' }));
+test('cannot cancel the last remaining item -- must cancel the order instead', async () => {
+  const res = await cancelItem(itemId2);
   assert.equal(res.status, 409);
+  const body = await res.json();
+  assert.match(body.message, /cancel the order instead/i);
 });

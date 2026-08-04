@@ -172,10 +172,6 @@
     font-family: var(--font-num);
   }
   #tableNumber.invalid { border-color: var(--loss); box-shadow: 0 0 0 1px var(--loss); }
-  #orderNameInput {
-    width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--border);
-    background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 14px;
-  }
   #sendToKitchenRetryBtn {
     width: 100%; height: 48px; border-radius: 10px; border: 2px solid var(--accent); background: var(--accent-soft);
     color: var(--accent-strong); font-size: 14px; font-weight: 700; cursor: pointer;
@@ -454,11 +450,6 @@
       <div>
         <div class="field-label">Table</div>
         <input id="tableNumber" type="text" inputmode="numeric" placeholder="Table #" oninput="window.posOnTableNumber(this.value)"/>
-      </div>
-
-      <div>
-        <div class="field-label">Order Name</div>
-        <input id="orderNameInput" type="text" maxlength="100" placeholder="Order name" oninput="window.posOnOrderName(this.value)"/>
       </div>
 
       <div id="cartList"></div>

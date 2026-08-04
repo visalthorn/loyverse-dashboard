@@ -17,6 +17,12 @@ module.exports = {
   // a person check, not a device check (Section 6 of the terminal-auth
   // redesign). Same for both terminal types.
   idleTimeoutMinutes:    { pos: 30, kds: 30 },
+  // How long a POS order-edit lock (pos_orders.locked_by_terminal_id) survives
+  // without a heartbeat before another terminal may claim it. Tunable in case
+  // 60s proves too short/long once this is used in real service -- too short
+  // and a terminal with a slow connection loses its own lock mid-edit; too
+  // long and a terminal that genuinely dropped offline strands the order.
+  posOrderLockTtlSeconds: Number(process.env.POS_ORDER_LOCK_TTL_SECONDS) || 60,
   isProd:                (process.env.ENV || 'UAT') === 'PROD',
   tz:                    'Asia/Phnom_Penh',
   env:                   process.env.ENV || 'UAT',

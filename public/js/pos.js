@@ -1,5 +1,5 @@
 import { getTerminalInfo, showTerminalLogin, terminalLogout, clearDeviceTerminalId, bootSession, startIdleWatch, lockNow } from './terminalAuth.js';
-import { fetchTerminalJSON as fetchJSON } from './terminalAuth.js';
+import { fetchTerminalJSON as fetchJSON, terminalApiPost } from './terminalAuth.js';
 import { getEl } from './utils.js';
 import { showConfirm, showPrompt, showAlert } from './dialog.js';
 import { showToast } from './toast.js';
@@ -43,10 +43,6 @@ let orderLoading       = false;
 // list doesn't drift by hours if the terminal's own clock/timezone differs.
 let ordersClockOffsetMs = 0;
 
-// Saved-order name: auto-filled with the time the order was started, freely
-// editable (e.g. to "Table 5") before or after saving.
-let orderName = '';
-
 function khr(n) {
   const num = Number(n) || 0;
   return '៛' + num.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -56,6 +52,11 @@ function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Order name is assigned at creation time and never staff-editable (matches
+// the server, which generates its own name the same way for an online
+// create -- see routes/pos.js). Only needed here for an offline-created
+// order's local stand-in, since there's no server round trip yet to assign
+// one for it.
 function defaultOrderName() {
   const time = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Phnom_Penh', hour: 'numeric', minute: '2-digit', hour12: true,
@@ -76,17 +77,22 @@ function cambodiaNaiveNow() {
   return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
-// ─── Terminal role (POS audit, 2026-08-02; revised 2026-08-02) ──────────────
-// Devices are fully shared -- any terminal may fetch, resume, edit, cancel an
-// item on, or cancel entirely any open order in the branch, online or
-// offline. Only completing PAYMENT is role-gated (requireTerminalRole on the
-// server) -- this client-side check is UI convenience only (hiding a button
-// that would 403) and must never be trusted as the control.
+// ─── Terminal role (POS audit, 2026-08-02; revised 2026-08-03) ──────────────
+// Any terminal may fetch, resume, or cancel entirely any open order in the
+// branch. Editing (items, table#, dining option) and completing payment
+// require actually holding the order's edit lock -- see the "Order edit
+// lock" section below -- with a supervisor terminal always able to override
+// a live lock. This client-side role check is UI convenience only (hiding a
+// button that would 403/409) and must never be trusted as the control.
 function myRole() {
   const info = getTerminalInfo();
   return info ? info.role : null;
 }
 function isSupervisor() { return myRole() === 'supervisor'; }
+function myTerminalId() {
+  const info = getTerminalInfo();
+  return info ? info.id : null;
+}
 
 async function showSupervisorRequiredDialog() {
   await showAlert('Ask a supervisor to complete this order at a supervisor terminal.', { title: 'Supervisor required' });
@@ -184,7 +190,7 @@ function draftKey() {
 
 function saveDraft() {
   try {
-    localStorage.setItem(draftKey(), JSON.stringify({ currentOrder, cart, diningOption, tableNumber, orderName }));
+    localStorage.setItem(draftKey(), JSON.stringify({ currentOrder, cart, diningOption, tableNumber }));
   } catch { /* storage full/disabled -- worst case the draft doesn't restore */ }
 }
 
@@ -213,11 +219,9 @@ function restoreDraftIfAny() {
   cart = draft.cart || [];
   diningOption = draft.diningOption || diningOption;
   tableNumber  = draft.tableNumber || '';
-  orderName    = draft.orderName || orderName;
 
   getEl('tableNumber').value = tableNumber;
   getEl('tableNumber').classList.remove('invalid');
-  getEl('orderNameInput').value = orderName;
   renderDiningOptions();
   renderCart();
   renderItemGrid();
@@ -326,6 +330,7 @@ async function confirmCancelItem() {
       renderCart();
       showToast(fullRemoval ? 'Item removed.' : `Quantity reduced by ${qty}.`);
     } else if (!ok) {
+      if (data.code === 'ORDER_TERMINAL') { handleOrderGoneConflict(data.message); return; }
       showToast(data.message || 'Failed to cancel item.', 'error');
     }
   } finally {
@@ -448,6 +453,7 @@ async function onDiningOptionSelect(opt) {
     renderCart();
     if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
   } else if (!ok) {
+    if (data.code === 'ORDER_TERMINAL' && currentOrder && currentOrder.id === orderId) { handleOrderGoneConflict(data.message); return; }
     showToast(data.message || 'Failed to update dining option.', 'error');
   }
 }
@@ -482,25 +488,8 @@ function onTableNumber(value) {
       renderCart();
       if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
     } else if (!ok) {
+      if (data.code === 'ORDER_TERMINAL' && currentOrder && currentOrder.id === orderId) { handleOrderGoneConflict(data.message); return; }
       showToast(data.message || 'Failed to update table number.', 'error');
-    }
-  }, 600);
-}
-
-let renameTimer = null;
-function onOrderName(value) {
-  orderName = value;
-  saveDraft();
-  if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
-  clearTimeout(renameTimer);
-  renameTimer = setTimeout(async () => {
-    if (!currentOrder) return; // panel was reset while this was pending
-    const orderId = currentOrder.id;
-    const { ok, data } = await mutate(`/api/pos/orders/${orderId}/name`, 'PATCH', { name: orderName, base_version: currentOrder.version });
-    if (ok && data.order && currentOrder && currentOrder.id === orderId) {
-      currentOrder = data.order;
-      renderCart();
-      if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
     }
   }, 600);
 }
@@ -508,21 +497,32 @@ function onOrderName(value) {
 // ─── Order lifecycle ───────────────────────────────────────────────────────
 
 function resetPanel() {
-  // Cancel any pending debounced table#/name save -- otherwise it fires
-  // later against whatever order (or no order) is on screen by then.
+  // Cancel any pending debounced table# save -- otherwise it fires later
+  // against whatever order (or no order) is on screen by then.
   clearTimeout(tableNumberTimer);
-  clearTimeout(renameTimer);
+  releaseOrderLock(currentOrder);
   currentOrder = null;
   cart = [];
   diningOption = config.dining_options[0] || null;
   tableNumber  = '';
-  orderName    = defaultOrderName();
   getEl('tableNumber').value  = '';
   getEl('tableNumber').classList.remove('invalid');
-  getEl('orderNameInput').value = orderName;
   renderDiningOptions();
   renderCart();
   renderItemGrid();
+}
+
+// A 409 tagged ORDER_TERMINAL means the order was already paid or cancelled
+// (by another terminal, or by this same order finishing through a path this
+// panel doesn't know about yet) by the time this action reached the server.
+// Continuing to edit it is pointless -- surface a clear reason instead of
+// the generic error text, and clear the stale cart/panel instead of leaving
+// it on screen inviting another failed retry.
+function handleOrderGoneConflict(message) {
+  showToast(message || 'This order was already completed or cancelled — clearing this screen.', 'error');
+  clearDraft();
+  resetPanel();
+  loadOpenOrders();
 }
 
 function pendingLinesPayload() {
@@ -542,7 +542,7 @@ function buildLocalOrder(localId, lines) {
   }));
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   return {
-    id: null, order_number: localId, provisional_number: localId, status: 'open', name: orderName || null,
+    id: null, order_number: localId, provisional_number: localId, status: 'open', name: defaultOrderName(),
     dining_option: diningOption, table_number: tableNumber || null,
     subtotal, discount: 0, total: subtotal,
     created_at: cambodiaNaiveNow(), items, _queued: true,
@@ -584,7 +584,7 @@ async function persistCart() {
     const lines = cart.slice();
     const { ok, data, queued } = await mutate('/api/pos/orders', 'POST', {
       dining_option: diningOption, table_number: tableNumber || null,
-      items: pendingLinesPayload(), name: orderName || null,
+      items: pendingLinesPayload(),
       provisional_number: localId, client_time: new Date().toISOString(),
     }, { idempotent: true, localId });
 
@@ -593,7 +593,7 @@ async function persistCart() {
       cart = [];
       return { ok: true, queued: true };
     }
-    if (!ok) return { ok: false, queued: false, message: data.message };
+    if (!ok) return { ok: false, queued: false, message: data.message, code: data.code };
     currentOrder = data.order;
     cart = [];
     return { ok: true, queued: false };
@@ -622,7 +622,7 @@ async function persistCart() {
     cart = [];
     return { ok: true, queued: true };
   }
-  if (!ok) return { ok: false, queued: false, message: data.message };
+  if (!ok) return { ok: false, queued: false, message: data.message, code: data.code };
   currentOrder = data.order;
   cart = [];
   return { ok: true, queued: false };
@@ -653,7 +653,11 @@ async function saveOrder() {
   try {
     const wasNew = !currentOrder;
     const result = await persistCart();
-    if (!result.ok) { showToast(result.message || 'Failed to save.', 'error'); return; }
+    if (!result.ok) {
+      if (result.code === 'ORDER_TERMINAL') { handleOrderGoneConflict(result.message); return; }
+      showToast(result.message || 'Failed to save.', 'error');
+      return;
+    }
 
     let savedOrder = currentOrder;
 
@@ -719,7 +723,11 @@ async function ensureOrderPersisted() {
   if (currentOrder && !cart.length) return true;
 
   const result = await persistCart();
-  if (!result.ok) { showToast(result.message || 'Failed to create order.', 'error'); return false; }
+  if (!result.ok) {
+    if (result.code === 'ORDER_TERMINAL') { handleOrderGoneConflict(result.message); return false; }
+    showToast(result.message || 'Failed to create order.', 'error');
+    return false;
+  }
   if (result.queued) {
     showToast(`Offline — order queued as ${currentOrder.order_number}. Pay once it syncs.`, 'error');
     return false;
@@ -839,6 +847,7 @@ async function confirmPay() {
 
   if (!ok) {
     if (status === 403) { closePayModal(); showSupervisorRequiredDialog(); return; }
+    if (data.code === 'ORDER_TERMINAL') { closePayModal(); handleOrderGoneConflict(data.message); return; }
     showToast(data.message || 'Payment failed.', 'error');
     return;
   }
@@ -909,6 +918,7 @@ async function cancelOrder() {
       return;
     }
     if (!res.ok) {
+      if (res.data.code === 'ORDER_TERMINAL') { handleOrderGoneConflict(res.data.message); return; }
       showToast(res.data.message || 'Failed to cancel order.', 'error');
       return;
     }
@@ -946,6 +956,7 @@ async function readyToBill() {
   }
   if (!success) {
     if (status === 403) { showSupervisorRequiredDialog(); return; }
+    if (data.code === 'ORDER_TERMINAL') { handleOrderGoneConflict(data.message); return; }
     showToast(data.message || 'Failed to mark ready to bill.', 'error');
     return;
   }
@@ -962,10 +973,8 @@ function applyOrderToPanel(order) {
   cart = [];
   diningOption = order.dining_option;
   tableNumber  = order.table_number || '';
-  orderName    = order.name || '';
   getEl('tableNumber').value   = tableNumber;
   getEl('tableNumber').classList.remove('invalid');
-  getEl('orderNameInput').value = orderName;
   renderDiningOptions();
   renderCart();
   renderItemGrid();
@@ -1024,6 +1033,7 @@ let settleModeActive = false;
 // quietly rendering "No open orders." forever.
 let openOrdersLoadFailed = false;
 async function loadOpenOrders() {
+  renewOrderLockHeartbeat();
   const data = await fetchJSON('/api/pos/orders?status=active');
   if (!data) {
     if (!openOrdersLoadFailed && !isOffline()) showToast('Could not refresh open orders — check connection.', 'error');
@@ -1072,11 +1082,17 @@ async function loadOpenOrders() {
     const status = orderStatusLabel(o);
     const baseMs = orderElapsedBaseMs(o);
     const elapsedText = baseMs ? formatSittingTime(Date.now() + ordersClockOffsetMs - baseMs) : '';
+    // Purely informational -- doesn't attempt to replicate the server's TTL
+    // staleness check (isLockStale() in routes/pos.js), so a lock that's
+    // actually just expired can still show its old holder for up to one more
+    // poll cycle. The real enforcement happens server-side on claim/edit.
+    const lockedByOther = o.locked_by_terminal_id && o.locked_by_terminal_id !== myTerminalId();
+    const lockBadge = lockedByOther ? ` · 🔒 ${esc(o.locked_by_terminal_name || 'another terminal')}` : '';
     row.innerHTML = `
       <div>
         <div class="or-title">${title}</div>
         <div class="or-sub">
-          ${tableLabel ? `${tableLabel} · ` : ''}<span class="or-status-badge status-${status.cls}">${esc(status.text)}</span>${elapsedText ? ` · ${elapsedText}` : ''}${o._queued ? ' · offline' : ''}
+          ${tableLabel ? `${tableLabel} · ` : ''}<span class="or-status-badge status-${status.cls}">${esc(status.text)}</span>${elapsedText ? ` · ${elapsedText}` : ''}${o._queued ? ' · offline' : ''}${lockBadge}
         </div>
       </div>
       <span class="or-total">${khr(o.total)}</span>
@@ -1084,7 +1100,7 @@ async function loadOpenOrders() {
     `;
     row.addEventListener('click', () => {
       if (o._queued) applyOrderToPanel(o);
-      else loadOrderIntoPanel(o.id);
+      else loadOrderIntoPanel(o.id, o);
       closeOrdersModal();
     });
     row.querySelector('.chip-reprint').addEventListener('click', async (e) => {
@@ -1114,12 +1130,62 @@ function closeOrdersModal() {
   getEl('ordersModal').classList.remove('open');
 }
 
-async function loadOrderIntoPanel(id) {
+// Claims the order-edit lock and opens it into the panel in one round trip
+// (the claim response carries the full fresh order, same shape as the old
+// plain GET this replaced). `fallbackOrder` is the summary row already on
+// screen from the last Open Orders poll -- used only if the claim can't
+// reach the server at all, so a genuinely offline terminal can still fall
+// back to best-effort local editing instead of being blocked outright (there
+// is no one to coordinate a lock with if this terminal can't reach the
+// server anyway).
+async function loadOrderIntoPanel(id, fallbackOrder) {
+  if (orderLoading) return;
+  // Switching straight from one open order to another (rather than via
+  // resetPanel()) would otherwise leave the first one locked by this
+  // terminal until the TTL catches up -- release it eagerly.
+  if (currentOrder && currentOrder.id && currentOrder.id !== id) releaseOrderLock(currentOrder);
   orderLoading = true;
-  const data = await fetchJSON(`/api/pos/orders/${id}`);
+  const { ok, status, data, networkError } = await terminalApiPost(`/api/pos/orders/${id}/claim`);
   orderLoading = false;
-  if (!data) { showToast('Could not open that order — try again.', 'error'); return; }
+
+  if (networkError) {
+    if (fallbackOrder) applyOrderToPanel(fallbackOrder);
+    else showToast('Offline — could not open that order.', 'error');
+    return;
+  }
+  if (!ok) {
+    if (status === 409 && data.code === 'ORDER_TERMINAL') {
+      showToast(data.message || 'This order was already completed or cancelled.', 'error');
+      loadOpenOrders();
+    } else {
+      // Covers ORDER_LOCKED (another terminal has it open) and any other
+      // rejection alike -- the message from the server is already specific.
+      showToast(data.message || 'Could not open that order — try again.', 'error');
+    }
+    return;
+  }
   applyOrderToPanel(data.order);
+}
+
+// Silent heartbeat -- renews this terminal's hold on whatever real order is
+// currently in the panel every time the Open Orders list refreshes (already
+// polling every ~15s, see OPEN_ORDERS_POLL_MS, which is what
+// posOrderLockTtlSeconds is tuned against server-side). Not awaited and its
+// failure is non-fatal: if the lock got taken by a supervisor override or
+// genuinely expired, the next actual edit attempt surfaces a clear 409
+// ORDER_LOCKED rather than this silently ripping an in-progress cart out
+// from under the cashier over one missed heartbeat.
+function renewOrderLockHeartbeat() {
+  if (!currentOrder || !currentOrder.id || currentOrder._queued) return;
+  terminalApiPost(`/api/pos/orders/${currentOrder.id}/claim`);
+}
+
+// Best-effort courtesy release so the next terminal doesn't have to wait out
+// the TTL -- not required for correctness (isLockStale() server-side is the
+// real backstop), so this is fire-and-forget and never queued offline.
+function releaseOrderLock(order) {
+  if (!order || !order.id || order._queued) return;
+  terminalApiPost(`/api/pos/orders/${order.id}/release`);
 }
 
 // ─── Offline queue wiring ───────────────────────────────────────────────────
@@ -1401,6 +1467,7 @@ async function switchTerminal() {
   // Forget the remembered terminal_id too -- switching implies logging into
   // a DIFFERENT terminal, so the next login screen should ask for it fresh
   // rather than pre-filling the one we're leaving.
+  releaseOrderLock(currentOrder);
   clearDeviceTerminalId();
   clearDraft();
   terminalLogout(); // clears the session and fires 'terminal-logged-out', which shows the login screen
@@ -1410,7 +1477,6 @@ async function switchTerminal() {
 
 window.posOnSearch        = onSearch;
 window.posOnTableNumber   = onTableNumber;
-window.posOnOrderName     = onOrderName;
 window.posSaveOrder       = saveOrder;
 window.posRetrySendToKitchen = retrySendToKitchen;
 window.posOpenPayModal    = openPayModal;

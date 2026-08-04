@@ -1,9 +1,16 @@
 -- migrations/013_pos_receipts.sql
--- Phase 8 (Revision 1): immutable financial record, split from the mutable
--- pos_orders operational table. Written ONCE at order completion inside the
--- same transaction as the pay/complete endpoint -- never UPDATEd afterward.
--- A refund is a brand-new row (see routes/receipts.js POST /:id/refund),
--- never a mutation of an existing row.
+-- Phase 8 (Revision 1): financial record, split from the mutable pos_orders
+-- operational table. Written at order completion inside the same
+-- transaction as the pay/complete endpoint.
+--
+-- UPDATE (2026-08-04): the original design here was a strictly immutable,
+-- write-once ledger -- a refund was a brand-new row (own receipt_number),
+-- the SALE row it referred back to via order_id left untouched forever. That
+-- diverged from how a refund should read for this table: routes/receipts.js
+-- POST /:id/refund now sets cancelled_at/cancel_reason directly on the SAME
+-- row instead, so a refunded order has exactly one pos_receipts row (its
+-- receipt_type, derived from cancelled_at, just flips SALE -> REFUND). Kept
+-- for history; don't rely on the "written once, never UPDATEd" claim below.
 --
 -- Same Cambodia-local timestamp convention as pos_orders (008): receipt_date/
 -- cancelled_at/created_at here are written by toCambodiaTime(), not raw
@@ -21,15 +28,14 @@ CREATE TABLE IF NOT EXISTS pos_receipts (
   order_id        INT NOT NULL REFERENCES pos_orders(id),
   branch_id       INT NOT NULL REFERENCES branches(id),
   pos_terminal_id INT REFERENCES pos_terminals(id),
-  -- NULL for a dashboard-issued refund row (no POS terminal involved).
   dining_option   VARCHAR(50) NOT NULL,
   subtotal        NUMERIC(12,0) NOT NULL,
   discount        NUMERIC(12,0) NOT NULL,
   total           NUMERIC(12,0) NOT NULL,
   receipt_date    TIMESTAMP NOT NULL,
   cancelled_at    TIMESTAMP NULL,
-  -- A refund is its own row with cancelled_at set (mirrors Loyverse) --
-  -- the original SALE row it refers back to via order_id is never touched.
+  -- Set directly on this row by a dashboard refund (see 2026-08-04 update
+  -- above) -- not a separate row anymore.
   cancel_reason   TEXT,
   created_by      VARCHAR(50),
   created_at      TIMESTAMP NOT NULL DEFAULT NOW()

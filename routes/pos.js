@@ -3,12 +3,13 @@ const router  = require('express').Router();
 const pool    = require('../db');
 const { requireTerminalAuth, requireTerminalRole, verifySessionToken } = require('../middleware/terminalAuth');
 const { requireCsrf } = require('../middleware/terminalCsrf');
-const { toCambodiaTime } = require('../utils/date');
+const { toCambodiaTime, formatCambodiaClockTime } = require('../utils/date');
 const { generateOrderNumber } = require('../services/pos/orderNumber');
 const { generateReceiptNumber } = require('../services/pos/receiptNumber');
 const { canTransition, TERMINAL } = require('../services/pos/stateMachine');
 const { findIdempotentResponse, recordIdempotentResponse } = require('../services/pos/idempotency');
 const { resolveActionTime } = require('../services/pos/offlineClock');
+const config = require('../config');
 
 const CATALOG_TTL_MS = 60 * 1000;
 let catalogCache = null; // { data, expiresAt }
@@ -54,9 +55,14 @@ const PAYMENT_METHOD_OPTIONS = [
   { code: 'both', label: 'Both' },
 ];
 
-function httpError(statusCode, message) {
+// `code` is an optional machine-readable tag (e.g. ORDER_TERMINAL) so the
+// client can react to specific failure shapes -- like an order having become
+// paid/cancelled out from under a still-open panel -- without parsing the
+// human-readable message text.
+function httpError(statusCode, message, code) {
   const err = new Error(message);
   err.statusCode = statusCode;
+  if (code) err.code = code;
   return err;
 }
 
@@ -80,6 +86,35 @@ function tooLong(str, max) {
 // Never rejects.
 function isStaleVersion(base_version, currentVersion) {
   return base_version !== undefined && base_version !== null && Number(base_version) !== currentVersion;
+}
+
+// ─── Order edit lock (POS revision, 2026-08-03) ─────────────────────────────
+// Hard-blocks a second POS terminal from editing/paying/cancelling an order
+// while another terminal has it open -- see migration 026. A lock is
+// considered gone (safe to claim/ignore) once its heartbeat is older than
+// config.posOrderLockTtlSeconds, so a terminal that drops offline or closes
+// its tab mid-edit never strands the order. Supervisor terminals always
+// bypass a live lock, same escalation pattern as requireTerminalRole for
+// payment.
+function isLockStale(lockedAt) {
+  if (!lockedAt) return true;
+  return (Date.now() - new Date(lockedAt).getTime()) > config.posOrderLockTtlSeconds * 1000;
+}
+function isLockedByOther(order, terminal) {
+  if (!order.locked_by_terminal_id) return false;
+  if (order.locked_by_terminal_id === terminal.id) return false;
+  if (terminal.role === 'supervisor') return false;
+  return !isLockStale(order.locked_at);
+}
+// Thrown from inside the same SELECT ... FOR UPDATE transaction every
+// mutating route already opens, so the lock check reads the same row the
+// TERMINAL-status check just read -- no separate round trip.
+function assertNotLockedByOther(order, terminal) {
+  if (isLockedByOther(order, terminal)) {
+    throw httpError(409,
+      `Locked by ${order.locked_by_terminal_name || 'another terminal'} -- ask them to release it, or use a supervisor terminal.`,
+      'ORDER_LOCKED');
+  }
 }
 
 // Only dine-in-shaped value seen in receipts.dining_option on this branch's
@@ -311,13 +346,12 @@ router.get('/orders/:id', requireTerminalAuth(['pos']), async (req, res) => {
 });
 
 router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
-  const { dining_option, table_number, discount, items, name, client_mutation_id, client_time, provisional_number } = req.body;
+  const { dining_option, table_number, discount, items, client_mutation_id, client_time, provisional_number } = req.body;
   if (!dining_option) return res.status(400).json({ message: 'dining_option is required.' });
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ message: 'At least one item is required.' });
   }
   if (tooLong(table_number, 20)) return res.status(400).json({ message: 'table_number is too long (max 20 characters).' });
-  if (tooLong(name, 100)) return res.status(400).json({ message: 'name is too long (max 100 characters).' });
   if (discount !== undefined && !Number.isFinite(Number(discount))) {
     return res.status(400).json({ message: 'discount must be a number.' });
   }
@@ -364,17 +398,30 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
     // this request happens to finally be processed -- otherwise an order
     // taken just before midnight but synced just after gets misattributed
     // to the wrong Cambodia business day. See services/pos/offlineClock.js.
-    const now = toCambodiaTime(resolveActionTime(client_time));
+    const actionTime = resolveActionTime(client_time);
+    const now = toCambodiaTime(actionTime);
+    // Order Name is always server-assigned at creation and never staff-
+    // editable (POS revision, 2026-08-03) -- a manually-typed name invited
+    // pre-order mislabeling (e.g. typed before the table/items were even
+    // settled) and there is no rename endpoint left for staff to reach.
+    const orderName = `Order ${formatCambodiaClockTime(actionTime)}`;
 
     // Saved as 'open' -- not yet visible to KDS. The client immediately
     // follows up with POST /orders/:id/send-to-kitchen; if that fails, the
     // order is still safely saved and can be retried or added to later.
+    // The creating terminal implicitly holds the edit lock from the moment
+    // the order exists -- no separate claim call needed for the terminal
+    // that's already looking right at it (see POST /orders/:id/claim below).
+    // locked_at is a real instant (server NOW()), not the naive Cambodia-local
+    // business timestamp `now` -- it backs the heartbeat/TTL comparison
+    // (posOrderLockTtlSeconds), which must measure real elapsed wall-clock
+    // time regardless of timezone, unlike created_at/updated_at.
     const orderRes = await client.query(`
       INSERT INTO pos_orders
-        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name, provisional_number)
-      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12)
+        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name, provisional_number, locked_by_terminal_id, locked_by_terminal_name, locked_at)
+      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$9,$13,NOW())
       RETURNING *
-    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, name || null, provisional_number || null]);
+    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, orderName, provisional_number || null, req.terminal.name]);
 
     const order = orderRes.rows[0];
 
@@ -397,9 +444,78 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS create order error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
+  }
+});
+
+// Claim the order-edit lock (POS revision, 2026-08-03) -- called when a
+// terminal opens an existing order into its panel, and again every ~15s
+// while it stays there (see OPEN_ORDERS_POLL_MS heartbeat in pos.js) to
+// renew locked_at. Idempotent for the current holder (a heartbeat is just a
+// re-claim), and always succeeds for a supervisor terminal or once the
+// previous holder's lock has gone stale -- see isLockedByOther() above.
+// Deliberately NOT run through the offline-queue mutate() wrapper on the
+// client: claiming a lock only means something while actually talking to
+// the server, so a claim attempt made while offline degrades to best-effort
+// local editing instead of being queued for later.
+router.post('/orders/:id/claim', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid order id.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
+      throw httpError(404, 'Order not found.');
+    }
+    const order = orderRes.rows[0];
+    if (TERMINAL.has(order.status)) {
+      throw httpError(409, `Cannot open a ${order.status} order.`, 'ORDER_TERMINAL');
+    }
+    assertNotLockedByOther(order, req.terminal);
+
+    await client.query(
+      `UPDATE pos_orders SET locked_by_terminal_id = $1, locked_by_terminal_name = $2, locked_at = NOW() WHERE id = $3`,
+      [req.terminal.id, req.terminal.name, id]
+    );
+    const responseBody = { order: await fetchOrder(id, client) };
+    await client.query('COMMIT');
+    res.json(responseBody);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    const status = err.statusCode || 500;
+    if (status >= 500) console.error('POS order claim error:', err);
+    res.status(status).json({ message: err.message, code: err.code });
+  } finally {
+    client.release();
+  }
+});
+
+// Explicit release, called when a terminal navigates away from the order it
+// was holding (panel reset, order paid/cancelled, etc.) -- best-effort, not
+// required for correctness: an abandoned lock is also cleared by the TTL in
+// isLockStale() above the moment another terminal actually needs it. Only
+// the current holder (or a supervisor) can release; anyone else's attempt is
+// silently a no-op rather than an error, since by the time this fires the
+// caller may no longer care about the outcome (e.g. sent via a "best effort,
+// don't block navigation" fire-and-forget on the client).
+router.post('/orders/:id/release', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Invalid order id.' });
+
+  try {
+    await pool.query(
+      `UPDATE pos_orders SET locked_by_terminal_id = NULL, locked_by_terminal_name = NULL, locked_at = NULL
+       WHERE id = $1 AND branch_id = $2 AND (locked_by_terminal_id = $3 OR $4)`,
+      [id, req.terminal.branch_id, req.terminal.id, req.terminal.role === 'supervisor']
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('POS order release error:', err);
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -439,56 +555,19 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), require
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS send-to-kitchen error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
 });
 
-// All three of these single-field PATCH routes now share the same shape:
-// BEGIN + SELECT ... FOR UPDATE so the staleness check and the write are
-// atomic against a concurrent PATCH/cancel/pay on the same order, instead of
-// two separate bare pool.query() calls racing each other.
-router.patch('/orders/:id/name', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
-  const id = parseId(req.params.id);
-  if (!id) return res.status(400).json({ message: 'Invalid order id.' });
-  const { name, base_version } = req.body;
-  if (tooLong(name, 100)) return res.status(400).json({ message: 'name is too long (max 100 characters).' });
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const orderRes = await client.query('SELECT status, branch_id, version FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
-    if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
-      throw httpError(404, 'Order not found.');
-    }
-    const order = orderRes.rows[0];
-    if (TERMINAL.has(order.status)) {
-      throw httpError(409, `Cannot rename a ${order.status} order.`);
-    }
-    // Non-blocking notice, not a rejection (POS revision, 2026-08-02): a
-    // stale base_version still gets applied (last-write-wins) -- the caller
-    // just gets told so it can toast "this order changed elsewhere" instead
-    // of silently overwriting with no signal.
-    const wasStale = isStaleVersion(base_version, order.version);
-
-    await client.query(
-      `UPDATE pos_orders SET name = $1, version = version + 1, updated_at = $2 WHERE id = $3`,
-      [(name || '').trim() || null, toCambodiaTime(new Date()), id]
-    );
-    const responseBody = { order: await fetchOrder(id, client), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) };
-    await client.query('COMMIT');
-    res.json(responseBody);
-  } catch (err) {
-    await client.query('ROLLBACK');
-    const status = err.statusCode || 500;
-    if (status >= 500) console.error('POS order rename error:', err);
-    res.status(status).json({ message: err.message });
-  } finally {
-    client.release();
-  }
-});
-
+// These single-field PATCH routes share the same shape: BEGIN + SELECT ...
+// FOR UPDATE so the staleness check and the write are atomic against a
+// concurrent PATCH/cancel/pay on the same order, instead of two separate
+// bare pool.query() calls racing each other.
+//
+// (There used to be a PATCH /orders/:id/name here too -- removed 2026-08-03
+// when Order Name became server-assigned-at-creation-only, see POST /orders.)
 router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCsrf, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
@@ -499,14 +578,16 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCs
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const orderRes = await client.query('SELECT status, branch_id, dining_option, version FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(
+      'SELECT status, branch_id, dining_option, version, locked_by_terminal_id, locked_by_terminal_name, locked_at FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
       throw httpError(404, 'Order not found.');
     }
     const order = orderRes.rows[0];
     if (TERMINAL.has(order.status)) {
-      throw httpError(409, `Cannot change table number on a ${order.status} order.`);
+      throw httpError(409, `Cannot change table number on a ${order.status} order.`, 'ORDER_TERMINAL');
     }
+    assertNotLockedByOther(order, req.terminal);
     if (order.dining_option === DINE_IN_LABEL && !tableNum) {
       throw httpError(400, 'table_number is required for dine-in orders.');
     }
@@ -525,7 +606,7 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCs
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS table-number error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
@@ -548,14 +629,16 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireC
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const orderRes = await client.query('SELECT status, branch_id, table_number, version FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(
+      'SELECT status, branch_id, table_number, version, locked_by_terminal_id, locked_by_terminal_name, locked_at FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
       throw httpError(404, 'Order not found.');
     }
     const order = orderRes.rows[0];
     if (TERMINAL.has(order.status)) {
-      throw httpError(409, `Cannot change dining option on a ${order.status} order.`);
+      throw httpError(409, `Cannot change dining option on a ${order.status} order.`, 'ORDER_TERMINAL');
     }
+    assertNotLockedByOther(order, req.terminal);
     if (dining_option === DINE_IN_LABEL && !order.table_number) {
       throw httpError(400, 'Set a table number before switching this order to dine-in.');
     }
@@ -572,7 +655,7 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireC
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS dining-option error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
@@ -602,7 +685,8 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
-    if (TERMINAL.has(order.status)) throw httpError(409, `Cannot add items to a ${order.status} order.`);
+    if (TERMINAL.has(order.status)) throw httpError(409, `Cannot add items to a ${order.status} order.`, 'ORDER_TERMINAL');
+    assertNotLockedByOther(order, req.terminal);
 
     const lines = await snapshotItems(client, items);
     for (const line of lines) {
@@ -654,7 +738,7 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS append items error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
@@ -685,7 +769,8 @@ router.post('/orders/:id/items/:itemId/cancel', requireTerminalAuth(['pos']), re
     const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [orderId]);
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
-    if (TERMINAL.has(order.status)) throw httpError(409, `Cannot edit items on a ${order.status} order.`);
+    if (TERMINAL.has(order.status)) throw httpError(409, `Cannot edit items on a ${order.status} order.`, 'ORDER_TERMINAL');
+    assertNotLockedByOther(order, req.terminal);
 
     const qtyToRemove = req.body.qty === undefined ? item.quantity : parseInt(req.body.qty, 10);
     if (!Number.isInteger(qtyToRemove) || qtyToRemove < 1 || qtyToRemove > item.quantity) {
@@ -747,7 +832,7 @@ router.post('/orders/:id/items/:itemId/cancel', requireTerminalAuth(['pos']), re
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS cancel item error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
@@ -781,7 +866,7 @@ async function completeOrder(req, res) {
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
-    if (!canTransition(order.status, 'paid')) throw httpError(409, `Cannot pay a ${order.status} order.`);
+    if (!canTransition(order.status, 'paid')) throw httpError(409, `Cannot pay a ${order.status} order.`, 'ORDER_TERMINAL');
 
     let cashReceivedVal = null;
     let khqrReceivedVal = null;
@@ -871,7 +956,7 @@ async function completeOrder(req, res) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS complete order error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
@@ -901,7 +986,8 @@ router.post('/orders/:id/ready-to-bill', requireTerminalAuth(['pos']), requireCs
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
-    if (!canTransition(order.status, 'awaiting_payment')) throw httpError(409, `Cannot bill a ${order.status} order.`);
+    if (!canTransition(order.status, 'awaiting_payment')) throw httpError(409, `Cannot bill a ${order.status} order.`, 'ORDER_TERMINAL');
+    assertNotLockedByOther(order, req.terminal);
 
     const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(
@@ -920,7 +1006,7 @@ router.post('/orders/:id/ready-to-bill', requireTerminalAuth(['pos']), requireCs
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS ready-to-bill error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
@@ -943,7 +1029,8 @@ router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireCsrf, asy
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
-    if (!canTransition(order.status, 'cancelled')) throw httpError(409, `Cannot cancel a ${order.status} order.`);
+    if (!canTransition(order.status, 'cancelled')) throw httpError(409, `Cannot cancel a ${order.status} order.`, 'ORDER_TERMINAL');
+    assertNotLockedByOther(order, req.terminal);
 
     const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(
@@ -962,7 +1049,7 @@ router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireCsrf, asy
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS cancel error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
@@ -1247,7 +1334,7 @@ router.post('/orders/:id/ready', requireTerminalAuth(['kds']), requireCsrf, asyn
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS ready error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }
@@ -1278,7 +1365,7 @@ router.post('/orders/:id/served', requireTerminalAuth(['kds']), requireCsrf, asy
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
     if (status >= 500) console.error('POS served error:', err);
-    res.status(status).json({ message: err.message });
+    res.status(status).json({ message: err.message, code: err.code });
   } finally {
     client.release();
   }

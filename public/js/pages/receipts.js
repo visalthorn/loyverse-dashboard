@@ -79,7 +79,14 @@ function renderStats() {
 
   const salesAmt  = salesRows.reduce((s, r)  => s + parseFloat(r.total_money || 0), 0);
   const refundAmt = refundRows.reduce((s, r) => s + parseFloat(r.total_money || 0), 0);
-  const totalAmt  = salesAmt - refundAmt;
+  // Own-POS refunds (receiptSource 'own') flip the one existing row straight
+  // from SALE to REFUND (routes/receipts.js POST /:id/refund) -- salesAmt
+  // above already excludes it once its type flips, so it must NOT also be
+  // subtracted here or it's double-counted out of the total. Loyverse-synced
+  // receipts still keep the original two-row shape (a standalone REFUND
+  // receipt alongside its untouched original SALE row), where subtracting
+  // is the correct way to net a partial-or-full refund back out.
+  const totalAmt = receiptSource === 'own' ? salesAmt : (salesAmt - refundAmt);
 
   const set = (id, val) => { const el = getEl(id); if (el) el.textContent = val; };
   set('statTotal',         allReceipts.length);
@@ -284,17 +291,8 @@ function renderTable() {
     const idx         = start + i + 1;
     const typeClass   = r.receipt_type === 'REFUND' ? 'badge-refund' : 'badge-sale';
     const typeLabel   = r.receipt_type === 'SALE' ? t('receipts.typeSale') : r.receipt_type === 'REFUND' ? t('receipts.typeRefund') : (r.receipt_type || '—');
-    // A refund never rewrites the original sale row (migration 013's "write
-    // once" rule) -- it's a separate REFUND row against the same order. So a
-    // sale that HAS been refunded still reads receipt_type SALE / is_canceled
-    // No forever; `refundable` flipping to false once a refund exists is the
-    // only signal, and without surfacing it here the original row looks
-    // untouched even though the money was returned.
-    const wasRefunded = r.receipt_type === 'SALE' && r.refundable === false;
     const cancelBadge = r.is_canceled === 'Yes'
       ? `<span class="badge badge-canceled">${t('receipts.yes')}</span>`
-      : wasRefunded
-      ? `<span class="badge badge-refund">${t('receipts.refundedBadge')}</span>`
       : '<span class="text-[color:var(--text-muted)] text-xs">—</span>';
     const sel = r.id === selectedId ? 'selected' : '';
 
@@ -365,11 +363,8 @@ export function selectReceipt(id) {
   const isRefund  = r.receipt_type === 'REFUND';
   const typeClass = isRefund ? 'val-loss' : 'val-gain';
   const typeLabel = isRefund ? t('receipts.typeRefund') : t('receipts.typeSale');
-  const wasRefunded = r.receipt_type === 'SALE' && r.refundable === false;
   const cancelNote = r.is_canceled === 'Yes'
     ? `<span class="badge badge-canceled ml-2">${t('receipts.canceledBadge')}</span>`
-    : wasRefunded
-    ? `<span class="badge badge-refund ml-2">${t('receipts.refundedBadge')}</span>`
     : '';
 
   const itemsHtml = items.map(it => `
@@ -599,9 +594,20 @@ async function loadLiveOrders() {
   });
 }
 
+// 5s, not 30s -- this view exists specifically so a manager can watch orders
+// change live; at 30s a qty edit or a new item looked "stuck" until the
+// viewer happened to click something else (expand/collapse) that triggered
+// an incidental extra fetch. No SSE push here (unlike KDS's /kds/stream):
+// that stream authenticates via the terminal's session cookie, and the
+// dashboard instead carries its JWT as a Bearer header -- EventSource can't
+// attach custom headers, and putting the token in the stream URL's query
+// string is exactly the log/proxy/history leak the KDS stream comment
+// explicitly avoids. A fast poll is the safe tradeoff until/unless the
+// dashboard gets its own cookie-based session to hang an SSE endpoint off of.
+const LIVE_ORDERS_POLL_MS = 5000;
 function startLiveOrdersPoll() {
   stopLiveOrdersPoll();
-  liveOrdersTimer = setInterval(loadLiveOrders, 30000);
+  liveOrdersTimer = setInterval(loadLiveOrders, LIVE_ORDERS_POLL_MS);
 }
 
 function stopLiveOrdersPoll() {

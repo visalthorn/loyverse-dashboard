@@ -2,7 +2,6 @@ const router = require('express').Router();
 const pool   = require('../db');
 const { requireAuth, requireWrite } = require('../middleware/auth');
 const { toCambodiaTime } = require('../utils/date');
-const { generateReceiptNumber } = require('../services/pos/receiptNumber');
 
 function httpError(statusCode, message) {
   const err = new Error(message);
@@ -56,10 +55,13 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// Dashboard-only refund: never UPDATEs the original pos_receipts row --
-// always INSERTs a brand-new row with cancelled_at set, copying items and
-// payment from the original. Mirrors how a real refund works and matches
-// the "written once, never updated" rule from migration 013.
+// Dashboard-only refund: marks the SAME pos_receipts row refunded
+// (cancelled_at + cancel_reason) rather than inserting a second row --
+// matches how the Loyverse-synced `receipts` table represents a refund
+// (cancelled_at on the one row), instead of the "write once, insert a
+// paired row" ledger this used to keep per migration 013. One row per
+// order from here on: receipt_type (derived from cancelled_at, see
+// getOwnReceipts below) just flips from SALE to REFUND in place.
 router.post('/:id/refund', requireAuth, requireWrite('receipts'), async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id)) return res.status(400).json({ message: 'Invalid receipt id.' });
@@ -69,47 +71,18 @@ router.post('/:id/refund', requireAuth, requireWrite('receipts'), async (req, re
   try {
     await client.query('BEGIN');
 
-    const origRes = await client.query('SELECT * FROM pos_receipts WHERE id = $1 FOR UPDATE', [id]);
+    const origRes = await client.query('SELECT id, cancelled_at FROM pos_receipts WHERE id = $1 FOR UPDATE', [id]);
     if (!origRes.rows.length) throw httpError(404, 'Receipt not found.');
-    const orig = origRes.rows[0];
-    if (orig.cancelled_at) throw httpError(409, 'This receipt has already been refunded.');
-
-    // The original row's cancelled_at is never set (migration 013 invariant),
-    // so "already refunded" can't be read off `orig` itself -- it has to be
-    // inferred from whether a refund row already exists for this order.
-    // Lock the order first so two concurrent refund requests for the same
-    // order_id serialize instead of racing past this check together.
-    await client.query('SELECT id FROM pos_orders WHERE id = $1 FOR UPDATE', [orig.order_id]);
-    const existingRefund = await client.query(
-      'SELECT id FROM pos_receipts WHERE order_id = $1 AND cancelled_at IS NOT NULL LIMIT 1',
-      [orig.order_id]
-    );
-    if (existingRefund.rows.length) throw httpError(409, 'This receipt has already been refunded.');
+    if (origRes.rows[0].cancelled_at) throw httpError(409, 'This receipt has already been refunded.');
 
     const now = toCambodiaTime(new Date());
-    const receiptNumber = await generateReceiptNumber(client);
-
-    const copyRes = await client.query(`
-      INSERT INTO pos_receipts
-        (receipt_number, order_id, branch_id, pos_terminal_id, dining_option, subtotal, discount, total, receipt_date, cancelled_at, cancel_reason, created_by)
-      VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$8,$9,$10)
-      RETURNING id
-    `, [receiptNumber, orig.order_id, orig.branch_id, orig.dining_option,
-        orig.subtotal, orig.discount, orig.total, now, reason, req.user.username]);
-    const refundId = copyRes.rows[0].id;
-
-    await client.query(`
-      INSERT INTO pos_receipt_items (receipt_id, sku, item_name, quantity, price, gross_total)
-      SELECT $1, sku, item_name, quantity, price, gross_total FROM pos_receipt_items WHERE receipt_id = $2
-    `, [refundId, id]);
-
-    await client.query(`
-      INSERT INTO pos_receipt_payments (receipt_id, payment_name, payment_type, money_amount, paid_at)
-      SELECT $1, payment_name, payment_type, money_amount, $2 FROM pos_receipt_payments WHERE receipt_id = $3
-    `, [refundId, now, id]);
+    await client.query(
+      `UPDATE pos_receipts SET cancelled_at = $1, cancel_reason = $2 WHERE id = $3`,
+      [now, reason, id]
+    );
 
     await client.query('COMMIT');
-    res.status(201).json({ receipt_id: refundId, receipt_number: receiptNumber });
+    res.json({ receipt_id: id });
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
@@ -151,9 +124,7 @@ async function getOwnReceipts(req, res) {
         SELECT r.id, r.receipt_number, o.name AS order, r.receipt_date,
           CASE WHEN r.cancelled_at IS NULL THEN 'SALE' ELSE 'REFUND' END AS receipt_type,
           CASE WHEN r.cancelled_at IS NULL THEN 'No' ELSE 'Yes' END AS is_canceled,
-          (r.cancelled_at IS NULL AND NOT EXISTS (
-            SELECT 1 FROM pos_receipts r2 WHERE r2.order_id = r.order_id AND r2.cancelled_at IS NOT NULL
-          )) AS refundable,
+          (r.cancelled_at IS NULL) AS refundable,
           r.total AS total_money, COALESCE(pt.name, pt.terminal_id, 'Dashboard') AS pos_device,
           (SELECT jsonb_agg(jsonb_build_object('item_name',ri.item_name,'qty',ri.quantity,'unit_price',ri.price,'total_price',ri.gross_total))
            FROM pos_receipt_items ri WHERE ri.receipt_id = r.id) AS items

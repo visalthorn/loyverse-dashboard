@@ -17,10 +17,19 @@ function khr(n) {
   return '៛' + num.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-// order.created_at/paid_at are already Cambodia-local naive strings
-// ("YYYY-MM-DD HH:mm:ss") — no timezone conversion needed here.
+// order.created_at/paid_at hold the same Cambodia-local wall-clock value in
+// two different shapes depending on where the order object came from: a
+// plain "YYYY-MM-DD HH:mm:ss" string when it's the in-memory object right
+// after an INSERT/UPDATE response, or an ISO string like
+// "YYYY-MM-DDTHH:mm:ss.sssZ" when it round-tripped through pg's TIMESTAMP ->
+// JS Date -> JSON.stringify() (e.g. after a GET /receipts fetch for
+// reprint) -- pg has no timezone info to apply to a "timestamp without time
+// zone" column, so the Date object just carries the original local digits
+// relabeled as UTC. Either way the first 16 characters after normalizing
+// the separator are the real Cambodia-local date/time -- no actual
+// timezone math needed or wanted here.
 function cambodiaDatetime(ts) {
-  return String(ts || '').slice(0, 16);
+  return String(ts || '').replace('T', ' ').slice(0, 16);
 }
 
 function esc(s) {
