@@ -7,3 +7,6 @@ CLAUDE.md
 test/
 docs/
 migrations/
+# Database dumps taken before destructive cleanups -- contains real production
+# rows, must never be committed.
+backups/
