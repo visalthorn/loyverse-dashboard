@@ -97,6 +97,11 @@
     font-family: var(--font-num); font-size: 11px; color: var(--text-secondary);
     white-space: nowrap;
   }
+  .oc-time-block { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .oc-order-no {
+    font-family: var(--font-num); font-size: 11px; font-weight: 600; color: var(--text-muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .oc-elapsed {
     font-family: var(--font-num); font-size: 15px; font-weight: 700;
     color: var(--text-secondary);
@@ -113,13 +118,30 @@
   }
   .oc-item:last-child { border-bottom: none; }
   .oc-item:active { background: var(--bg-surface-alt); }
-  .oc-item .qty { font-weight: 800; font-family: var(--font-num); min-width: 28px; }
+  .oc-item .qty, .oc-item .name-text {
+    position: relative; transition: color 200ms ease;
+  }
+  .oc-item .qty { font-weight: 800; font-family: var(--font-num); min-width: 28px; display: inline-block; }
   .oc-item .name { flex: 1; font-size: 15px; font-weight: 600; }
   .oc-item .note { display: block; font-size: 14px; font-weight: 700; color: var(--accent-contrast); background: var(--accent-strong); border-radius: 6px; padding: 2px 8px; margin-top: 4px; }
   .oc-item.status-pending    .name, .oc-item.status-pending .qty    { color: var(--text-primary); }
   .oc-item.status-preparing  .name, .oc-item.status-preparing .qty  { color: var(--accent-strong); }
-  .oc-item.status-done       .name, .oc-item.status-done .qty       { color: var(--gain); text-decoration: line-through; }
-  .oc-item.status-cancelled  .name, .oc-item.status-cancelled .qty  { color: var(--text-secondary); text-decoration: line-through; }
+  .oc-item.status-done       .name, .oc-item.status-done .qty       { color: var(--gain); }
+  .oc-item.status-cancelled  .name, .oc-item.status-cancelled .qty  { color: var(--text-secondary); }
+  /* Animated strike -- draws left-to-right instead of popping in, and (unlike
+     text-decoration) actually plays: it's a transition on a DOM node that
+     stays alive across the status change, not a node recreated already in
+     its final state (see cycleItemStatus in kds.js, which now patches this
+     row in place instead of doing a full board re-render on every tap).
+     Targets .name-text (not .name itself) so the line's vertical centering
+     is based on just the item-name line, not the taller box .name becomes
+     once an optional .note badge is stacked below it as a block child. */
+  .oc-item .qty::after, .oc-item .name-text::after {
+    content: ''; position: absolute; left: 0; top: 50%; height: 2px; width: 0;
+    background: currentColor; transition: width 220ms ease;
+  }
+  .oc-item.status-done .qty::after, .oc-item.status-done .name-text::after,
+  .oc-item.status-cancelled .qty::after, .oc-item.status-cancelled .name-text::after { width: 100%; }
 
   .oc-ready-btn {
     margin: 12px; height: 56px; border-radius: 12px; border: none; cursor: pointer;

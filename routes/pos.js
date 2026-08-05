@@ -88,33 +88,139 @@ function isStaleVersion(base_version, currentVersion) {
   return base_version !== undefined && base_version !== null && Number(base_version) !== currentVersion;
 }
 
-// ─── Order edit lock (POS revision, 2026-08-03) ─────────────────────────────
+// ─── Order edit lock (POS revision, 2026-08-03; idle-based 2026-08-05) ──────
 // Hard-blocks a second POS terminal from editing/paying/cancelling an order
 // while another terminal has it open -- see migration 026. A lock is
-// considered gone (safe to claim/ignore) once its heartbeat is older than
+// considered gone (safe to claim/ignore) once locked_at is older than
 // config.posOrderLockTtlSeconds, so a terminal that drops offline or closes
 // its tab mid-edit never strands the order. Supervisor terminals always
 // bypass a live lock, same escalation pattern as requireTerminalRole for
 // payment.
-function isLockStale(lockedAt) {
-  if (!lockedAt) return true;
-  return (Date.now() - new Date(lockedAt).getTime()) > config.posOrderLockTtlSeconds * 1000;
+//
+// locked_at is the time of the last real CASHIER ACTION on the order, not a
+// liveness heartbeat -- see the config comment. Merely having the order on
+// screen no longer holds it; every mutating route below refreshes it via
+// touchLock(), and the client re-claims on cart activity. That makes the TTL
+// mean exactly what the floor expects: "untouched for 5 minutes = up for
+// grabs again".
+// How old is this lock? Computed BY POSTGRES, not by JS date math, and every
+// query that feeds a lock check must select it (see LOCK_AGE_SQL below).
+//
+// pos_orders.locked_at is `timestamp WITHOUT time zone`, so `NOW()` stores the
+// DB's own wall clock and node-postgres hands the value back as a Date parsed
+// in the NODE process's local timezone. On UAT (local Postgres, same machine,
+// UTC+7) those agree and JS date math worked. On PROD they do not: Supabase
+// runs in UTC, the app server runs in Asia/Phnom_Penh, so a lock written one
+// second ago read back as SEVEN HOURS old and was stale the instant it was
+// written -- the lock never worked on PROD at all (bug present since migration
+// 026; found 2026-08-05). Subtracting inside SQL keeps both operands on the
+// database's clock, which is correct no matter where either process runs and
+// needs no column-type migration.
+const LOCK_AGE_SQL = `EXTRACT(EPOCH FROM (NOW() - locked_at)) AS lock_age_seconds`;
+
+function isLockStale(order) {
+  if (!order || !order.locked_at) return true;
+  // Fallback for any row fetched by a query that forgot LOCK_AGE_SQL: no
+  // worse than the old behavior, and lock-age-columns.test.js asserts no
+  // lock-checking route actually relies on it.
+  const ageSeconds = order.lock_age_seconds != null
+    ? Number(order.lock_age_seconds)
+    : (Date.now() - new Date(order.locked_at).getTime()) / 1000;
+  return ageSeconds > config.posOrderLockTtlSeconds;
+}
+// Is this lock held by the CALLER's own session?
+//
+// Compared by terminal_devices.id, not pos_terminals.id: the lock means "this
+// screen has the order open", and two windows/tablets signed in under the
+// same terminal code are different screens. Keying on the terminal made them
+// indistinguishable -- each read locked_by_terminal_id == its own terminal id,
+// decided it already held the lock, and both edited the same order freely
+// (migration 027 has the full write-up). Rows locked before 027 have a NULL
+// device id; those fall back to the terminal comparison so an in-flight lock
+// from before the deploy still behaves sanely rather than instantly looking
+// like someone else's.
+function isLockMine(order, terminal) {
+  if (order.locked_by_device_id != null) return order.locked_by_device_id === terminal.device_id;
+  return order.locked_by_terminal_id === terminal.id;
+}
+// Whether someone ELSE genuinely holds this order right now, ignoring role.
+// Supervisor privilege is deliberately NOT folded in here -- see
+// assertNotLockedByOther below for why that distinction matters.
+function isHeldByOther(order, terminal) {
+  if (!order.locked_by_terminal_id && order.locked_by_device_id == null) return false;
+  if (isLockMine(order, terminal)) return false;
+  return !isLockStale(order);
 }
 function isLockedByOther(order, terminal) {
-  if (!order.locked_by_terminal_id) return false;
-  if (order.locked_by_terminal_id === terminal.id) return false;
   if (terminal.role === 'supervisor') return false;
-  return !isLockStale(order.locked_at);
+  return isHeldByOther(order, terminal);
 }
 // Thrown from inside the same SELECT ... FOR UPDATE transaction every
 // mutating route already opens, so the lock check reads the same row the
 // TERMINAL-status check just read -- no separate round trip.
+//
+// A supervisor still passes this unconditionally: once it has force-claimed
+// (see POST /orders/:id/claim) it legitimately holds the lock anyway, and
+// keeping the bypass here means an emergency override is never wedged shut
+// by a stuck lock. The place a HUMAN decides to take an order away from a
+// colleague is the claim, so that -- not this -- is where the override is
+// made explicit and auditable.
 function assertNotLockedByOther(order, terminal) {
   if (isLockedByOther(order, terminal)) {
     throw httpError(409,
       `Locked by ${order.locked_by_terminal_name || 'another terminal'} -- ask them to release it, or use a supervisor terminal.`,
       'ORDER_LOCKED');
   }
+}
+
+// Refreshes the idle countdown after a real action on the order, and adopts
+// the lock for the caller when nobody live holds it. Call it from inside the
+// same transaction as the mutation, AFTER assertNotLockedByOther -- so the
+// row is already FOR UPDATE-locked and the caller is already known to be
+// allowed to write.
+//
+// Two cases deliberately do nothing:
+//   - someone else genuinely holds it: only reachable by a supervisor (the
+//     bypass in isLockedByOther). Quietly stealing the lock there would evict
+//     the colleague with no audit row; taking an order away from a live
+//     holder stays an explicit, logged decision made at POST /claim.
+//   - offline-queue replays landing long after the fact: harmless, they just
+//     re-adopt a lock that had already gone stale, which is the same thing a
+//     fresh claim would do.
+async function touchLock(client, orderId, order, terminal) {
+  if (isHeldByOther(order, terminal)) return;
+  await client.query(
+    `UPDATE pos_orders SET locked_by_terminal_id = $1, locked_by_terminal_name = $2,
+            locked_by_device_id = $3, locked_at = NOW() WHERE id = $4`,
+    [terminal.id, terminal.name, terminal.device_id, orderId]
+  );
+}
+
+// Nothing proactively clears locked_by_terminal_id when a lock goes stale --
+// isLockStale() is only ever consulted at claim/edit time, on whichever row
+// a mutating route already has open. A terminal that abandons an order
+// without hitting /release (closed the tab, app backgrounded, crashed) never
+// triggers that check, so the raw column sits there stale indefinitely.
+// Every READ path that hands locked_by_* to a client -- GET /orders (the
+// Open Orders list badge) and fetchOrder() (single-order fetches, claim/
+// mutation responses) -- must mask it through this first, or the UI shows
+// "locked by X" forever after X's lock has already actually expired, even
+// though a claim/edit attempt would correctly succeed. Masking only the
+// response (not writing NULL back to the row) is deliberate: it's read-only,
+// so it can never race a concurrent claim into clobbering a genuinely fresh
+// lock underneath it.
+// `terminal` is optional only so non-POS callers can reuse this; every POS
+// route has req.terminal and should pass it, because locked_by_me is what the
+// client uses to decide whether to show the 🔒 badge. The client cannot work
+// that out on its own any more: the lock is identified by terminal_devices.id
+// (see isLockMine), which is a server-side session id the browser never sees.
+function maskStaleLock(order, terminal) {
+  if (!order) return order;
+  const held = order.locked_by_terminal_id != null || order.locked_by_device_id != null;
+  if (held && isLockStale(order)) {
+    return { ...order, locked_by_terminal_id: null, locked_by_terminal_name: null, locked_by_device_id: null, locked_at: null, locked_by_me: false };
+  }
+  return { ...order, locked_by_me: held && !!terminal && isLockMine(order, terminal) };
 }
 
 // Only dine-in-shaped value seen in receipts.dining_option on this branch's
@@ -182,15 +288,15 @@ async function loadCatalog() {
 // the idempotency ledger and committed atomically with it (see POST /orders
 // and POST /orders/:id/items) -- pg's client and pool share the same
 // .query() signature, so this is a drop-in either way.
-async function fetchOrder(id, executor = pool) {
-  const orderRes = await executor.query(`SELECT * FROM pos_orders WHERE id = $1`, [id]);
+async function fetchOrder(id, executor = pool, terminal = null) {
+  const orderRes = await executor.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1`, [id]);
   if (!orderRes.rows.length) return null;
   const itemsRes = await executor.query(
     `SELECT id, source_item_id, item_name, price, quantity, note, kitchen_status, version
      FROM pos_order_items WHERE order_id = $1 ORDER BY id`,
     [id]
   );
-  return { ...orderRes.rows[0], items: itemsRes.rows };
+  return { ...maskStaleLock(orderRes.rows[0], terminal), items: itemsRes.rows };
 }
 
 // General POS-activity log, not cancellation-specific -- every event carries
@@ -283,6 +389,10 @@ router.get('/config', requireTerminalAuth(['pos']), async (req, res) => {
       dining_options: diningRes.rows.map(r => r.dining_option),
       dine_in_option: DINE_IN_LABEL,
       payment_methods: PAYMENT_METHOD_OPTIONS,
+      // So the client's idle countdown expires at the same moment the server
+      // starts letting another terminal claim the order, instead of the two
+      // drifting apart the first time this is retuned via env.
+      order_lock_ttl_seconds: config.posOrderLockTtlSeconds,
     });
   } catch (err) {
     console.error('POS config GET error:', err);
@@ -304,7 +414,7 @@ router.get('/orders', requireTerminalAuth(['pos']), async (req, res) => {
       params.push(status);
     }
 
-    const ordersRes = await pool.query(`SELECT * FROM pos_orders ${where} ORDER BY created_at DESC`, params);
+    const ordersRes = await pool.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders ${where} ORDER BY created_at DESC`, params);
     const ids = ordersRes.rows.map(o => o.id);
 
     const itemsByOrder = {};
@@ -323,7 +433,10 @@ router.get('/orders', requireTerminalAuth(['pos']), async (req, res) => {
     // for why this pairing matters) -- lets the client compute "how long has
     // this order been sitting" without assuming its own clock/timezone
     // matches the server's.
-    res.json({ server_now: new Date().toISOString(), orders: ordersRes.rows.map(o => ({ ...o, items: itemsByOrder[o.id] || [] })) });
+    res.json({
+      server_now: new Date().toISOString(),
+      orders: ordersRes.rows.map(o => ({ ...maskStaleLock(o, req.terminal), items: itemsByOrder[o.id] || [] })),
+    });
   } catch (err) {
     console.error('POS orders GET error:', err);
     res.status(500).json({ error: err.message });
@@ -334,7 +447,7 @@ router.get('/orders/:id', requireTerminalAuth(['pos']), async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
   try {
-    const order = await fetchOrder(id);
+    const order = await fetchOrder(id, pool, req.terminal);
     if (!order || order.branch_id !== req.terminal.branch_id) {
       return res.status(404).json({ message: 'Order not found.' });
     }
@@ -412,16 +525,18 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
     // The creating terminal implicitly holds the edit lock from the moment
     // the order exists -- no separate claim call needed for the terminal
     // that's already looking right at it (see POST /orders/:id/claim below).
-    // locked_at is a real instant (server NOW()), not the naive Cambodia-local
-    // business timestamp `now` -- it backs the heartbeat/TTL comparison
-    // (posOrderLockTtlSeconds), which must measure real elapsed wall-clock
-    // time regardless of timezone, unlike created_at/updated_at.
+    // locked_at is the DB's own clock (NOW()), not the naive Cambodia-local
+    // business timestamp `now` -- it backs the idle TTL comparison
+    // (posOrderLockTtlSeconds), which measures elapsed time and must never be
+    // mixed with a business date. Its age is always computed back in SQL too
+    // (LOCK_AGE_SQL); do not subtract it from Date.now() in JS -- the column
+    // is timezone-naive and the two processes need not share a timezone.
     const orderRes = await client.query(`
       INSERT INTO pos_orders
-        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name, provisional_number, locked_by_terminal_id, locked_by_terminal_name, locked_at)
-      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$9,$13,NOW())
+        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name, provisional_number, locked_by_terminal_id, locked_by_terminal_name, locked_by_device_id, locked_at)
+      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$9,$13,$14,NOW())
       RETURNING *
-    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, orderName, provisional_number || null, req.terminal.name]);
+    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, orderName, provisional_number || null, req.terminal.name, req.terminal.device_id]);
 
     const order = orderRes.rows[0];
 
@@ -432,9 +547,12 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
       `, [order.id, line.source_item_id, line.name, line.price, line.quantity, line.note]);
     }
 
-    await logOrderEvent(client, { orderId: order.id, branchId: order.branch_id, event: 'created', terminal: req.terminal, created_at: now });
+    await logOrderEvent(client, {
+      orderId: order.id, branchId: order.branch_id, event: 'created', terminal: req.terminal, created_at: now,
+      detail: { items: lines.map(l => ({ item_name: l.name, quantity: l.quantity })), item_count: lines.length, total },
+    });
 
-    const responseBody = { order: await fetchOrder(order.id, client) };
+    const responseBody = { order: await fetchOrder(order.id, client, req.terminal) };
     await recordIdempotentResponse(client, client_mutation_id, 'create_order', order.id, 201, responseBody);
 
     await client.query('COMMIT');
@@ -451,11 +569,21 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
 });
 
 // Claim the order-edit lock (POS revision, 2026-08-03) -- called when a
-// terminal opens an existing order into its panel, and again every ~15s
-// while it stays there (see OPEN_ORDERS_POLL_MS heartbeat in pos.js) to
-// renew locked_at. Idempotent for the current holder (a heartbeat is just a
-// re-claim), and always succeeds for a supervisor terminal or once the
-// previous holder's lock has gone stale -- see isLockedByOther() above.
+// terminal opens an existing order into its panel, and again (throttled)
+// whenever the cashier actually touches the cart, to renew locked_at. It is
+// NOT called on a timer any more: an untouched order must be allowed to time
+// out. Idempotent for the current holder (a renewal is just a re-claim), and
+// succeeds outright once the previous holder's lock has gone stale -- see
+// isLockedByOther() above.
+//
+// A supervisor terminal may still take an order away from a colleague who is
+// actively holding it, but as of 2026-08-04 that is no longer SILENT: it
+// requires an explicit `force: true` (the client asks the supervisor to
+// confirm first, see loadOrderIntoPanel in pos.js) and writes a
+// lock_overridden audit row naming both terminals. Before this, a GM/
+// supervisor terminal opening a locked order just took it with a 200 and no
+// indication to anyone -- which read as "the lock doesn't work at all".
+//
 // Deliberately NOT run through the offline-queue mutate() wrapper on the
 // client: claiming a lock only means something while actually talking to
 // the server, so a claim attempt made while offline degrades to best-effort
@@ -467,7 +595,7 @@ router.post('/orders/:id/claim', requireTerminalAuth(['pos']), requireCsrf, asyn
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
       throw httpError(404, 'Order not found.');
     }
@@ -477,11 +605,28 @@ router.post('/orders/:id/claim', requireTerminalAuth(['pos']), requireCsrf, asyn
     }
     assertNotLockedByOther(order, req.terminal);
 
+    // Supervisor + someone else genuinely holding it + no explicit intent =
+    // stop and ask, rather than silently seizing it. ORDER_LOCKED_OVERRIDABLE
+    // (not plain ORDER_LOCKED) tells the client this one CAN be forced, so it
+    // offers a confirm instead of a flat refusal.
+    const takingOver = isHeldByOther(order, req.terminal);
+    if (takingOver && !req.body.force) {
+      throw httpError(409,
+        `${order.locked_by_terminal_name || 'Another terminal'} has this order open. Take it over?`,
+        'ORDER_LOCKED_OVERRIDABLE');
+    }
+
     await client.query(
-      `UPDATE pos_orders SET locked_by_terminal_id = $1, locked_by_terminal_name = $2, locked_at = NOW() WHERE id = $3`,
-      [req.terminal.id, req.terminal.name, id]
+      `UPDATE pos_orders SET locked_by_terminal_id = $1, locked_by_terminal_name = $2, locked_by_device_id = $3, locked_at = NOW() WHERE id = $4`,
+      [req.terminal.id, req.terminal.name, req.terminal.device_id, id]
     );
-    const responseBody = { order: await fetchOrder(id, client) };
+    if (takingOver) {
+      await logOrderEvent(client, {
+        orderId: id, branchId: order.branch_id, event: 'lock_overridden', terminal: req.terminal,
+        detail: { taken_from_terminal_id: order.locked_by_terminal_id, taken_from_terminal_name: order.locked_by_terminal_name },
+      });
+    }
+    const responseBody = { order: await fetchOrder(id, client, req.terminal), took_over: takingOver || undefined };
     await client.query('COMMIT');
     res.json(responseBody);
   } catch (err) {
@@ -507,10 +652,17 @@ router.post('/orders/:id/release', requireTerminalAuth(['pos']), requireCsrf, as
   if (!id) return res.status(400).json({ message: 'Invalid order id.' });
 
   try {
+    // Matched on the DEVICE that holds it (falling back to the terminal for
+    // pre-migration-027 rows with a NULL device id) -- otherwise a second
+    // window signed in under the same terminal code could release a lock it
+    // does not hold, which is the same conflation migration 027 fixes.
     await pool.query(
-      `UPDATE pos_orders SET locked_by_terminal_id = NULL, locked_by_terminal_name = NULL, locked_at = NULL
-       WHERE id = $1 AND branch_id = $2 AND (locked_by_terminal_id = $3 OR $4)`,
-      [id, req.terminal.branch_id, req.terminal.id, req.terminal.role === 'supervisor']
+      `UPDATE pos_orders SET locked_by_terminal_id = NULL, locked_by_terminal_name = NULL, locked_by_device_id = NULL, locked_at = NULL
+       WHERE id = $1 AND branch_id = $2
+         AND (locked_by_device_id = $3
+              OR (locked_by_device_id IS NULL AND locked_by_terminal_id = $4)
+              OR $5)`,
+      [id, req.terminal.branch_id, req.terminal.device_id, req.terminal.id, req.terminal.role === 'supervisor']
     );
     res.json({ ok: true });
   } catch (err) {
@@ -530,10 +682,12 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), require
   try {
     await client.query('BEGIN');
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
+    assertNotLockedByOther(order, req.terminal);
+    await touchLock(client, id, order, req.terminal);
 
     // Idempotent: a retried send against an order that's already past
     // 'open' (e.g. the previous attempt actually succeeded but its response
@@ -541,7 +695,7 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), require
     if (order.status !== 'open') {
       if (order.status === 'cancelled') throw httpError(409, 'Cannot send a cancelled order to the kitchen.');
       await client.query('COMMIT');
-      return res.json({ order: await fetchOrder(id) });
+      return res.json({ order: await fetchOrder(id, pool, req.terminal) });
     }
 
     const now = toCambodiaTime(resolveActionTime(req.body.client_time));
@@ -550,7 +704,7 @@ router.post('/orders/:id/send-to-kitchen', requireTerminalAuth(['pos']), require
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(id) });
+    res.json({ order: await fetchOrder(id, pool, req.terminal) });
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
@@ -579,7 +733,7 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCs
   try {
     await client.query('BEGIN');
     const orderRes = await client.query(
-      'SELECT status, branch_id, dining_option, version, locked_by_terminal_id, locked_by_terminal_name, locked_at FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+      `SELECT status, branch_id, dining_option, version, locked_by_terminal_id, locked_by_terminal_name, locked_by_device_id, locked_at, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
       throw httpError(404, 'Order not found.');
     }
@@ -588,6 +742,7 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCs
       throw httpError(409, `Cannot change table number on a ${order.status} order.`, 'ORDER_TERMINAL');
     }
     assertNotLockedByOther(order, req.terminal);
+    await touchLock(client, id, order, req.terminal);
     if (order.dining_option === DINE_IN_LABEL && !tableNum) {
       throw httpError(400, 'table_number is required for dine-in orders.');
     }
@@ -598,7 +753,7 @@ router.patch('/orders/:id/table-number', requireTerminalAuth(['pos']), requireCs
       `UPDATE pos_orders SET table_number = $1, version = version + 1, updated_at = $2 WHERE id = $3`,
       [tableNum, toCambodiaTime(new Date()), id]
     );
-    const responseBody = { order: await fetchOrder(id, client), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) };
+    const responseBody = { order: await fetchOrder(id, client, req.terminal), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) };
     await client.query('COMMIT');
     broadcastOrdersChanged();
     res.json(responseBody);
@@ -630,7 +785,7 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireC
   try {
     await client.query('BEGIN');
     const orderRes = await client.query(
-      'SELECT status, branch_id, table_number, version, locked_by_terminal_id, locked_by_terminal_name, locked_at FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+      `SELECT status, branch_id, table_number, version, locked_by_terminal_id, locked_by_terminal_name, locked_by_device_id, locked_at, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length || orderRes.rows[0].branch_id !== req.terminal.branch_id) {
       throw httpError(404, 'Order not found.');
     }
@@ -639,6 +794,7 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireC
       throw httpError(409, `Cannot change dining option on a ${order.status} order.`, 'ORDER_TERMINAL');
     }
     assertNotLockedByOther(order, req.terminal);
+    await touchLock(client, id, order, req.terminal);
     if (dining_option === DINE_IN_LABEL && !order.table_number) {
       throw httpError(400, 'Set a table number before switching this order to dine-in.');
     }
@@ -648,7 +804,7 @@ router.patch('/orders/:id/dining-option', requireTerminalAuth(['pos']), requireC
       `UPDATE pos_orders SET dining_option = $1, version = version + 1, updated_at = $2 WHERE id = $3`,
       [dining_option, toCambodiaTime(new Date()), id]
     );
-    const responseBody = { order: await fetchOrder(id, client), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) };
+    const responseBody = { order: await fetchOrder(id, client, req.terminal), ...(wasStale ? { notice: true, message: 'This order changed elsewhere -- your edit was applied on top of the latest version.' } : {}) };
     await client.query('COMMIT');
     res.json(responseBody);
   } catch (err) {
@@ -681,12 +837,13 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
       return res.status(cached.statusCode).json(cached.body);
     }
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
     if (TERMINAL.has(order.status)) throw httpError(409, `Cannot add items to a ${order.status} order.`, 'ORDER_TERMINAL');
     assertNotLockedByOther(order, req.terminal);
+    await touchLock(client, id, order, req.terminal);
 
     const lines = await snapshotItems(client, items);
     for (const line of lines) {
@@ -720,15 +877,25 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
                 subtotal = $2, total = $3, version = version + 1, updated_at = $1 WHERE id = $4`,
         [now, newSubtotal, newTotal, id]
       );
-      await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'items_added_after_ready', terminal: req.terminal, created_at: now });
     } else {
       await client.query(
         `UPDATE pos_orders SET subtotal = $1, total = $2, version = version + 1, updated_at = $3 WHERE id = $4`,
         [newSubtotal, newTotal, now, id]
       );
     }
+    // Logged unconditionally -- previously only logged when reactivating a
+    // ready/served/awaiting_payment order (as 'items_added_after_ready'),
+    // which meant a plain append to a still-open/in-kitchen order left no
+    // audit trail at all. The dashboard Live Orders activity feed (routes/
+    // receipts.js GET /own/live/activity) needs every append visible,
+    // regardless of order status, to show things like "GM added 1 item to
+    // Order X" in real time.
+    await logOrderEvent(client, {
+      orderId: id, branchId: order.branch_id, event: 'items_added', terminal: req.terminal, created_at: now,
+      detail: { items: lines.map(l => ({ item_name: l.name, quantity: l.quantity })), reactivated: reactivating },
+    });
 
-    const responseBody = { order: await fetchOrder(id, client) };
+    const responseBody = { order: await fetchOrder(id, client, req.terminal) };
     await recordIdempotentResponse(client, client_mutation_id, 'append_items', id, 200, responseBody);
 
     await client.query('COMMIT');
@@ -766,11 +933,12 @@ router.post('/orders/:id/items/:itemId/cancel', requireTerminalAuth(['pos']), re
     if (!itemRes.rows.length) throw httpError(404, 'Order item not found.');
     const item = itemRes.rows[0];
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [orderId]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [orderId]);
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
     if (TERMINAL.has(order.status)) throw httpError(409, `Cannot edit items on a ${order.status} order.`, 'ORDER_TERMINAL');
     assertNotLockedByOther(order, req.terminal);
+    await touchLock(client, orderId, order, req.terminal);
 
     const qtyToRemove = req.body.qty === undefined ? item.quantity : parseInt(req.body.qty, 10);
     if (!Number.isInteger(qtyToRemove) || qtyToRemove < 1 || qtyToRemove > item.quantity) {
@@ -827,7 +995,7 @@ router.post('/orders/:id/items/:itemId/cancel', requireTerminalAuth(['pos']), re
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(orderId) });
+    res.json({ order: await fetchOrder(orderId, pool, req.terminal) });
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
@@ -862,7 +1030,7 @@ async function completeOrder(req, res) {
       return res.status(cached.statusCode).json(cached.body);
     }
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
@@ -946,7 +1114,7 @@ async function completeOrder(req, res) {
     await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'paid', terminal: req.terminal, created_at: now });
 
     const change = payment_method === 'cash' ? Number((cashReceivedVal - Number(order.total)).toFixed(0)) : 0;
-    const responseBody = { order: await fetchOrder(id, client), receipt_number: receiptNumber, change };
+    const responseBody = { order: await fetchOrder(id, client, req.terminal), receipt_number: receiptNumber, change };
     await recordIdempotentResponse(client, client_mutation_id, 'complete_order', id, 200, responseBody);
 
     await client.query('COMMIT');
@@ -982,7 +1150,7 @@ router.post('/orders/:id/ready-to-bill', requireTerminalAuth(['pos']), requireCs
       return res.status(cached.statusCode).json(cached.body);
     }
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
@@ -996,7 +1164,7 @@ router.post('/orders/:id/ready-to-bill', requireTerminalAuth(['pos']), requireCs
     );
     await logOrderEvent(client, { orderId: id, branchId: order.branch_id, event: 'awaiting_payment', terminal: req.terminal, created_at: now });
 
-    const responseBody = { order: await fetchOrder(id, client) };
+    const responseBody = { order: await fetchOrder(id, client, req.terminal) };
     await recordIdempotentResponse(client, req.body.client_mutation_id, 'ready_to_bill', id, 200, responseBody);
 
     await client.query('COMMIT');
@@ -1025,7 +1193,7 @@ router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireCsrf, asy
   try {
     await client.query('BEGIN');
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
@@ -1044,7 +1212,7 @@ router.post('/orders/:id/cancel', requireTerminalAuth(['pos']), requireCsrf, asy
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(id) });
+    res.json({ order: await fetchOrder(id, pool, req.terminal) });
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;
@@ -1220,7 +1388,7 @@ router.patch('/order-items/:id/kitchen-status', requireTerminalAuth(['kds']), re
     if (!itemRes.rows.length) throw httpError(404, 'Order item not found.');
     const item = itemRes.rows[0];
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [item.order_id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [item.order_id]);
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order item not found.');
     if (TERMINAL.has(order.status)) throw httpError(409, `Cannot update items on a ${order.status} order.`);
@@ -1277,7 +1445,7 @@ router.post('/orders/:id/ready', requireTerminalAuth(['kds']), requireCsrf, asyn
   try {
     await client.query('BEGIN');
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
@@ -1348,7 +1516,7 @@ router.post('/orders/:id/served', requireTerminalAuth(['kds']), requireCsrf, asy
   try {
     await client.query('BEGIN');
 
-    const orderRes = await client.query('SELECT * FROM pos_orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderRes = await client.query(`SELECT *, ${LOCK_AGE_SQL} FROM pos_orders WHERE id = $1 FOR UPDATE`, [id]);
     if (!orderRes.rows.length) throw httpError(404, 'Order not found.');
     const order = orderRes.rows[0];
     if (order.branch_id !== req.terminal.branch_id) throw httpError(404, 'Order not found.');
@@ -1360,7 +1528,7 @@ router.post('/orders/:id/served', requireTerminalAuth(['kds']), requireCsrf, asy
 
     await client.query('COMMIT');
     broadcastOrdersChanged();
-    res.json({ order: await fetchOrder(id) });
+    res.json({ order: await fetchOrder(id, pool, req.terminal) });
   } catch (err) {
     await client.query('ROLLBACK');
     const status = err.statusCode || 500;

@@ -171,4 +171,34 @@ router.get('/own/live', requireAuth, async (req, res) => {
   }
 });
 
+// Companion feed for the Live Orders card: a flat, most-recent-first log of
+// every pos_order_events row (see routes/pos.js logOrderEvent) regardless of
+// event type or the order's current status -- unlike GET /own/live above
+// (a snapshot of currently-open orders), this is the actual action trail:
+// "GM added 1 item to Order X", "POS-1 removed 1x Coke", etc., across every
+// terminal, so a manager watching the dashboard sees every edit as it
+// happens rather than just the order's latest totals. LIMIT 50 keeps this
+// cheap enough for the same 5s poll as GET /own/live (see LIVE_ORDERS_POLL_MS
+// in public/js/pages/receipts.js) -- a live feed has no use for full history,
+// that's what GET /dashboard/cancellations (routes/cancellations.js) and its
+// date-ranged query are for.
+router.get('/own/live/activity', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT e.id, e.created_at, e.event, e.detail, e.order_id,
+             e.detail->>'terminal_name' AS terminal_name,
+             o.order_number, o.name AS order_name, o.branch_id, b.name AS branch_name
+      FROM pos_order_events e
+      JOIN pos_orders o ON o.id = e.order_id
+      LEFT JOIN branches b ON b.id = o.branch_id
+      ORDER BY e.created_at DESC
+      LIMIT 50
+    `);
+    res.json({ events: rows });
+  } catch (err) {
+    console.error('Own live activity GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

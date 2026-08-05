@@ -109,6 +109,7 @@ export function switchReceiptSource(source) {
   getEl('receiptTabCancellations')?.classList.toggle('active', source === 'cancellations');
   getEl('ownBranchFilterRow')?.classList.toggle('hidden', source !== 'own');
   getEl('liveOrdersCard')?.classList.toggle('hidden', source !== 'own');
+  getEl('liveActivityCard')?.classList.toggle('hidden', source !== 'own');
 
   // Cancellations is a different shape entirely (two small activity tables,
   // not a paginated receipt list + detail panel) -- swap the whole layout
@@ -123,6 +124,7 @@ export function switchReceiptSource(source) {
   if (source === 'own') {
     mountOwnBranchFilter();
     loadLiveOrders();
+    loadLiveActivity();
     startLiveOrdersPoll();
     loadReceipts();
   } else if (source === 'cancellations') {
@@ -554,6 +556,10 @@ function elapsedLabel(createdAt) {
 }
 
 let expandedLiveOrderId = null;
+// Populated by every loadLiveOrders() poll -- lets loadLiveActivity's rows
+// (below) know whether the order an event refers to is still jump-able, i.e.
+// still open, without a second network round trip.
+let liveOrders = [];
 
 async function loadLiveOrders() {
   const data = await fetchJSON('/api/receipts/own/live');
@@ -561,6 +567,7 @@ async function loadLiveOrders() {
   const count = getEl('liveOrdersCount');
   if (!data) return;
   const orders = data.orders || [];
+  liveOrders = orders;
   if (count) count.textContent = `${orders.length} active`;
   if (!list) return;
   if (!orders.length) {
@@ -575,7 +582,7 @@ async function loadLiveOrders() {
         ${items.map(it => `<div class="detail-item-row"><span>${it.qty} × ${esc(it.item_name)}</span><span>${fmtKHR(it.total_price)}</span></div>`).join('') || '<div class="detail-item-row">No items</div>'}
       </div>` : '';
     return `
-      <div class="detail-item-row live-order-row" data-live-order-id="${o.id}" style="cursor:pointer;">
+      <div class="detail-item-row live-order-row" id="live-order-${o.id}" data-live-order-id="${o.id}" style="cursor:pointer;">
         <div>
           <div class="detail-item-name">${esc(o.branch_name) || '—'} · ${esc(o.order_number)}${o.name ? ' · ' + esc(o.name) : ''}</div>
           <div class="detail-item-qty">${esc((o.status || '').replace(/_/g, ' '))} · ${elapsedLabel(o.created_at)} · by ${esc(o.terminal_name) || '—'}</div>
@@ -594,6 +601,25 @@ async function loadLiveOrders() {
   });
 }
 
+// Jump target for a Recent Activity row (see loadLiveActivity below). Only
+// still-open orders are jump-able -- once an order's paid/cancelled it drops
+// out of GET /own/live entirely (and this dashboard has no order-number
+// search over historical/paid orders to fall back to), so that case is
+// surfaced honestly with a toast instead of a link that silently does nothing.
+function jumpToLiveOrder(orderId, orderNumber) {
+  if (!liveOrders.some(o => o.id === orderId)) {
+    showToast(`${orderNumber} is no longer active (already paid or cancelled).`, 'error');
+    return;
+  }
+  expandedLiveOrderId = orderId;
+  loadLiveOrders();
+  const row = getEl(`live-order-${orderId}`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.add('jump-highlight');
+  setTimeout(() => row.classList.remove('jump-highlight'), 1500);
+}
+
 // 5s, not 30s -- this view exists specifically so a manager can watch orders
 // change live; at 30s a qty edit or a new item looked "stuck" until the
 // viewer happened to click something else (expand/collapse) that triggered
@@ -605,13 +631,101 @@ async function loadLiveOrders() {
 // explicitly avoids. A fast poll is the safe tradeoff until/unless the
 // dashboard gets its own cookie-based session to hang an SSE endpoint off of.
 const LIVE_ORDERS_POLL_MS = 5000;
+function pollLiveOwnData() {
+  loadLiveOrders();
+  loadLiveActivity();
+}
 function startLiveOrdersPoll() {
   stopLiveOrdersPoll();
-  liveOrdersTimer = setInterval(loadLiveOrders, LIVE_ORDERS_POLL_MS);
+  liveOrdersTimer = setInterval(pollLiveOwnData, LIVE_ORDERS_POLL_MS);
 }
 
 function stopLiveOrdersPoll() {
   if (liveOrdersTimer) { clearInterval(liveOrdersTimer); liveOrdersTimer = null; }
+}
+
+// ─── Own-POS: Recent Activity ───────────────────────────────────────────────
+// The Live Orders card above is a snapshot of currently-open orders -- it
+// naturally reflects a qty/item change on the next poll, but says nothing
+// about WHO made it or WHEN, and says nothing at all once an order leaves
+// the open set (paid/cancelled). This is the actual action trail: every
+// pos_order_events row (see routes/pos.js logOrderEvent), across every
+// terminal, most-recent-first -- "GM added 1 item to Order X",
+// "POS-1 removed 1x Coke from Order X", etc. Same 5s poll as Live Orders
+// (see pollLiveOwnData above), same reasoning: a manager watching this is
+// specifically trying to catch an edit as it happens.
+function itemsSummary(items) {
+  if (!Array.isArray(items) || !items.length) return 'items';
+  return items.map(i => `${i.quantity}× ${i.item_name}`).join(', ');
+}
+
+// Returns { text, orderLabel } instead of a flat string -- orderLabel is
+// substituted back in as a clickable <span> by loadLiveActivity below, so
+// the order reference within the sentence (wherever it falls) is the actual
+// link, not the whole row.
+function activityLine(e) {
+  const who = e.terminal_name || 'Unknown terminal';
+  const order = '{{ORDER}}';
+  const d = e.detail || {};
+  const text = (() => {
+    switch (e.event) {
+      case 'created':
+        return `${who} created ${order} with ${d.item_count ?? '?'} item(s) — ${fmtKHR(d.total)}`;
+      case 'items_added':
+        return `${who} added ${itemsSummary(d.items)} to ${order}` + (d.reactivated ? ' (was ready — sent back to kitchen)' : '');
+      case 'item_cancelled':
+        return `${who} removed ${d.qty_removed ?? ''}× ${d.item_name || 'an item'} from ${order}` + (d.reason ? ` — "${d.reason}"` : '');
+      case 'sent_to_kitchen':
+        return `${who} sent ${order} to the kitchen`;
+      case 'ready':
+        return `${order} is ready for pickup`;
+      case 'served':
+        return `${who} marked ${order} served`;
+      case 'awaiting_payment':
+        return `${who} marked ${order} ready to bill`;
+      case 'paid':
+        return `${who} completed payment for ${order}`;
+      case 'cancelled':
+        return `${who} cancelled ${order}` + (d.reason ? ` — "${d.reason}"` : '');
+      default:
+        return `${who} · ${e.event} · ${order}`;
+    }
+  })();
+  return text;
+}
+
+async function loadLiveActivity() {
+  const data = await fetchJSON('/api/receipts/own/live/activity');
+  const list = getEl('liveActivityList');
+  const count = getEl('liveActivityCount');
+  if (!data) return;
+  const events = data.events || [];
+  if (count) count.textContent = `${events.length} recent`;
+  if (!list) return;
+  if (!events.length) {
+    list.innerHTML = `<div class="empty-state">No activity yet.</div>`;
+    return;
+  }
+  list.innerHTML = events.map(e => {
+    const orderLabel = esc(e.order_name || e.order_number);
+    // esc() the whole sentence first (it may embed item names/reasons typed
+    // by staff), THEN substitute the link span -- otherwise esc() would
+    // mangle the span's own HTML.
+    const line = esc(activityLine(e)).replace('{{ORDER}}',
+      `<span class="activity-order-link" data-jump-order-id="${e.order_id}" data-jump-order-number="${orderLabel}">${orderLabel}</span>`);
+    return `
+      <div class="detail-item-row" style="cursor:default;">
+        <div class="detail-item-name">${line}</div>
+        <div class="detail-item-qty">${esc(e.branch_name) || '—'} · ${elapsedLabel(e.created_at)} ago</div>
+      </div>
+    `;
+  }).join('');
+  list.querySelectorAll('[data-jump-order-id]').forEach(el => {
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      jumpToLiveOrder(parseInt(el.dataset.jumpOrderId, 10), el.dataset.jumpOrderNumber);
+    });
+  });
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
@@ -622,6 +736,7 @@ export function init() {
   // would otherwise short-circuit and skip this setup entirely).
   mountOwnBranchFilter();
   loadLiveOrders();
+  loadLiveActivity();
   startLiveOrdersPoll();
   mountDateFilter();
 }

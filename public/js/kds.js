@@ -108,6 +108,14 @@ function cardTitle(order) {
   return order.name ? `${order.name} · ${order.order_number}` : order.order_number;
 }
 
+// Row1 headline: just the name (order_number moves under the arrival time in
+// row2 instead, see oc-order-no below) -- used by the full ticket cards, which
+// have room for two lines. The ready-strip chip stays on cardTitle()'s single
+// combined line since it has no separate time row to hang the number under.
+function cardName(order) {
+  return order.name || order.order_number;
+}
+
 function elapsedClass(ms) {
   if (ms >= dangerMs) return 'elapsed-danger';
   if (ms >= warnMs) return 'elapsed-warn';
@@ -304,11 +312,14 @@ function renderCancelledCard(order) {
   head.className = 'oc-head';
   head.innerHTML = `
     <div class="oc-head-row1">
-      <span class="oc-number">${esc(cardTitle(order))}</span>
+      <span class="oc-number">${esc(cardName(order))}</span>
       <span class="oc-badge">${esc(badgeText(order))}</span>
     </div>
     <div class="oc-head-row2">
-      <span class="oc-arrived">🚫 ${formatClock(order.cancelled_at)}</span>
+      <span class="oc-time-block">
+        <span class="oc-arrived">🚫 ${formatClock(order.cancelled_at)}</span>
+        <span class="oc-order-no">${esc(order.order_number)}</span>
+      </span>
     </div>
     ${order.cancel_reason ? `<div class="oc-cancel-reason">${esc(order.cancel_reason)}</div>` : ''}
   `;
@@ -321,7 +332,7 @@ function renderCancelledCard(order) {
     row.className = 'oc-item status-cancelled';
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
+      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
     `;
     itemsEl.appendChild(row);
   }
@@ -338,11 +349,14 @@ function renderFinishedCard(order) {
   head.className = 'oc-head';
   head.innerHTML = `
     <div class="oc-head-row1">
-      <span class="oc-number">${esc(cardTitle(order))}</span>
+      <span class="oc-number">${esc(cardName(order))}</span>
       <span class="oc-badge">${esc(badgeText(order))}</span>
     </div>
     <div class="oc-head-row2">
-      <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+      <span class="oc-time-block">
+        <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+        <span class="oc-order-no">${esc(order.order_number)}</span>
+      </span>
       <span class="oc-served">✅ ${order.served_at ? formatClock(order.served_at) : '—'}</span>
     </div>
   `;
@@ -355,7 +369,7 @@ function renderFinishedCard(order) {
     row.className = 'oc-item status-done';
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
+      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
     `;
     itemsEl.appendChild(row);
   }
@@ -368,16 +382,20 @@ function renderCard(order) {
   const card = document.createElement('div');
   card.className = 'order-card';
   card.dataset.createdAt = order.sent_to_kitchen_at || order.created_at;
+  card.dataset.orderId = order.id;
 
   const head = document.createElement('div');
   head.className = 'oc-head';
   head.innerHTML = `
     <div class="oc-head-row1">
-      <span class="oc-number">${esc(cardTitle(order))}</span>
+      <span class="oc-number">${esc(cardName(order))}</span>
       <span class="oc-badge">${esc(badgeText(order))}</span>
     </div>
     <div class="oc-head-row2">
-      <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+      <span class="oc-time-block">
+        <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+        <span class="oc-order-no">${esc(order.order_number)}</span>
+      </span>
       <span class="oc-elapsed">⏱ 0:00</span>
     </div>
   `;
@@ -388,9 +406,10 @@ function renderCard(order) {
   for (const item of order.items) {
     const row = document.createElement('div');
     row.className = `oc-item status-${item.kitchen_status}`;
+    row.dataset.itemId = item.id;
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name">${esc(item.item_name)}${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
+      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
     `;
     row.onclick = () => cycleItemStatus(item.id, item.kitchen_status);
     itemsEl.appendChild(row);
@@ -442,15 +461,36 @@ function scheduleRefresh() {
   }, 120);
 }
 
+// Patches the single tapped row's status class in place (plus its card's
+// READY button) instead of calling the full render() -- render() tears down
+// and recreates every card's DOM from scratch, so a CSS transition/animation
+// on the status-done strike (see .oc-item .name::after in kds.html) never
+// had a live node to animate: the new node is just born already in its
+// final state. Mutating the existing node is also what makes this feel
+// instant rather than causing every other card on the board to flicker on
+// an unrelated tap.
+function updateReadyButtonForOrder(order) {
+  const card = document.querySelector(`.order-card[data-order-id="${order.id}"]`);
+  const btn = card && card.querySelector('.oc-ready-btn');
+  if (!btn) return;
+  const allDone = order.items.length > 0 && order.items.every(i => i.kitchen_status === 'done');
+  btn.disabled = !allDone;
+}
+
 async function cycleItemStatus(itemId, currentStatus) {
   const next = NEXT_STATUS[currentStatus] || 'pending';
-  // Optimistic: update locally and re-render immediately so the tap feels
-  // instant, rather than waiting on a full network round trip.
+  let owningOrder = null;
   for (const order of orders) {
     const item = order.items.find(i => i.id === itemId);
-    if (item) { item.kitchen_status = next; break; }
+    if (item) { item.kitchen_status = next; owningOrder = order; break; }
   }
-  render();
+
+  const row = document.querySelector(`.oc-item[data-item-id="${itemId}"]`);
+  if (!row || !owningOrder) { render(); } // fell out of sync with the DOM -- fall back to a full rebuild
+  else {
+    row.className = `oc-item status-${next}`;
+    updateReadyButtonForOrder(owningOrder);
+  }
 
   const res = await apiPatch(`/api/pos/order-items/${itemId}/kitchen-status`, { status: next });
   if (!res.ok) {

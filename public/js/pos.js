@@ -89,10 +89,6 @@ function myRole() {
   return info ? info.role : null;
 }
 function isSupervisor() { return myRole() === 'supervisor'; }
-function myTerminalId() {
-  const info = getTerminalInfo();
-  return info ? info.id : null;
-}
 
 async function showSupervisorRequiredDialog() {
   await showAlert('Ask a supervisor to complete this order at a supervisor terminal.', { title: 'Supervisor required' });
@@ -219,6 +215,11 @@ function restoreDraftIfAny() {
   cart = draft.cart || [];
   diningOption = draft.diningOption || diningOption;
   tableNumber  = draft.tableNumber || '';
+  // A restored real order is still locked to this device (the lock is keyed
+  // on the terminal session, which survives a reload) -- restart its idle
+  // countdown. The Open Orders poll right after boot clears the panel if the
+  // lock actually expired while this tab was gone.
+  armOrderIdleTimer();
 
   getEl('tableNumber').value = tableNumber;
   getEl('tableNumber').classList.remove('invalid');
@@ -237,6 +238,7 @@ function addItemToCart(itemId) {
   const existing = cart.find(l => l.source_item_id === itemId);
   if (existing) existing.quantity += 1;
   else cart.push({ source_item_id: itemId, name: item.name, price: item.price, quantity: 1, note: null });
+  markOrderActivity();
   renderItemGrid();
   renderCart();
 }
@@ -246,12 +248,14 @@ function changeCartQty(idx, delta) {
   if (!line) return;
   line.quantity += delta;
   if (line.quantity <= 0) cart.splice(idx, 1);
+  markOrderActivity();
   renderItemGrid();
   renderCart();
 }
 
 function removeCartLine(idx) {
   cart.splice(idx, 1);
+  markOrderActivity();
   renderItemGrid();
   renderCart();
 }
@@ -262,6 +266,7 @@ async function editCartNote(idx) {
   const note = await showPrompt(`Note for ${line.name}`, { defaultValue: line.note || '', placeholder: 'e.g. no ice, extra spicy' });
   if (note === null) return;
   line.note = note || null;
+  markOrderActivity();
   renderCart();
 }
 
@@ -327,10 +332,12 @@ async function confirmCancelItem() {
     }
     if (ok && data.order) {
       currentOrder = data.order;
+      noteLockConfirmed();
       renderCart();
       showToast(fullRemoval ? 'Item removed.' : `Quantity reduced by ${qty}.`);
     } else if (!ok) {
       if (data.code === 'ORDER_TERMINAL') { handleOrderGoneConflict(data.message); return; }
+      if (data.code === 'ORDER_LOCKED') { handleOrderLockedConflict(data.message, currentOrder.id); return; }
       showToast(data.message || 'Failed to cancel item.', 'error');
     }
   } finally {
@@ -405,8 +412,15 @@ function renderCart() {
   getEl('totalValue').textContent    = khr(total);
 
   const badge = getEl('orderBadge');
+  // Visible for as long as the panel is open -- unlike a toast, which fires
+  // once and is easy to miss on a busy counter, this stays on screen so the
+  // cashier can tell at a glance why further edits keep bouncing off
+  // ORDER_LOCKED (see handleOrderLockedConflict below). The Open Orders list
+  // badge (loadOpenOrders' lockBadge) only helps before you open the order --
+  // this is the equivalent once you're actually looking at it.
+  const lockedByOther = currentOrder && currentOrder.locked_by_terminal_id && !currentOrder.locked_by_me;
   badge.innerHTML = currentOrder
-    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}`
+    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}${lockedByOther ? ` · 🔒 ${esc(currentOrder.locked_by_terminal_name || 'locked by another terminal')}` : ''}`
     : 'New order (not yet sent)';
 
   // Cancel Order is available on any role, any open order, regardless of
@@ -440,6 +454,7 @@ function renderDiningOptions() {
 async function onDiningOptionSelect(opt) {
   if (opt === diningOption) return;
   diningOption = opt;
+  markOrderActivity();
   renderDiningOptions();
   saveDraft();
   if (!currentOrder || currentOrder._queued) return;
@@ -454,6 +469,7 @@ async function onDiningOptionSelect(opt) {
     if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
   } else if (!ok) {
     if (data.code === 'ORDER_TERMINAL' && currentOrder && currentOrder.id === orderId) { handleOrderGoneConflict(data.message); return; }
+    if (data.code === 'ORDER_LOCKED') { handleOrderLockedConflict(data.message, orderId); return; }
     showToast(data.message || 'Failed to update dining option.', 'error');
   }
 }
@@ -471,6 +487,7 @@ function flagTableNumberRequired() {
 let tableNumberTimer = null;
 function onTableNumber(value) {
   tableNumber = value;
+  markOrderActivity();
   getEl('tableNumber').classList.remove('invalid');
   saveDraft();
   if (!currentOrder || currentOrder._queued) return; // nothing to persist server-side yet -- included in the save/create call instead
@@ -489,6 +506,7 @@ function onTableNumber(value) {
       if (data.notice) showToast('This order changed elsewhere — refreshed.', 'error');
     } else if (!ok) {
       if (data.code === 'ORDER_TERMINAL' && currentOrder && currentOrder.id === orderId) { handleOrderGoneConflict(data.message); return; }
+      if (data.code === 'ORDER_LOCKED') { handleOrderLockedConflict(data.message, orderId); return; }
       showToast(data.message || 'Failed to update table number.', 'error');
     }
   }, 600);
@@ -500,6 +518,7 @@ function resetPanel() {
   // Cancel any pending debounced table# save -- otherwise it fires later
   // against whatever order (or no order) is on screen by then.
   clearTimeout(tableNumberTimer);
+  cancelOrderIdleTimer();
   releaseOrderLock(currentOrder);
   currentOrder = null;
   cart = [];
@@ -520,6 +539,26 @@ function resetPanel() {
 // it on screen inviting another failed retry.
 function handleOrderGoneConflict(message) {
   showToast(message || 'This order was already completed or cancelled — clearing this screen.', 'error');
+  clearDraft();
+  resetPanel();
+  loadOpenOrders();
+}
+
+// A 409 tagged ORDER_LOCKED means another terminal (or a supervisor override)
+// holds this order's edit lock right now. The order itself is still alive
+// (unlike ORDER_TERMINAL), but this terminal definitively does NOT hold it,
+// so the panel gets cleared the same way -- an order sitting on screen that
+// this terminal cannot edit is exactly the state that made the lock look
+// like it wasn't enforced. Anything the cashier had staged locally goes with
+// it; it was never theirs to send once someone else took the order.
+//
+// This used to re-fetch and stay on screen instead. The next Open Orders
+// poll (see the lock check in loadOpenOrders) would clear it within ~15s
+// anyway -- doing it here just makes it immediate and gives the cashier the
+// specific reason rather than the generic one.
+function handleOrderLockedConflict(message, orderId) {
+  showToast(message || 'This order is locked by another terminal right now.', 'error');
+  if (!currentOrder || currentOrder.id !== orderId) return;
   clearDraft();
   resetPanel();
   loadOpenOrders();
@@ -596,6 +635,8 @@ async function persistCart() {
     if (!ok) return { ok: false, queued: false, message: data.message, code: data.code };
     currentOrder = data.order;
     cart = [];
+    // The creating terminal holds the lock from the moment the row exists.
+    noteLockConfirmed();
     return { ok: true, queued: false };
   }
 
@@ -625,6 +666,7 @@ async function persistCart() {
   if (!ok) return { ok: false, queued: false, message: data.message, code: data.code };
   currentOrder = data.order;
   cart = [];
+  noteLockConfirmed();
   return { ok: true, queued: false };
 }
 
@@ -652,9 +694,11 @@ async function saveOrder() {
   if (btn) btn.disabled = true;
   try {
     const wasNew = !currentOrder;
+    const existingOrderId = currentOrder ? currentOrder.id : null;
     const result = await persistCart();
     if (!result.ok) {
       if (result.code === 'ORDER_TERMINAL') { handleOrderGoneConflict(result.message); return; }
+      if (result.code === 'ORDER_LOCKED' && existingOrderId) { handleOrderLockedConflict(result.message, existingOrderId); return; }
       showToast(result.message || 'Failed to save.', 'error');
       return;
     }
@@ -722,9 +766,11 @@ async function ensureOrderPersisted() {
   }
   if (currentOrder && !cart.length) return true;
 
+  const existingOrderId = currentOrder ? currentOrder.id : null;
   const result = await persistCart();
   if (!result.ok) {
     if (result.code === 'ORDER_TERMINAL') { handleOrderGoneConflict(result.message); return false; }
+    if (result.code === 'ORDER_LOCKED' && existingOrderId) { handleOrderLockedConflict(result.message, existingOrderId); return false; }
     showToast(result.message || 'Failed to create order.', 'error');
     return false;
   }
@@ -970,6 +1016,9 @@ async function readyToBill() {
 
 function applyOrderToPanel(order) {
   currentOrder = order;
+  // Opening an order counts as touching it -- start its idle countdown from
+  // here, so an order loaded and then left alone releases itself on time.
+  armOrderIdleTimer();
   cart = [];
   diningOption = order.dining_option;
   tableNumber  = order.table_number || '';
@@ -992,9 +1041,10 @@ function orderTableLabel(o) {
 // Pending -> Cooking -> Ready -> Finished. 'sent_to_kitchen' covers two
 // distinct situations that both read as "kitchen hasn't started yet" but
 // differ in history -- a genuinely fresh order, vs. one that was already
-// ready/served and just had new items appended to it (see the
-// 'items_added_after_ready' reactivation in POST /orders/:id/items) -- the
-// latter carries a mix of already-'done' and freshly-'pending' items, which
+// ready/served and just had new items appended to it (see the reactivation
+// branch, logged as 'items_added' with detail.reactivated:true, in POST
+// /orders/:id/items) -- the latter carries a mix of already-'done' and
+// freshly-'pending' items, which
 // is exactly what distinguishes it from a first-time send.
 function orderStatusLabel(o) {
   if (o.status === 'awaiting_payment') return { text: 'Awaiting Payment', cls: 'awaiting-payment' };
@@ -1033,7 +1083,10 @@ let settleModeActive = false;
 // quietly rendering "No open orders." forever.
 let openOrdersLoadFailed = false;
 async function loadOpenOrders() {
-  renewOrderLockHeartbeat();
+  // Stamped before the request goes out so a response that was already in
+  // flight when we (re)claimed an order can't be read as "we lost the lock"
+  // -- it simply predates the claim. See lockConfirmedAt.
+  const requestedAt = Date.now();
   const data = await fetchJSON('/api/pos/orders?status=active');
   if (!data) {
     if (!openOrdersLoadFailed && !isOffline()) showToast('Could not refresh open orders — check connection.', 'error');
@@ -1043,6 +1096,16 @@ async function loadOpenOrders() {
   openOrdersLoadFailed = false;
   const orders = data.orders.slice();
   if (data.server_now) ordersClockOffsetMs = new Date(data.server_now).getTime() - Date.now();
+
+  // Server is the authority on who holds the lock: if the order in the panel
+  // comes back not-ours, this terminal lost it (taken over, or expired) and
+  // must clear it. Only acts on an order actually present in the response --
+  // an absent one has left the active list entirely (paid/cancelled), which
+  // the ORDER_TERMINAL paths already handle with a more specific message.
+  if (currentOrder && currentOrder.id && !currentOrder._queued && requestedAt > lockConfirmedAt) {
+    const mine = orders.find(o => o.id === currentOrder.id);
+    if (mine && !mine.locked_by_me) handleOrderLockLost(mine);
+  }
   // The server has no idea a still-offline order exists yet — keep it
   // visible in the list locally until its create call reconciles.
   if (currentOrder && currentOrder._queued && !orders.some(o => o.order_number === currentOrder.order_number)) {
@@ -1082,11 +1145,18 @@ async function loadOpenOrders() {
     const status = orderStatusLabel(o);
     const baseMs = orderElapsedBaseMs(o);
     const elapsedText = baseMs ? formatSittingTime(Date.now() + ordersClockOffsetMs - baseMs) : '';
-    // Purely informational -- doesn't attempt to replicate the server's TTL
-    // staleness check (isLockStale() in routes/pos.js), so a lock that's
-    // actually just expired can still show its old holder for up to one more
-    // poll cycle. The real enforcement happens server-side on claim/edit.
-    const lockedByOther = o.locked_by_terminal_id && o.locked_by_terminal_id !== myTerminalId();
+    // locked_by_me is computed server-side (maskStaleLock in routes/pos.js):
+    // the lock is identified by terminal_devices.id, a session id this
+    // browser never sees, so the client cannot decide ownership itself.
+    // Comparing terminal ids here instead -- as this did before -- made two
+    // windows signed in under the SAME terminal code each think the lock was
+    // their own, hiding the badge from both (see migration 027).
+    //
+    // GET /orders also already masks an expired lock back to null, so a
+    // genuinely stale lock never reaches this badge. What can still show for
+    // up to one poll cycle (~15s) is a lock released moments ago; the real
+    // enforcement is always the server-side check on claim/edit.
+    const lockedByOther = o.locked_by_terminal_id && !o.locked_by_me;
     const lockBadge = lockedByOther ? ` · 🔒 ${esc(o.locked_by_terminal_name || 'another terminal')}` : '';
     row.innerHTML = `
       <div>
@@ -1138,14 +1208,17 @@ function closeOrdersModal() {
 // back to best-effort local editing instead of being blocked outright (there
 // is no one to coordinate a lock with if this terminal can't reach the
 // server anyway).
-async function loadOrderIntoPanel(id, fallbackOrder) {
+async function loadOrderIntoPanel(id, fallbackOrder, { force = false } = {}) {
   if (orderLoading) return;
-  // Switching straight from one open order to another (rather than via
-  // resetPanel()) would otherwise leave the first one locked by this
-  // terminal until the TTL catches up -- release it eagerly.
-  if (currentOrder && currentOrder.id && currentOrder.id !== id) releaseOrderLock(currentOrder);
+  // Whatever this panel was holding before, released only once the new claim
+  // has actually succeeded (see below). Releasing it up front -- as this did
+  // until 2026-08-05 -- meant tapping an order that turned out to be locked
+  // by someone else cost the cashier the order they already had, and left
+  // them with nothing.
+  const previous = (currentOrder && currentOrder.id && currentOrder.id !== id) ? currentOrder : null;
   orderLoading = true;
-  const { ok, status, data, networkError } = await terminalApiPost(`/api/pos/orders/${id}/claim`);
+  const { ok, status, data, networkError } = await terminalApiPost(
+    `/api/pos/orders/${id}/claim`, force ? { force: true } : undefined);
   orderLoading = false;
 
   if (networkError) {
@@ -1157,6 +1230,23 @@ async function loadOrderIntoPanel(id, fallbackOrder) {
     if (status === 409 && data.code === 'ORDER_TERMINAL') {
       showToast(data.message || 'This order was already completed or cancelled.', 'error');
       loadOpenOrders();
+    } else if (status === 409 && data.code === 'ORDER_LOCKED') {
+      // Deliberately a modal, not a toast: the cashier just tapped this order
+      // expecting it to open, and nothing visible happens otherwise. Refresh
+      // the list behind it so the 🔒 badge is up to date when they look back.
+      await showAlert(data.message || 'Another terminal has this order open right now.',
+        { title: 'Order locked' });
+      loadOpenOrders();
+    } else if (status === 409 && data.code === 'ORDER_LOCKED_OVERRIDABLE') {
+      // Supervisor-only path: the order is genuinely open on someone else's
+      // terminal. Taking it over is allowed but is a real decision (the other
+      // cashier loses it mid-edit), so it's an explicit confirm + an audited
+      // lock_overridden event -- never the silent seizure it used to be.
+      const ok2 = await showConfirm(data.message || 'Another terminal has this order open. Take it over?', {
+        danger: true, confirmText: 'Take over',
+      });
+      if (ok2) await loadOrderIntoPanel(id, fallbackOrder, { force: true });
+      return;
     } else {
       // Covers ORDER_LOCKED (another terminal has it open) and any other
       // rejection alike -- the message from the server is already specific.
@@ -1164,21 +1254,132 @@ async function loadOrderIntoPanel(id, fallbackOrder) {
     }
     return;
   }
+  if (data.took_over) showToast('Taken over from another terminal — they have been locked out of it.', 'error');
+  releaseOrderLock(previous);
   applyOrderToPanel(data.order);
+  noteLockConfirmed();
 }
 
-// Silent heartbeat -- renews this terminal's hold on whatever real order is
-// currently in the panel every time the Open Orders list refreshes (already
-// polling every ~15s, see OPEN_ORDERS_POLL_MS, which is what
-// posOrderLockTtlSeconds is tuned against server-side). Not awaited and its
-// failure is non-fatal: if the lock got taken by a supervisor override or
-// genuinely expired, the next actual edit attempt surfaces a clear 409
-// ORDER_LOCKED rather than this silently ripping an in-progress cart out
-// from under the cashier over one missed heartbeat.
-function renewOrderLockHeartbeat() {
-  if (!currentOrder || !currentOrder.id || currentOrder._queued) return;
-  terminalApiPost(`/api/pos/orders/${currentOrder.id}/claim`);
+// ─── Order idle release (2026-08-05) ────────────────────────────────────────
+// This used to be a blind 15s heartbeat fired from loadOpenOrders(), which
+// meant an order stayed locked to this terminal for as long as the tab was
+// merely open -- a cashier who loaded an order and walked away held it
+// forever and no other POS could ever take it. The lock is now renewed only
+// by real work on the order, and after order_lock_ttl_seconds of no such
+// work this terminal releases it AND clears it off its own screen, so the
+// two sides never disagree about who has it.
+//
+// What counts as work: opening the order, staging/removing/reordering a cart
+// line, editing a line note, changing table # or dining option, appending or
+// cancelling items, sending to kitchen. Server-side mutations refresh
+// locked_at themselves (touchLock in routes/pos.js) -- the claim call here
+// exists for purely LOCAL activity (staging cart lines that aren't persisted
+// until Save), which the server would otherwise never hear about.
+const ORDER_LOCK_TTL_FALLBACK_MS   = 5 * 60 * 1000; // until /config lands
+const LOCK_RENEW_MIN_INTERVAL_MS   = 30 * 1000;
+
+let orderIdleTimer        = null;
+let lastLockRenewAt       = 0;
+let lockRenewTrailingTimer = null;
+// When the server last CONFIRMED this terminal holds the panel's order. Any
+// Open Orders response that was requested before this moment is older than
+// that confirmation and must not be trusted to say the lock is gone.
+let lockConfirmedAt       = 0;
+
+function orderLockTtlMs() {
+  const secs = Number(config.order_lock_ttl_seconds);
+  return secs > 0 ? secs * 1000 : ORDER_LOCK_TTL_FALLBACK_MS;
 }
+
+// Not awaited and its failure is non-fatal: if the lock was taken by a
+// supervisor override or genuinely expired, the next real edit surfaces a
+// clear 409 ORDER_LOCKED and the Open Orders poll clears the panel -- better
+// than this ripping an in-progress cart away over one dropped request.
+function renewOrderLockNow() {
+  if (!currentOrder || !currentOrder.id || currentOrder._queued) return;
+  lastLockRenewAt = Date.now();
+  const id = currentOrder.id;
+  terminalApiPost(`/api/pos/orders/${id}/claim`).then(r => {
+    if (r && r.ok && currentOrder && currentOrder.id === id) lockConfirmedAt = Date.now();
+  }).catch(() => { /* fire-and-forget: the poll and the next edit both re-check */ });
+}
+
+// Throttled so a burst of taps on the item grid doesn't fire a claim per tap.
+// The trailing call matters: without it, activity that lands inside a
+// throttle window never reaches the server at all, and locked_at could sit
+// up to LOCK_RENEW_MIN_INTERVAL_MS behind what this terminal believes.
+function renewOrderLockThrottled() {
+  if (!currentOrder || !currentOrder.id || currentOrder._queued) return;
+  const since = Date.now() - lastLockRenewAt;
+  if (since >= LOCK_RENEW_MIN_INTERVAL_MS) { renewOrderLockNow(); return; }
+  if (lockRenewTrailingTimer) return;
+  lockRenewTrailingTimer = setTimeout(() => {
+    lockRenewTrailingTimer = null;
+    renewOrderLockNow();
+  }, LOCK_RENEW_MIN_INTERVAL_MS - since);
+}
+
+function cancelOrderIdleTimer() {
+  clearTimeout(orderIdleTimer);
+  clearTimeout(lockRenewTrailingTimer);
+  orderIdleTimer = lockRenewTrailingTimer = null;
+}
+
+// Restarts the countdown without talking to the server. For activity the
+// server already knows about -- a successful claim, or any mutation, all of
+// which refresh locked_at themselves via touchLock().
+function armOrderIdleTimer() {
+  cancelOrderIdleTimer();
+  if (!currentOrder || !currentOrder.id || currentOrder._queued) return;
+  orderIdleTimer = setTimeout(releaseIdleOrder, orderLockTtlMs());
+}
+
+// The server just told us, in a response, that we hold this order. Arms the
+// countdown and closes the race window on in-flight Open Orders polls.
+function noteLockConfirmed() {
+  lockConfirmedAt = lastLockRenewAt = Date.now();
+  armOrderIdleTimer();
+}
+
+// Call from every path where the cashier did something to the order in the
+// panel that the server has NOT been told about (local cart staging, a
+// debounced field edit not yet sent). Safe to call with no order / an
+// offline-queued one -- it just stands the timer down.
+function markOrderActivity() {
+  armOrderIdleTimer();
+  renewOrderLockThrottled();
+}
+
+function releaseIdleOrder() {
+  if (!currentOrder || !currentOrder.id || currentOrder._queued) return;
+  const label   = currentOrder.name || currentOrder.order_number;
+  const minutes = Math.round(orderLockTtlMs() / 60000);
+  clearDraft();
+  resetPanel(); // releases the lock server-side
+  loadOpenOrders();
+  showToast(`${label} released after ${minutes} min with no changes — it's open to other terminals again.`, 'error');
+}
+
+// Another terminal now holds (or nobody holds) an order this panel still has
+// on screen: a supervisor took it over, or the server expired our lock while
+// this tab was backgrounded and its idle timer throttled. Either way this
+// terminal must not keep showing an order it can no longer edit.
+function handleOrderLockLost(order) {
+  const label = order.name || order.order_number;
+  const takenBy = order.locked_by_terminal_id ? (order.locked_by_terminal_name || 'another terminal') : null;
+  clearDraft();
+  resetPanel();
+  showToast(takenBy
+    ? `${label} was taken over by ${takenBy} — cleared from this terminal.`
+    : `${label} was released after a period with no changes — cleared from this terminal.`, 'error');
+}
+
+// A backgrounded tab's timers are throttled to roughly once a minute, so the
+// idle release above can fire late. Re-check against the server the moment
+// the cashier comes back rather than trusting the local clock alone.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') loadOpenOrders();
+});
 
 // Best-effort courtesy release so the next terminal doesn't have to wait out
 // the TTL -- not required for correctness (isLockStale() server-side is the

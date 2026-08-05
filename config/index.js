@@ -18,11 +18,24 @@ module.exports = {
   // redesign). Same for both terminal types.
   idleTimeoutMinutes:    { pos: 30, kds: 30 },
   // How long a POS order-edit lock (pos_orders.locked_by_terminal_id) survives
-  // without a heartbeat before another terminal may claim it. Tunable in case
-  // 60s proves too short/long once this is used in real service -- too short
-  // and a terminal with a slow connection loses its own lock mid-edit; too
-  // long and a terminal that genuinely dropped offline strands the order.
-  posOrderLockTtlSeconds: Number(process.env.POS_ORDER_LOCK_TTL_SECONDS) || 60,
+  // WITHOUT CASHIER ACTIVITY before another terminal may claim it.
+  //
+  // This is an IDLE timeout, not a liveness heartbeat (changed 2026-08-05).
+  // It used to be renewed by a blind 15s setInterval in the POS tab, which
+  // meant a terminal that merely had an order open -- nobody touching it,
+  // cashier walked away, tab left on a back counter -- held that order
+  // hostage indefinitely and no other terminal could ever take it. Now only
+  // real work on the order renews it: opening it, staging/removing a cart
+  // line, editing a note, changing table #/dining option, appending items,
+  // cancelling an item, sending to kitchen (see touchLock in routes/pos.js
+  // and markOrderActivity in public/js/pos.js). Five minutes of no such
+  // activity and the order releases itself -- and the holding terminal
+  // clears it off its own screen to match.
+  //
+  // 300s is the number the floor asked for; keep it comfortably above the
+  // 15s Open Orders poll so a lock is never lost between two beats of an
+  // actively-used order.
+  posOrderLockTtlSeconds: Number(process.env.POS_ORDER_LOCK_TTL_SECONDS) || 300,
   isProd:                (process.env.ENV || 'UAT') === 'PROD',
   tz:                    'Asia/Phnom_Penh',
   env:                   process.env.ENV || 'UAT',

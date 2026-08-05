@@ -137,6 +137,18 @@
   /* ---- Empty / loading ---- */
   .empty-state { padding: 2.5rem 1rem; text-align: center; color: var(--text-dim); }
 
+  /* ---- Recent Activity: order-number link + jump-target flash ---- */
+  .activity-order-link {
+    color: var(--accent-strong); font-weight: 700; cursor: pointer; text-decoration: underline;
+    text-underline-offset: 2px; text-decoration-thickness: 1px;
+  }
+  .activity-order-link:hover { text-decoration-thickness: 2px; }
+  .jump-highlight { animation: jump-flash 1.5s ease-out; border-radius: 6px; }
+  @keyframes jump-flash {
+    0%   { background: color-mix(in srgb, var(--accent-strong) 25%, transparent); }
+    100% { background: transparent; }
+  }
+
   /* ---- Scrollbar ---- */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -202,6 +214,15 @@
         <span class="text-xs text-[color:var(--text-secondary)]" id="liveOrdersCount">—</span>
       </div>
       <div id="liveOrdersList" class="space-y-2"></div>
+    </div>
+
+    <!-- Own-POS: recent activity across every terminal (shown only on the Own tab) -->
+    <div id="liveActivityCard" class="card">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="section-title">📋 Recent Activity</h2>
+        <span class="text-xs text-[color:var(--text-secondary)]" id="liveActivityCount">—</span>
+      </div>
+      <div id="liveActivityList" class="space-y-1"></div>
     </div>
 
     <!-- Summary stats -->
