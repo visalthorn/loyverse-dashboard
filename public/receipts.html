@@ -137,6 +137,18 @@
   /* ---- Empty / loading ---- */
   .empty-state { padding: 2.5rem 1rem; text-align: center; color: var(--text-dim); }
 
+  /* ---- Recent Activity: order-number link + jump-target flash ---- */
+  .activity-order-link {
+    color: var(--accent-strong); font-weight: 700; cursor: pointer; text-decoration: underline;
+    text-underline-offset: 2px; text-decoration-thickness: 1px;
+  }
+  .activity-order-link:hover { text-decoration-thickness: 2px; }
+  .jump-highlight { animation: jump-flash 1.5s ease-out; border-radius: 6px; }
+  @keyframes jump-flash {
+    0%   { background: color-mix(in srgb, var(--accent-strong) 25%, transparent); }
+    100% { background: transparent; }
+  }
+
   /* ---- Scrollbar ---- */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -150,6 +162,13 @@
     padding: 1.25rem;
   }
   .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+
+  /* ---- Receipt source tabs ---- */
+  .receipt-source-tab {
+    padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600;
+    background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer;
+  }
+  .receipt-source-tab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 </style>
 </head>
 <body class="app-shell min-h-screen">
@@ -167,7 +186,7 @@
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
     <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
     <div>
-      <h2 class="text-lg font-semibold" data-i18n="receipts.title">Receipts</h2>
+      <h2 class="text-lg font-semibold" data-i18n="receipts.title">Orders and Receipts</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="receipts.subtitle">View and search receipt records</p>
     </div>
     <div class="flex-1"></div>
@@ -175,6 +194,36 @@
   </header>
 
   <main class="p-4 md:p-6 space-y-5 w-full max-w-screen-xl mx-auto">
+
+    <!-- Receipt source tabs -->
+    <div class="flex gap-2" id="receiptSourceTabs">
+      <button id="receiptTabLoyverse" onclick="switchReceiptSource('loyverse')" class="receipt-source-tab" data-i18n="receipts.tabLoyverse">Loyverse</button>
+      <button id="receiptTabOwn" onclick="switchReceiptSource('own')" class="receipt-source-tab active" data-i18n="receipts.tabOwn">Own Receipts</button>
+      <button id="receiptTabCancellations" onclick="switchReceiptSource('cancellations')" class="receipt-source-tab" data-i18n="receipts.tabCancellations">Cancellations</button>
+    </div>
+
+    <!-- Own-POS: branch filter (shown only on the Own tab) -->
+    <div id="ownBranchFilterRow">
+      <div id="ownBranchFilterMount" style="display:flex;justify-content:flex-end;"></div>
+    </div>
+
+    <!-- Own-POS: live orders (shown only on the Own tab) -->
+    <div id="liveOrdersCard" class="card">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="section-title">🔴 Live Orders</h2>
+        <span class="text-xs text-[color:var(--text-secondary)]" id="liveOrdersCount">—</span>
+      </div>
+      <div id="liveOrdersList" class="space-y-2"></div>
+    </div>
+
+    <!-- Own-POS: recent activity across every terminal (shown only on the Own tab) -->
+    <div id="liveActivityCard" class="card">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="section-title">📋 Recent Activity</h2>
+        <span class="text-xs text-[color:var(--text-secondary)]" id="liveActivityCount">—</span>
+      </div>
+      <div id="liveActivityList" class="space-y-1"></div>
+    </div>
 
     <!-- Summary stats -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="statsRow">
@@ -204,8 +253,66 @@
       </div>
     </div>
 
+    <!-- Cancellations tab (shown only when that tab is active) -->
+    <div id="cancellationsSection" class="hidden space-y-4">
+      <div class="card">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div id="cancellationsBranchFilterMount"></div>
+          <div id="cancellationsDateFilterMount"></div>
+          <div>
+            <label class="block text-xs text-[color:var(--text-secondary)] mb-1" data-i18n="receipts.terminal">Terminal</label>
+            <select id="cancellationsTerminalFilter" class="filter-input" onchange="onCancellationsTerminalChange(this.value)">
+              <option value="" data-i18n="receipts.typeAll">All</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title mb-3" data-i18n="receipts.cancelledOrders">🚫 Cancelled Orders</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left">
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thDate">Date</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thBranch">Branch</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.terminal">Terminal</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thOrder">Order</th>
+                <th class="pb-2 pr-3 font-medium text-right" data-i18n="receipts.thTotal">Total</th>
+                <th class="pb-2 font-medium" data-i18n="receipts.reason">Reason</th>
+              </tr>
+            </thead>
+            <tbody id="cancelledOrdersTbody">
+              <tr><td colspan="6" class="empty-state" data-i18n="receipts.loading">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title mb-3" data-i18n="receipts.cancelledItems">✂️ Cancelled / Reduced Items</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left">
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thDate">Date</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thBranch">Branch</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.terminal">Terminal</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.thOrder">Order</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="receipts.detail">Detail</th>
+                <th class="pb-2 font-medium" data-i18n="receipts.reason">Reason</th>
+              </tr>
+            </thead>
+            <tbody id="cancelledItemsTbody">
+              <tr><td colspan="6" class="empty-state" data-i18n="receipts.loading">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Main two-column layout -->
-    <div class="receipts-layout">
+    <div class="receipts-layout" id="receiptsLayoutSection">
 
       <!-- Left: list + filters -->
       <div class="space-y-4">

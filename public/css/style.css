@@ -513,6 +513,19 @@ dialog.app-dialog[open] .app-dialog-card {
   padding-top: .3rem;
 }
 .app-dialog-title + .app-dialog-message { padding-top: 0; }
+.app-dialog-input {
+  width: 100%;
+  margin-top: .6rem;
+  height: 42px;
+  border-radius: .5rem;
+  border: 1px solid var(--border);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  padding: 0 .75rem;
+  font-size: .85rem;
+  font-family: var(--font-sans);
+}
+.app-dialog-input:focus { outline: none; border-color: var(--accent); }
 .app-dialog-actions {
   display: flex;
   justify-content: flex-end;

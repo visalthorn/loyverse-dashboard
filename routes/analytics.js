@@ -3,18 +3,26 @@ const pool   = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { buildPeriodFilter, getTrendPeriod, getPrevPeriodSQL, getPeriodDateRange, getPrevPeriodDateRange, growth } = require('../utils/date');
 
-// Optional ?branch=<id>: receipts attribute to a branch through the POS device
-// that recorded them (pos_devices.branch_id is dashboard-owned). Appends one
-// param, so ALWAYS use the returned params array for the query.
+// Optional ?branch=<id>: v_receipts_all.branch_id already resolves this per
+// row (Loyverse rows via pos_devices.branch_id, OWN_POS rows via
+// pos_orders.branch_id directly — see migrations/010_merge_views.sql).
+// Appends one param, so ALWAYS use the returned params array for the query.
 function branchClause(branchId, params, alias = 'r') {
   // Invalid/non-numeric branch values are deliberately ignored (treated as "no filter")
   // rather than passed through to Postgres, which would 500 on NaN.
   const id = Number(branchId);
   if (!Number.isInteger(id) || id <= 0) return { sql: '', params };
   return {
-    sql: ` AND ${alias}.pos_device_id IN (SELECT id::varchar FROM pos_devices WHERE branch_id = $${params.length + 1})`,
+    sql: ` AND ${alias}.branch_id = $${params.length + 1}`,
     params: [...params, id],
   };
+}
+
+// Optional ?source=loyverse|own_pos|all on /kpis for channel comparison.
+function sourceClause(source, params, alias = 'r') {
+  if (source === 'loyverse') return { sql: ` AND ${alias}.source != 'OWN_POS'`, params };
+  if (source === 'own_pos')  return { sql: ` AND ${alias}.source = 'OWN_POS'`, params };
+  return { sql: '', params };
 }
 
 function expenseBranchClause(branchId, params, alias = 'e') {
@@ -28,8 +36,8 @@ function expenseBranchClause(branchId, params, alias = 'e') {
 // Per-day average query: for each calendar day in [start,end], compute
 // daily_gross and daily_expense, derive daily_net = gross - expense, then AVG all three.
 // With a branch, $3 filters receipts via device->branch and expenses via branch_id.
-function dailyAvgSql(withBranch) {
-  const rb = withBranch ? ` AND pos_device_id IN (SELECT id::varchar FROM pos_devices WHERE branch_id = $3)` : '';
+function dailyAvgSql(withBranch, sourceSql = '') {
+  const rb = withBranch ? ` AND v.branch_id = $3` : '';
   const eb = withBranch ? ` AND branch_id = $3` : '';
   return `
   SELECT
@@ -43,11 +51,11 @@ function dailyAvgSql(withBranch) {
       COALESCE(r.daily_gross,   0) - COALESCE(e.daily_expense, 0) AS net
     FROM generate_series($1::date, $2::date, '1 day'::interval) AS gs(day)
     LEFT JOIN (
-      SELECT DATE(receipt_date) AS day, SUM(total_money) AS daily_gross
-      FROM receipts
-      WHERE DATE(receipt_date) BETWEEN $1 AND $2
-        AND ((receipt_type = 'SALE' AND cancelled_at IS NULL) OR (receipt_type = 'REFUND' AND cancelled_at IS NOT NULL))${rb}
-      GROUP BY DATE(receipt_date)
+      SELECT DATE(v.receipt_date) AS day, SUM(v.total_money) AS daily_gross
+      FROM v_receipts_all v
+      WHERE DATE(v.receipt_date) BETWEEN $1 AND $2
+        AND ((v.receipt_type = 'SALE' AND v.cancelled_at IS NULL) OR (v.receipt_type = 'REFUND' AND v.cancelled_at IS NOT NULL))${rb}${sourceSql}
+      GROUP BY DATE(v.receipt_date)
     ) r ON r.day = gs.day::date
     LEFT JOIN (
       SELECT DATE(expense_date) AS day, SUM(amount) AS daily_expense
@@ -60,7 +68,7 @@ function dailyAvgSql(withBranch) {
 }
 
 router.get('/kpis', requireAuth, async (req, res) => {
-  const { period = 'today', start, end, branch } = req.query;
+  const { period = 'today', start, end, branch, source } = req.query;
   const filter        = buildPeriodFilter(period, start, end);
   const prevFilter    = getPrevPeriodSQL(period, start, end);
   const expFilter     = buildPeriodFilter(period, start, end, 'e', 1, 'expense_date');
@@ -69,33 +77,38 @@ router.get('/kpis', requireAuth, async (req, res) => {
   const prevRange     = getPrevPeriodDateRange(period, start, end);
   const bcCurr    = branchClause(branch, filter.params);
   const bcPrev    = branchClause(branch, prevFilter.params);
+  const scCurr    = sourceClause(source, bcCurr.params);
+  const scPrev    = sourceClause(source, bcPrev.params);
   const ebCurr    = expenseBranchClause(branch, expFilter.params);
   const ebPrev    = expenseBranchClause(branch, prevExpFilter.params);
+  // Only own-POS revenue has a channel to compare against expenses, so the
+  // ?source filter only ever narrows the receipts side, never expenses.
   // Same strict coercion as branchClause/expenseBranchClause: invalid values are ignored.
   const branchIdNum = Number(branch);
   const hasBranch    = Number.isInteger(branchIdNum) && branchIdNum > 0;
   const avgParams     = hasBranch ? [currRange.start, currRange.end, branchIdNum] : [currRange.start, currRange.end];
   const prevAvgParams = hasBranch ? [prevRange.start, prevRange.end, branchIdNum] : [prevRange.start, prevRange.end];
+  const sourceSql = sourceClause(source, [], 'v').sql;
   try {
     const [curr, prev, expRes, prevExpRes, currAvg, prevAvg] = await Promise.all([
       pool.query(`
         SELECT COALESCE(SUM(total_money),0) AS gross_income, COUNT(*) AS orders, COALESCE(AVG(total_money),0) AS aov
-        FROM receipts r WHERE ${filter.clause}${bcCurr.sql}
+        FROM v_receipts_all r WHERE ${filter.clause}${bcCurr.sql}${scCurr.sql}
           AND ((receipt_type='SALE' AND cancelled_at IS NULL) OR (receipt_type='REFUND' AND cancelled_at IS NOT NULL))
-      `, bcCurr.params),
+      `, scCurr.params),
       pool.query(`
         SELECT COALESCE(SUM(total_money),0) AS gross_income, COUNT(*) AS orders, COALESCE(AVG(total_money),0) AS aov
-        FROM receipts r WHERE ${prevFilter.clause}${bcPrev.sql}
+        FROM v_receipts_all r WHERE ${prevFilter.clause}${bcPrev.sql}${scPrev.sql}
           AND ((receipt_type='SALE' AND cancelled_at IS NULL) OR (receipt_type='REFUND' AND cancelled_at IS NOT NULL))
-      `, bcPrev.params),
+      `, scPrev.params),
       pool.query(`
         SELECT COALESCE(SUM(amount),0) AS total_expense FROM expenses e WHERE ${expFilter.clause}${ebCurr.sql}
       `, ebCurr.params),
       pool.query(`
         SELECT COALESCE(SUM(amount),0) AS total_expense FROM expenses e WHERE ${prevExpFilter.clause}${ebPrev.sql}
       `, ebPrev.params),
-      pool.query(dailyAvgSql(hasBranch), avgParams),
-      pool.query(dailyAvgSql(hasBranch), prevAvgParams),
+      pool.query(dailyAvgSql(hasBranch, sourceSql), avgParams),
+      pool.query(dailyAvgSql(hasBranch, sourceSql), prevAvgParams),
     ]);
 
     const c = curr.rows[0];
@@ -143,7 +156,7 @@ router.get('/gross-income', requireAuth, async (req, res) => {
       SELECT DATE_TRUNC($1, receipt_date) AS period,
              COALESCE(SUM(total_money),0) AS gross_income,
              COUNT(*) FILTER (WHERE cancelled_at IS NULL) AS orders
-      FROM receipts r WHERE ${filter.clause}${bc.sql} AND cancelled_at IS NULL
+      FROM v_receipts_all r WHERE ${filter.clause}${bc.sql} AND cancelled_at IS NULL
       GROUP BY 1 ORDER BY 1
     `, bc.params);
     res.json(result.rows);
@@ -177,7 +190,7 @@ router.get('/dining-options', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT COALESCE(dining_option,'Unknown') AS dining_option, COUNT(*) AS orders, COALESCE(SUM(total_money),0) AS revenue
-      FROM receipts r WHERE ${filter.clause}${bc.sql} AND cancelled_at IS NULL GROUP BY 1 ORDER BY revenue DESC
+      FROM v_receipts_all r WHERE ${filter.clause}${bc.sql} AND cancelled_at IS NULL GROUP BY 1 ORDER BY revenue DESC
     `, bc.params);
     res.json(result.rows);
   } catch (err) {
@@ -193,7 +206,7 @@ router.get('/top-items', requireAuth, async (req, res) => {
     const params = [...filter.params, limit];
     const result = await pool.query(`
       SELECT ri.item_name, ri.sku, SUM(ri.quantity) AS qty_sold, SUM(ri.gross_total) AS revenue
-      FROM receipt_items ri JOIN receipts r ON r.receipt_number = ri.receipt_number
+      FROM v_receipt_items_all ri JOIN v_receipts_all r ON r.receipt_number = ri.receipt_number
       WHERE ${filter.clause} AND r.cancelled_at IS NULL
       GROUP BY ri.item_name, ri.sku ORDER BY revenue DESC LIMIT $${params.length}
     `, params);
@@ -215,7 +228,7 @@ router.get('/payment-methods', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT rp.payment_name, rp.payment_type, COUNT(*) AS transactions, SUM(rp.money_amount) AS total
-      FROM receipt_payments rp JOIN receipts r ON r.receipt_number = rp.receipt_number
+      FROM v_receipt_payments_all rp JOIN v_receipts_all r ON r.receipt_number = rp.receipt_number
       WHERE ${filter.clause}${bc.sql} AND r.cancelled_at IS NULL AND r.receipt_type = 'SALE'
       GROUP BY rp.payment_name, rp.payment_type ORDER BY total DESC
     `, bc.params);
@@ -236,7 +249,7 @@ router.get('/employee-performance', requireAuth, async (req, res) => {
              COUNT(*) FILTER (WHERE cancelled_at IS NULL) AS orders,
              COALESCE(SUM(total_money) FILTER (WHERE cancelled_at IS NULL),0) AS revenue,
              COALESCE(AVG(total_money) FILTER (WHERE cancelled_at IS NULL),0) AS aov
-      FROM receipts r WHERE ${filter.clause}${bc.sql} GROUP BY employee_id ORDER BY revenue DESC LIMIT 10
+      FROM v_receipts_all r WHERE ${filter.clause}${bc.sql} GROUP BY employee_id ORDER BY revenue DESC LIMIT 10
     `, bc.params);
     res.json(result.rows);
   } catch (err) {
@@ -251,11 +264,11 @@ router.get('/device-performance', requireAuth, async (req, res) => {
   const bc = branchClause(branch, filter.params);
   try {
     const result = await pool.query(`
-      SELECT COALESCE(pd.name, r.pos_device_id) AS device_name,
+      SELECT COALESCE(pd.name, CASE WHEN r.source = 'OWN_POS' THEN 'Own POS' ELSE r.pos_device_id END) AS device_name,
              COUNT(*) FILTER (WHERE r.cancelled_at IS NULL) AS orders,
              COALESCE(SUM(r.total_money) FILTER (WHERE r.cancelled_at IS NULL),0) AS revenue
-      FROM receipts r LEFT JOIN pos_devices pd ON pd.id::varchar = r.pos_device_id
-      WHERE ${filter.clause}${bc.sql} GROUP BY pd.name, r.pos_device_id ORDER BY revenue DESC
+      FROM v_receipts_all r LEFT JOIN pos_devices pd ON pd.id::varchar = r.pos_device_id
+      WHERE ${filter.clause}${bc.sql} GROUP BY pd.name, r.pos_device_id, r.source ORDER BY revenue DESC
     `, bc.params);
     res.json(result.rows);
   } catch (err) {
@@ -272,9 +285,8 @@ router.get('/branch-breakdown', requireAuth, async (req, res) => {
       SELECT b.id AS branch_id, b.name AS branch_name,
              COALESCE(SUM(r.total_money),0) AS revenue,
              COUNT(*) AS orders
-      FROM receipts r
-      LEFT JOIN pos_devices pd ON pd.id::varchar = r.pos_device_id
-      LEFT JOIN branches b ON b.id = pd.branch_id
+      FROM v_receipts_all r
+      LEFT JOIN branches b ON b.id = r.branch_id
       WHERE ${filter.clause}
         AND ((r.receipt_type='SALE' AND r.cancelled_at IS NULL) OR (r.receipt_type='REFUND' AND r.cancelled_at IS NOT NULL))
       GROUP BY b.id, b.name
@@ -295,12 +307,12 @@ router.get('/cancelled-orders', requireAuth, async (req, res) => {
     const [items, summary] = await Promise.all([
       pool.query(`
         SELECT receipt_number, total_money, receipt_date, cancelled_at, employee_id, dining_option
-        FROM receipts r WHERE ${filter.clause}${bc.sql} AND cancelled_at IS NOT NULL
+        FROM v_receipts_all r WHERE ${filter.clause}${bc.sql} AND cancelled_at IS NOT NULL
         ORDER BY cancelled_at DESC LIMIT 20
       `, bc.params),
       pool.query(`
         SELECT COUNT(*) AS count, COALESCE(SUM(total_money),0) AS lost_revenue
-        FROM receipts r WHERE ${filter.clause}${bc.sql} AND cancelled_at IS NOT NULL
+        FROM v_receipts_all r WHERE ${filter.clause}${bc.sql} AND cancelled_at IS NOT NULL
       `, bc.params),
     ]);
     res.json({ summary: summary.rows[0], items: items.rows });
@@ -320,7 +332,7 @@ router.get('/dining-trend', requireAuth, async (req, res) => {
              COALESCE(r.dining_option, 'Unknown') AS dining_option,
              COUNT(*) AS orders,
              COALESCE(SUM(r.total_money), 0) AS revenue
-      FROM receipts r
+      FROM v_receipts_all r
       WHERE ${filter.clause}
         AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
       GROUP BY 1, 2
@@ -343,8 +355,8 @@ router.get('/payment-trend', requireAuth, async (req, res) => {
              rp.payment_name,
              COUNT(*) AS transactions,
              COALESCE(SUM(rp.money_amount), 0) AS total
-      FROM receipt_payments rp
-      JOIN receipts r ON r.receipt_number = rp.receipt_number
+      FROM v_receipt_payments_all rp
+      JOIN v_receipts_all r ON r.receipt_number = rp.receipt_number
       WHERE ${filter.clause}
         AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
       GROUP BY 1, 2
@@ -380,8 +392,8 @@ router.get('/item-comparison', requireAuth, async (req, res) => {
         SELECT ri.item_name, ri.sku,
                SUM(ri.gross_total) AS revenue,
                SUM(ri.quantity)    AS qty
-        FROM receipt_items ri
-        JOIN receipts r ON r.receipt_number = ri.receipt_number
+        FROM v_receipt_items_all ri
+        JOIN v_receipts_all r ON r.receipt_number = ri.receipt_number
         ${categoryJoin}
         WHERE ${filter.clause}
           AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
@@ -392,8 +404,8 @@ router.get('/item-comparison', requireAuth, async (req, res) => {
       `, bcCurr.params),
       pool.query(`
         SELECT ri.sku, SUM(ri.gross_total) AS revenue
-        FROM receipt_items ri
-        JOIN receipts r ON r.receipt_number = ri.receipt_number
+        FROM v_receipt_items_all ri
+        JOIN v_receipts_all r ON r.receipt_number = ri.receipt_number
         ${categoryJoin}
         WHERE ${prevFilter.clause}
           AND r.receipt_type = 'SALE' AND r.cancelled_at IS NULL
@@ -444,7 +456,7 @@ router.get('/refund-analysis', requireAuth, async (req, res) => {
              COUNT(*) FILTER (WHERE r.receipt_type = 'REFUND' AND r.cancelled_at IS NOT NULL) AS refunds,
              COUNT(*) FILTER (WHERE r.receipt_type = 'SALE'   AND r.cancelled_at IS NOT NULL) AS cancellations,
              COALESCE(SUM(r.total_money) FILTER (WHERE r.receipt_type = 'REFUND' AND r.cancelled_at IS NOT NULL), 0) AS refund_amount
-      FROM receipts r
+      FROM v_receipts_all r
       WHERE ${filter.clause}
       GROUP BY 1
       ORDER BY 1
@@ -464,11 +476,11 @@ router.get('/debug', requireAuth, async (req, res) => {
                COUNT(*) AS total_receipts,
                COUNT(*) FILTER (WHERE cancelled_at IS NOT NULL) AS cancelled,
                CURRENT_DATE AS db_today, NOW() AS db_now
-        FROM receipts
+        FROM v_receipts_all
       `),
-      pool.query(`SELECT receipt_number, receipt_date, total_money, dining_option, cancelled_at FROM receipts ORDER BY receipt_date DESC LIMIT 5`),
-      pool.query(`SELECT COUNT(*) AS count FROM receipt_payments`),
-      pool.query(`SELECT COUNT(*) AS count FROM receipt_items`),
+      pool.query(`SELECT receipt_number, receipt_date, total_money, dining_option, cancelled_at FROM v_receipts_all ORDER BY receipt_date DESC LIMIT 5`),
+      pool.query(`SELECT COUNT(*) AS count FROM v_receipt_payments_all`),
+      pool.query(`SELECT COUNT(*) AS count FROM v_receipt_items_all`),
     ]);
     res.json({
       dateRange:      dateRange.rows[0],

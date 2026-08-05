@@ -1,6 +1,13 @@
 const router = require('express').Router();
+const bcrypt = require('bcryptjs');
 const pool   = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+
+// 6-digit numeric PIN -- shown once at creation/reset, never stored or
+// returned in plaintext afterward.
+function generatePasscode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 // Non-admin: branch names for filters/forms. Everything below the gate stays admin-only.
 router.get('/options', requireAuth, async (req, res) => {
@@ -63,6 +70,165 @@ router.put('/devices/:id', async (req, res) => {
   } catch (err) {
     if (err.code === '22P02') return res.status(404).json({ error: 'Device not found' });
     console.error('branches device PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// NOTE: registered before /:id so /kds-settings never collides with the
+// single-segment PUT/DELETE /:id routes further down.
+
+router.get('/kds-settings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT warn_minutes, danger_minutes FROM kds_display_settings ORDER BY id LIMIT 1');
+    res.json(result.rows[0] || { warn_minutes: 10, danger_minutes: 20 });
+  } catch (err) {
+    console.error('kds-settings GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/kds-settings', async (req, res) => {
+  const warn   = parseInt(req.body.warn_minutes, 10);
+  const danger = parseInt(req.body.danger_minutes, 10);
+  if (!Number.isInteger(warn) || warn < 1) return res.status(400).json({ error: 'warn_minutes must be a positive integer.' });
+  if (!Number.isInteger(danger) || danger < 1) return res.status(400).json({ error: 'danger_minutes must be a positive integer.' });
+  if (warn >= danger) return res.status(400).json({ error: 'warn_minutes must be less than danger_minutes.' });
+  try {
+    const existing = await pool.query('SELECT id FROM kds_display_settings ORDER BY id LIMIT 1');
+    let result;
+    if (existing.rowCount) {
+      result = await pool.query(
+        'UPDATE kds_display_settings SET warn_minutes = $1, danger_minutes = $2, updated_at = NOW() WHERE id = $3 RETURNING warn_minutes, danger_minutes',
+        [warn, danger, existing.rows[0].id]
+      );
+    } else {
+      result = await pool.query(
+        'INSERT INTO kds_display_settings (warn_minutes, danger_minutes) VALUES ($1, $2) RETURNING warn_minutes, danger_minutes',
+        [warn, danger]
+      );
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('kds-settings PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Bulk device revoke for an entire branch -- staff turnover or a lost/stolen
+// tablet whose specific terminal isn't known offhand. Registered before
+// /:id so it never collides with the single-segment PUT/DELETE routes below.
+router.post('/:id/revoke-all-devices', async (req, res) => {
+  const branchId = parseId(req.params.id);
+  if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
+  try {
+    const result = await pool.query(
+      `UPDATE terminal_devices SET revoked_at = NOW(), revoked_by = $1
+       WHERE branch_id = $2 AND revoked_at IS NULL RETURNING id`,
+      [req.user.username, branchId]
+    );
+    res.json({ success: true, revoked_count: result.rowCount });
+  } catch (err) {
+    console.error('branch revoke-all-devices error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/:id/pos-terminals', async (req, res) => {
+  const branchId = parseId(req.params.id);
+  if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
+  try {
+    const result = await pool.query(
+      `SELECT id, terminal_id, name, is_active, role, last_login_at, locked_until, created_at
+       FROM pos_terminals WHERE branch_id = $1 AND deleted_at IS NULL ORDER BY terminal_id`,
+      [branchId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('pos-terminals GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/pos-terminals', async (req, res) => {
+  const branchId = parseId(req.params.id);
+  if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
+  const terminalId = (req.body.terminal_id || '').trim();
+  const name = (req.body.name || '').trim() || null;
+  const role = req.body.role === 'supervisor' ? 'supervisor' : 'order';
+  if (!terminalId || terminalId.length > 20) {
+    return res.status(400).json({ error: 'terminal_id is required (max 20 characters).' });
+  }
+  try {
+    const passcode = generatePasscode();
+    const hash = await bcrypt.hash(passcode, 10);
+    const result = await pool.query(
+      `INSERT INTO pos_terminals (branch_id, terminal_id, name, passcode_hash, created_by, role)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, terminal_id, name, is_active, role, created_at`,
+      [branchId, terminalId, name, hash, req.user.username, role]
+    );
+    res.status(201).json({ terminal: result.rows[0], passcode });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A terminal with this ID already exists.' });
+    console.error('pos-terminals POST error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/:id/kds-terminals', async (req, res) => {
+  const branchId = parseId(req.params.id);
+  if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
+  try {
+    const result = await pool.query(
+      `SELECT id, terminal_id, name, is_active, last_login_at, locked_until, created_at
+       FROM kds_terminals WHERE branch_id = $1 AND deleted_at IS NULL ORDER BY terminal_id`,
+      [branchId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('kds-terminals GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/kds-terminals', async (req, res) => {
+  const branchId = parseId(req.params.id);
+  if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
+  const terminalId = (req.body.terminal_id || '').trim();
+  const name = (req.body.name || '').trim() || null;
+  if (!terminalId || terminalId.length > 20) {
+    return res.status(400).json({ error: 'terminal_id is required (max 20 characters).' });
+  }
+  try {
+    const passcode = generatePasscode();
+    const hash = await bcrypt.hash(passcode, 10);
+    const result = await pool.query(
+      `INSERT INTO kds_terminals (branch_id, terminal_id, name, passcode_hash, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, terminal_id, name, is_active, created_at`,
+      [branchId, terminalId, name, hash, req.user.username]
+    );
+    res.status(201).json({ terminal: result.rows[0], passcode });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A terminal with this ID already exists.' });
+    console.error('kds-terminals POST error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/:id/kds-terminal-categories', async (req, res) => {
+  const branchId = parseId(req.params.id);
+  if (branchId === null) return res.status(404).json({ error: 'Branch not found' });
+  try {
+    const result = await pool.query(`
+      SELECT ktc.category_id, kt.id AS kds_terminal_id, kt.terminal_id, kt.name
+      FROM kds_terminal_categories ktc
+      JOIN kds_terminals kt ON kt.id = ktc.kds_terminal_id
+      WHERE ktc.branch_id = $1 AND kt.deleted_at IS NULL
+    `, [branchId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('kds-terminal-categories GET error:', err);
     res.status(500).json({ error: err.message });
   }
 });

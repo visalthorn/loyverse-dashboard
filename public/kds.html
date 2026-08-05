@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css"/>
+<link rel="manifest" href="/manifest-kds.json"/>
+<link rel="apple-touch-icon" href="/icons-kds-192.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="CM KDS"/>
+<meta name="theme-color" content="#0F172A"/>
+<title>Kitchen Display</title>
+<script>
+  // KDS is a dedicated kitchen screen — always dark, regardless of the
+  // logged-in user's saved theme preference on other pages.
+  document.documentElement.dataset.theme = 'dark';
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    height: 100%; margin: 0; overflow: hidden;
+    background: var(--bg-canvas); color: var(--text-primary);
+    font-family: var(--font-sans);
+    overscroll-behavior: none;
+  }
+  button {
+    font-family: inherit;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+
+  #kdsApp { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── Top bar ─────────────────────────────────────────────────────── */
+  #topBar {
+    flex: 0 0 56px; display: flex; align-items: center; gap: 16px;
+    padding: 0 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  }
+  #topBar .brand { font-weight: 700; font-size: 16px; color: var(--accent-strong); }
+  #finishedBtn, #cancelledBtn {
+    height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface-alt); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;
+    position: relative;
+  }
+  .cancel-dot {
+    display: none; position: absolute; top: -4px; right: -4px;
+    width: 10px; height: 10px; border-radius: 50%; background: var(--loss);
+    border: 2px solid var(--bg-surface);
+  }
+  .cancel-dot.show { display: block; }
+  #clock { font-family: var(--font-num); font-size: 18px; font-weight: 600; margin-left: auto; }
+  #connDot {
+    width: 12px; height: 12px; border-radius: 50%; background: var(--loss);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--loss) 25%, transparent);
+    transition: background .2s, box-shadow .2s;
+  }
+  #connDot.online {
+    background: var(--gain);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gain) 25%, transparent);
+  }
+
+  /* ── Board ───────────────────────────────────────────────────────── */
+  #board {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-wrap: wrap; align-content: flex-start; gap: 16px;
+  }
+  #emptyBoardMsg { width: 100%; text-align: center; color: var(--text-secondary); padding: 80px 0; font-size: 18px; }
+
+  .order-card {
+    width: 300px; border-radius: 14px; border: 1px solid var(--border);
+    background: var(--bg-surface); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .order-card.elapsed-ok { border-color: var(--gain); }
+  .order-card.elapsed-warn  { border-color: var(--accent); }
+  .order-card.elapsed-danger { border-color: var(--loss); animation: danger-pulse 1.4s ease-in-out infinite; }
+  @keyframes danger-pulse { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 3px var(--loss); } }
+  .order-card.dimmed { opacity: 0.75; }
+
+  .oc-head {
+    display: flex; flex-direction: column; gap: 6px; padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .oc-head-row1 { display: flex; align-items: center; gap: 8px; }
+  .oc-head-row2 { display: flex; align-items: center; justify-content: space-between; }
+  .oc-number {
+    font-size: 18px; font-weight: 800; font-family: var(--font-num);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  }
+  .oc-badge {
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+    background: var(--bg-surface-alt); color: var(--text-secondary); text-transform: uppercase;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .oc-arrived, .oc-served {
+    font-family: var(--font-num); font-size: 11px; color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .oc-time-block { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .oc-order-no {
+    font-family: var(--font-num); font-size: 11px; font-weight: 600; color: var(--text-muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .oc-elapsed {
+    font-family: var(--font-num); font-size: 15px; font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .elapsed-ok     .oc-elapsed { color: var(--gain); }
+  .elapsed-warn   .oc-elapsed { color: var(--accent-strong); }
+  .elapsed-danger .oc-elapsed { color: var(--loss); }
+  .oc-cancel-reason { font-size: 12px; color: var(--text-secondary); font-style: italic; }
+
+  .oc-items { flex: 1; padding: 6px 0; }
+  .oc-item {
+    display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px; min-height: 48px;
+    cursor: pointer; border-bottom: 1px solid var(--border-subtle);
+  }
+  .oc-item:last-child { border-bottom: none; }
+  .oc-item:active { background: var(--bg-surface-alt); }
+  .oc-item .qty, .oc-item .name-text {
+    position: relative; transition: color 200ms ease;
+  }
+  .oc-item .qty { font-weight: 800; font-family: var(--font-num); min-width: 28px; display: inline-block; }
+  .oc-item .name { flex: 1; font-size: 15px; font-weight: 600; }
+  .oc-item .note { display: block; font-size: 14px; font-weight: 700; color: var(--accent-contrast); background: var(--accent-strong); border-radius: 6px; padding: 2px 8px; margin-top: 4px; }
+  .oc-item.status-pending    .name, .oc-item.status-pending .qty    { color: var(--text-primary); }
+  .oc-item.status-preparing  .name, .oc-item.status-preparing .qty  { color: var(--accent-strong); }
+  .oc-item.status-done       .name, .oc-item.status-done .qty       { color: var(--gain); }
+  .oc-item.status-cancelled  .name, .oc-item.status-cancelled .qty  { color: var(--text-secondary); }
+  /* Animated strike -- draws left-to-right instead of popping in, and (unlike
+     text-decoration) actually plays: it's a transition on a DOM node that
+     stays alive across the status change, not a node recreated already in
+     its final state (see cycleItemStatus in kds.js, which now patches this
+     row in place instead of doing a full board re-render on every tap).
+     Targets .name-text (not .name itself) so the line's vertical centering
+     is based on just the item-name line, not the taller box .name becomes
+     once an optional .note badge is stacked below it as a block child. */
+  .oc-item .qty::after, .oc-item .name-text::after {
+    content: ''; position: absolute; left: 0; top: 50%; height: 2px; width: 0;
+    background: currentColor; transition: width 220ms ease;
+  }
+  .oc-item.status-done .qty::after, .oc-item.status-done .name-text::after,
+  .oc-item.status-cancelled .qty::after, .oc-item.status-cancelled .name-text::after { width: 100%; }
+
+  .oc-ready-btn {
+    margin: 12px; height: 56px; border-radius: 12px; border: none; cursor: pointer;
+    background: var(--gain); color: #06210f; font-size: 18px; font-weight: 800;
+  }
+  .oc-ready-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+  /* ── Ready strip ─────────────────────────────────────────────────── */
+  #readyStrip {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; background: var(--bg-surface); border-top: 1px solid var(--border);
+    overflow-x: auto; min-height: 68px;
+  }
+  #readyStrip .strip-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--text-secondary); white-space: nowrap;
+  }
+  .ready-chip {
+    flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+    min-width: 130px; min-height: 48px; padding: 6px 14px; border-radius: 10px; cursor: pointer;
+    background: var(--gain); color: #06210f;
+  }
+  .ready-chip .rc-title { font-weight: 800; font-size: 14px; }
+  .ready-chip .rc-sub { font-size: 11px; opacity: .8; }
+  .ready-chip.confirm-serve { background: var(--accent); color: var(--accent-contrast); animation: confirm-pulse 1s ease-in-out infinite; }
+  @keyframes confirm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
+  #emptyReadyMsg { font-size: 12px; color: var(--text-dim); }
+
+  /* ── Finished / Cancelled orders dialogs ─────────────────────────────
+     Both open on top of the active board (which keeps running underneath,
+     untouched) purely to reconcile a completed/cancelled order -- never a
+     mode switch away from the live board. ── */
+  .kds-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 800; padding: 24px;
+  }
+  .kds-modal.open { display: flex; }
+  .kds-modal-card {
+    width: 100%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column;
+    background: var(--bg-canvas); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+  }
+  .kds-modal-head {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 16px 20px;
+    background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  }
+  .kds-modal-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
+  #finishedClearBtn, #cancelledClearBtn {
+    margin-left: auto; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface-alt); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  #finishedModalCloseBtn, #cancelledModalCloseBtn {
+    width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface-alt); color: var(--text-primary); font-size: 16px; cursor: pointer;
+  }
+  .kds-modal-body {
+    flex: 1; overflow-y: auto; padding: 16px 20px;
+    display: flex; flex-wrap: wrap; align-content: flex-start; gap: 16px;
+  }
+</style>
+</head>
+<body>
+<div id="kdsApp">
+  <div id="topBar">
+    <span class="brand">🍳 Kitchen Display</span>
+    <span id="connDot" title="Live connection"></span>
+    <button id="finishedBtn" onclick="window.kdsOpenFinished()">✅ Finished</button>
+    <button id="cancelledBtn" onclick="window.kdsOpenCancelled()">🚫 Cancelled<span id="cancelledDot" class="cancel-dot"></span></button>
+    <span id="clock">--:--:--</span>
+  </div>
+
+  <div id="board"></div>
+
+  <div id="readyStrip">
+    <span class="strip-label">Ready for pickup</span>
+  </div>
+</div>
+
+<div id="finishedModal" class="kds-modal">
+  <div class="kds-modal-card">
+    <div class="kds-modal-head">
+      <h2>✅ Finished Orders</h2>
+      <button id="finishedClearBtn" onclick="window.kdsClearFinished()">🗑 Clear</button>
+      <button id="finishedModalCloseBtn" onclick="window.kdsCloseFinished()">✕</button>
+    </div>
+    <div id="finishedModalBody" class="kds-modal-body"></div>
+  </div>
+</div>
+
+<div id="cancelledModal" class="kds-modal">
+  <div class="kds-modal-card">
+    <div class="kds-modal-head">
+      <h2>🚫 Cancelled Orders</h2>
+      <button id="cancelledClearBtn" onclick="window.kdsClearCancelled()">🗑 Clear</button>
+      <button id="cancelledModalCloseBtn" onclick="window.kdsCloseCancelled()">✕</button>
+    </div>
+    <div id="cancelledModalBody" class="kds-modal-body"></div>
+  </div>
+</div>
+
+<script type="module" src="/js/kds.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+  }
+</script>
+</body>
+</html>

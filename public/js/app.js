@@ -104,6 +104,7 @@ window.exportExpensesCSV    = Expenses.exportExpensesCSV;
 
 // Receipts
 window.loadReceipts       = Receipts.loadReceipts;
+window.switchReceiptSource = Receipts.switchReceiptSource;
 window.onApiFilterChange  = Receipts.onApiFilterChange;
 window.onSearchChange     = Receipts.onSearchChange;
 window.resetFilters       = Receipts.resetFilters;
@@ -111,6 +112,7 @@ window.changePage         = Receipts.changePage;
 window.selectReceipt      = Receipts.selectReceipt;
 window.exportReceiptsCSV  = Receipts.exportReceiptsCSV;
 window.exportReceiptPDF   = Receipts.exportReceiptPDF;
+window.refundReceipt      = Receipts.refundReceipt;
 
 // Staff
 window.submitStaff        = Staff.submitStaff;
@@ -183,6 +185,16 @@ window.startEditBranch     = Branches.startEditBranch;
 window.cancelEditBranch    = Branches.cancelEditBranch;
 window.confirmDeleteBranch = Branches.confirmDeleteBranch;
 window.changeDeviceBranch  = Branches.changeDeviceBranch;
+window.onTerminalBranchChange   = Branches.onTerminalBranchChange;
+window.switchTerminalTab        = Branches.switchTerminalTab;
+window.toggleTerminalActive     = Branches.toggleTerminalActive;
+window.resetTerminalPasscode    = Branches.resetTerminalPasscode;
+window.openCreateTerminalModal  = Branches.openCreateTerminalModal;
+window.openCategoriesModal      = Branches.openCategoriesModal;
+window.saveKdsDisplaySettings   = Branches.saveKdsDisplaySettings;
+window.openDevicesModal            = Branches.openDevicesModal;
+window.unlockTerminal              = Branches.unlockTerminal;
+window.confirmRevokeAllBranchDevices = Branches.confirmRevokeAllBranchDevices;
 
 // Items
 window.onItemSearch          = Items.onItemSearch;
