@@ -122,6 +122,26 @@ function elapsedClass(ms) {
   return 'elapsed-ok';
 }
 
+// Paints a ready-chip for its current armed/unarmed state. Kept separate from
+// render() so the arming tap can update the tapped chip in place: the previous
+// code called render(), which removed the very node being tapped and appended a
+// replacement. On iPad that made the follow-up confirm tap land on a node that
+// had only just been inserted, and WebKit routinely dropped it -- the chip sat
+// on "Tap again to confirm" and the order could never be cleared from the
+// "Ready for pickup" strip. Same in-place-mutation reasoning as
+// updateReadyButtonForOrder() below.
+function paintChip(chip, order) {
+  const confirming = confirmingServeId === order.id;
+  chip.classList.toggle('confirm-serve', confirming);
+  chip.innerHTML = `<span class="rc-title">${esc(cardTitle(order))}</span><span class="rc-sub">${confirming ? 'Tap again to confirm' : esc(badgeText(order))}</span>`;
+}
+
+function repaintChipById(orderId) {
+  const chip = document.querySelector(`.ready-chip[data-order-id="${orderId}"]`);
+  const order = orders.find(o => o.id === orderId);
+  if (chip && order) paintChip(chip, order);
+}
+
 function render() {
   const board = document.getElementById('board');
   const active = orders.filter(o => o.status === 'sent_to_kitchen' || o.status === 'preparing');
@@ -138,34 +158,63 @@ function render() {
     }
   }
 
+  // Chips are reused across renders, keyed by order id, rather than torn down
+  // and rebuilt. render() runs on every SSE broadcast and on the 30s safety
+  // poll, so a chip the user had just armed used to be replaced mid-confirm by
+  // an unrelated order's change -- their second tap then hit a node that was
+  // seconds old, which is exactly the case iPad drops. Reused nodes keep both
+  // their identity and their armed state.
   const strip = document.getElementById('readyStrip');
-  strip.querySelectorAll('.ready-chip, #emptyReadyMsg').forEach(el => el.remove());
+  const existingChips = new Map(
+    [...strip.querySelectorAll('.ready-chip')].map(el => [el.dataset.orderId, el])
+  );
+  const emptyMsg = strip.querySelector('#emptyReadyMsg');
+  if (emptyMsg) emptyMsg.remove();
+
   if (!ready.length) {
+    existingChips.forEach(el => el.remove());
     strip.insertAdjacentHTML('beforeend', '<span id="emptyReadyMsg">Nothing ready</span>');
   } else {
     for (const order of ready) {
-      const chip = document.createElement('div');
-      const confirming = order.id === confirmingServeId;
-      chip.className = confirming ? 'ready-chip confirm-serve' : 'ready-chip';
-      chip.innerHTML = `<span class="rc-title">${esc(cardTitle(order))}</span><span class="rc-sub">${confirming ? 'Tap again to confirm' : esc(badgeText(order))}</span>`;
+      const key = String(order.id);
+      const chip = existingChips.get(key) || document.createElement('div');
+      existingChips.delete(key);
+      chip.className = 'ready-chip';
+      chip.dataset.orderId = order.id;
+      paintChip(chip, order);
       // A crowded strip touched by busy hands shouldn't drop an order off
       // the ready list on a single mis-tap -- first tap arms a 3s confirm
       // window (re-tap to actually mark served), matching how easy it is
       // to accidentally brush this strip while grabbing a plate.
+      //
+      // Reads confirmingServeId live rather than closing over a value captured
+      // at render time: the arming tap now repaints this same node in place
+      // (see paintChip) instead of calling render(), so a stale captured flag
+      // would leave the chip permanently stuck on its first tap.
       chip.onclick = () => {
-        if (confirming) {
+        if (confirmingServeId === order.id) {
           clearTimeout(confirmingServeTimer);
           confirmingServeId = null;
+          paintChip(chip, order);
           markServed(order.id);
         } else {
+          // Un-arm whatever else was mid-confirm, so only one chip is ever lit.
+          const prev = confirmingServeId;
           confirmingServeId = order.id;
+          if (prev) repaintChipById(prev);
           clearTimeout(confirmingServeTimer);
-          confirmingServeTimer = setTimeout(() => { confirmingServeId = null; render(); }, 3000);
-          render();
+          confirmingServeTimer = setTimeout(() => {
+            const armed = confirmingServeId;
+            confirmingServeId = null;
+            if (armed) repaintChipById(armed);
+          }, 3000);
+          paintChip(chip, order);
         }
       };
-      strip.appendChild(chip);
+      strip.appendChild(chip); // also re-orders reused chips to match `ready`
     }
+    // Whatever is left was served/cancelled elsewhere -- drop those nodes.
+    existingChips.forEach(el => el.remove());
   }
 
   tickElapsed();

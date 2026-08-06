@@ -29,6 +29,12 @@
   }
   button, .item-btn, .seg-btn, .qty-stepper button {
     -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+    /* touch-action: manipulation disables WebKit's double-tap-to-zoom on every
+       control here. Without it, tapping the same button twice quickly (adding
+       an item x2, hitting a keypad digit twice) is claimed by the zoom gesture
+       and the second tap's click is dropped. The viewport's user-scalable=no
+       does not cover this -- iOS has ignored that directive since iOS 10. */
+    touch-action: manipulation;
   }
   button { font-family: inherit; }
 
@@ -136,17 +142,26 @@
     display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;
     align-content: start;
   }
+  /* The <button> is deliberately NOT the flex container -- an inner .item-inner
+     is. iOS Safari/Chrome (WebKit) does not lay out a <button> as a real flex
+     container: it wraps the children in an anonymous box, so the column
+     direction and gap are dropped and the price renders on top of the image
+     (reported on iPhone 12 Pro Max, Chrome). Keeping the button a plain block
+     and flexing a normal <div> inside it lays out identically everywhere. */
   .item-btn {
     min-height: 80px; min-width: 100px; border-radius: 12px;
     border: 1px solid var(--border); background: var(--bg-surface);
     color: var(--text-primary); cursor: pointer; padding: 10px 8px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-    text-align: center;
+    display: block; text-align: center;
+  }
+  .item-btn .item-inner {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; width: 100%;
   }
   .item-btn:active { background: var(--accent-soft); border-color: var(--accent); }
   .item-btn .item-img {
     width: 56px; height: 56px; border-radius: 10px; object-fit: cover;
-    background: var(--bg-surface-alt);
+    background: var(--bg-surface-alt); flex: 0 0 auto;
   }
   .item-btn .item-name  { font-size: 13px; font-weight: 600; line-height: 1.25; }
   .item-btn .item-price { font-size: 13px; color: var(--accent-strong); font-family: var(--font-num); font-weight: 600; }

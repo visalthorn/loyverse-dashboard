@@ -115,6 +115,9 @@
   .oc-item {
     display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px; min-height: 48px;
     cursor: pointer; border-bottom: 1px solid var(--border-subtle);
+    /* Same WebKit double-tap-to-zoom problem as .ready-chip below -- striking
+       two items in quick succession lost the second tap on iPad. */
+    touch-action: manipulation;
   }
   .oc-item:last-child { border-bottom: none; }
   .oc-item:active { background: var(--bg-surface-alt); }
@@ -146,6 +149,7 @@
   .oc-ready-btn {
     margin: 12px; height: 56px; border-radius: 12px; border: none; cursor: pointer;
     background: var(--gain); color: #06210f; font-size: 18px; font-weight: 800;
+    touch-action: manipulation;
   }
   .oc-ready-btn:disabled { opacity: .35; cursor: not-allowed; }
 
@@ -159,10 +163,17 @@
     font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
     color: var(--text-secondary); white-space: nowrap;
   }
+  /* touch-action: manipulation is load-bearing on iPad, not a nicety. These
+     chips use tap-again-to-confirm, and WebKit treats two quick taps on the
+     same spot as double-tap-to-zoom -- it swallows the second tap's click
+     entirely, so the confirm tap never lands and the order looks stuck in
+     "Tap again to confirm". The page's user-scalable=no does not prevent
+     this; iOS has ignored that directive since iOS 10. */
   .ready-chip {
     flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
     min-width: 130px; min-height: 48px; padding: 6px 14px; border-radius: 10px; cursor: pointer;
     background: var(--gain); color: #06210f;
+    touch-action: manipulation;
   }
   .ready-chip .rc-title { font-weight: 800; font-size: 14px; }
   .ready-chip .rc-sub { font-size: 11px; opacity: .8; }

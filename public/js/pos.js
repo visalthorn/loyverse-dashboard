@@ -153,17 +153,39 @@ function renderItemGrid() {
     const qty = cartQtyFor(it.id);
     return `
       <button class="item-btn" data-item-id="${it.id}">
-        ${qty > 0 ? `<span class="item-qty-badge">×${qty}</span>` : ''}
-        ${it.image_url
-          ? `<img class="item-img" src="${esc(it.image_url)}" alt="" loading="lazy" onerror="this.remove()"/>`
-          : ''}
-        <span class="item-name">${it.name}</span>
-        <span class="item-price">${khr(it.price)}</span>
+        <span class="item-inner">
+          <span class="item-qty-badge" ${qty > 0 ? '' : 'hidden'}>×${qty}</span>
+          ${it.image_url
+            ? `<img class="item-img" src="${esc(it.image_url)}" alt="" loading="lazy" onerror="this.remove()"/>`
+            : ''}
+          <span class="item-name">${it.name}</span>
+          <span class="item-price">${khr(it.price)}</span>
+        </span>
       </button>`;
   }).join('');
 
   grid.querySelectorAll('.item-btn').forEach(btn => {
     btn.addEventListener('click', () => addItemToCart(btn.dataset.itemId));
+  });
+}
+
+// Cart changes only ever alter the qty badges -- they never change which items
+// pass the category/search filter. Re-running renderItemGrid() for them rebuilt
+// every tile's innerHTML, which re-created every <img> node: on a phone that
+// showed up as the whole menu blinking/reloading its images and jumping back to
+// the top of the grid on each tap. Patch just the badges instead, so the grid
+// (and its scroll position) is left completely alone.
+//
+// Only safe while catalog.items / activeCategory / searchTerm are unchanged --
+// those four call sites still use the full renderItemGrid() above.
+function updateQtyBadges() {
+  const grid = getEl('itemGrid');
+  grid.querySelectorAll('.item-btn').forEach(btn => {
+    const badge = btn.querySelector('.item-qty-badge');
+    if (!badge) return;
+    const qty = cartQtyFor(btn.dataset.itemId);
+    badge.textContent = `×${qty}`;
+    badge.hidden = qty === 0;
   });
 }
 
@@ -225,7 +247,7 @@ function restoreDraftIfAny() {
   getEl('tableNumber').classList.remove('invalid');
   renderDiningOptions();
   renderCart();
-  renderItemGrid();
+  updateQtyBadges();
   showToast('Restored unsent order');
   return true;
 }
@@ -239,7 +261,7 @@ function addItemToCart(itemId) {
   if (existing) existing.quantity += 1;
   else cart.push({ source_item_id: itemId, name: item.name, price: item.price, quantity: 1, note: null });
   markOrderActivity();
-  renderItemGrid();
+  updateQtyBadges();
   renderCart();
 }
 
@@ -249,14 +271,14 @@ function changeCartQty(idx, delta) {
   line.quantity += delta;
   if (line.quantity <= 0) cart.splice(idx, 1);
   markOrderActivity();
-  renderItemGrid();
+  updateQtyBadges();
   renderCart();
 }
 
 function removeCartLine(idx) {
   cart.splice(idx, 1);
   markOrderActivity();
-  renderItemGrid();
+  updateQtyBadges();
   renderCart();
 }
 
@@ -528,7 +550,7 @@ function resetPanel() {
   getEl('tableNumber').classList.remove('invalid');
   renderDiningOptions();
   renderCart();
-  renderItemGrid();
+  updateQtyBadges();
 }
 
 // A 409 tagged ORDER_TERMINAL means the order was already paid or cancelled
@@ -1026,7 +1048,7 @@ function applyOrderToPanel(order) {
   getEl('tableNumber').classList.remove('invalid');
   renderDiningOptions();
   renderCart();
-  renderItemGrid();
+  updateQtyBadges();
 }
 
 // table_number always shown when present -- it must never be hidden behind
