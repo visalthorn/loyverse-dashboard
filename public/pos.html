@@ -137,11 +137,81 @@
     background: var(--bg-surface); color: var(--text-primary); padding: 0 14px; font-size: 15px;
   }
 
+  /* ── Item grid density ────────────────────────────────────────────
+     One tile markup, three densities, switched by data-view on the grid:
+       photo    image + name + price      — for staff still learning the menu
+       compact  name + price, tighter     — for staff who know it
+       list     full-width ledger rows    — densest, best one-handed
+     The mode is a per-terminal preference (localStorage), because a given
+     till's staff settle on one and should not re-pick it every shift. */
   #itemGrid {
     flex: 1; overflow-y: auto; padding: 4px 12px 16px;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;
-    align-content: start;
+    display: grid; gap: 10px; align-content: start;
+    grid-template-columns: repeat(auto-fill, minmax(var(--tile-min, 120px), 1fr));
   }
+  #itemGrid[data-view="photo"]   { --tile-min: 120px; }
+  #itemGrid[data-view="compact"] { --tile-min: 96px; gap: 8px; }
+  #itemGrid[data-view="list"]    { grid-template-columns: 1fr; gap: 6px; }
+
+  /* Compact drops the image: at 96px a 56px photo crowds out the name. */
+  #itemGrid[data-view="compact"] .item-img { display: none; }
+  #itemGrid[data-view="compact"] .item-btn { min-height: 64px; padding: 8px 6px; }
+  #itemGrid[data-view="compact"] .item-name  { font-size: 12px; }
+  #itemGrid[data-view="compact"] .item-price { font-size: 12px; }
+
+  /* List: a ledger line. Name left, dotted leader, figure right — the same
+     shape the printed receipt uses, so the screen and the paper agree. */
+  /* 44px floor: this is a touch till, and a dense row is worthless if it gets
+     mis-tapped. Density in this mode comes from one column of full, untruncated
+     names, not from squeezing the row. */
+  #itemGrid[data-view="list"] .item-btn { min-height: 44px; padding: 6px 12px; text-align: left; }
+  #itemGrid[data-view="list"] .item-inner {
+    flex-direction: row; align-items: center; justify-content: flex-start;
+    gap: 0; min-height: 32px;
+  }
+  #itemGrid[data-view="list"] .item-img {
+    width: 28px; height: 28px; border-radius: 6px; margin-right: 10px;
+  }
+  #itemGrid[data-view="list"] .item-name {
+    flex: 0 1 auto; text-align: left; font-size: 14px; line-height: 1.45;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #itemGrid[data-view="list"] .item-leader {
+    flex: 1 1 auto; min-width: 12px; margin: 0 8px;
+    border-bottom: 1px dotted var(--border-strong);
+  }
+  #itemGrid[data-view="list"] .item-price { flex: 0 0 auto; font-size: 14px; }
+  /* On a single ledger line there is no corner to tuck it into — the count
+     reads naturally at the end of the row, after the figure. */
+  #itemGrid[data-view="list"] .item-qty-badge { position: static; margin-left: 10px; }
+
+  /* Tile names are clamped to two lines so every tile in a row is the same
+     height no matter how long the name is. Without this a single long name
+     grew its tile past the row and pushed its own price outside the border.
+     The full name is never lost — list view shows it in one uncut line. */
+  #itemGrid:not([data-view="list"]) .item-name {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Keep the corner badge off the name. "Beef BBQ Set for 2" losing "or 2" to
+     the badge is an ordering error waiting to happen where set sizes differ.
+     Only tiles that actually carry a badge pay the indent. Browsers without
+     :has() fall back to a slight overlap — no worse than before. */
+  #itemGrid:not([data-view="list"]) .item-btn:has(.item-qty-badge:not([hidden])) .item-name {
+    padding-right: 30px;
+  }
+  /* The leader only means anything on a single ledger line. */
+  #itemGrid:not([data-view="list"]) .item-leader { display: none; }
+
+  /* View switcher — icon-only, so it costs almost no width in the filter bar */
+  #viewModes { display: flex; flex: 0 0 auto; gap: 2px; padding: 3px; border-radius: 10px; background: var(--bg-surface-alt); }
+  .view-mode-btn {
+    width: 38px; height: 42px; border-radius: 8px; border: none; background: none;
+    color: var(--text-secondary); cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: center;
+  }
+  .view-mode-btn.active { background: var(--accent-soft); color: var(--accent-strong); }
   /* The <button> is deliberately NOT the flex container -- an inner .item-inner
      is. iOS Safari/Chrome (WebKit) does not lay out a <button> as a real flex
      container: it wraps the children in an anonymous box, so the column
@@ -149,6 +219,7 @@
      (reported on iPhone 12 Pro Max, Chrome). Keeping the button a plain block
      and flexing a normal <div> inside it lays out identically everywhere. */
   .item-btn {
+    position: relative;              /* anchor for the absolutely-placed qty badge */
     min-height: 80px; min-width: 100px; border-radius: 12px;
     border: 1px solid var(--border); background: var(--bg-surface);
     color: var(--text-primary); cursor: pointer; padding: 10px 8px;
@@ -165,8 +236,13 @@
   }
   .item-btn .item-name  { font-size: 13px; font-weight: 600; line-height: 1.25; }
   .item-btn .item-price { font-size: 13px; color: var(--accent-strong); font-family: var(--font-num); font-weight: 600; }
+  /* Absolute, not in the flex flow: in flow, adding an item made that one tile
+     taller than its neighbours and pushed its own price out past the tile edge
+     (visible in compact, up to 20px). Out of flow, every tile keeps the same
+     height whether or not it is in the cart. */
   .item-btn .item-qty-badge {
-    position: relative; top: -4px; background: var(--accent); color: var(--accent-contrast);
+    position: absolute; top: 5px; right: 5px;
+    background: var(--accent); color: var(--accent-contrast);
     border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 8px;
   }
   #emptyGridMsg { grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 40px 0; }
@@ -406,17 +482,94 @@
     border: 1px solid var(--border-strong); background: none; color: var(--text-primary); cursor: pointer;
   }
 
-  /* ── Narrow screens: stack the two-column layout ──────────────────── */
+  /* The dock and scrim exist only on phones; the tablet layout shows the slip
+     permanently beside the menu and needs neither. */
+  #cartDock, #cartScrim { display: none; }
+
+  /* ── Phones: the menu owns the screen, the slip docks ────────────────
+     The old rule here stacked #leftPanel over #rightPanel and flipped
+     overflow-y to auto — but it left `html, body { height: 100% }` from the
+     base rule in place, so the document could never grow past the viewport
+     and the action row simply fell off the bottom. On an iPhone 12 Pro Max
+     the Pay button sat at y=943 in a 926px viewport and no amount of
+     scrolling reached it: the till could not take money.
+
+     So the phone layout no longer scrolls the page at all. #posApp is exactly
+     one viewport tall, the item grid is the only scroller, and the slip
+     becomes a sheet that slides up over the menu — with the running total
+     always visible in the thumb zone. */
   @media (max-width: 900px) {
-    html, body { overflow-y: auto; }
-    #posApp { height: auto; min-height: 100vh; }
-    #main { flex-direction: column; overflow-y: visible; }
+    #posApp { height: 100vh; height: 100dvh; }   /* dvh: iOS URL bar shrinks the viewport */
+
+    #main { flex-direction: column; min-height: 0; }
     #leftPanel {
-      flex: none; width: 100%; border-right: none; border-bottom: 1px solid var(--border);
+      flex: 1 1 auto; width: 100%; min-height: 0;
+      border-right: none; border-bottom: none;
     }
-    #rightPanel { flex: none; width: 100%; }
-    #itemGrid { max-height: 45vh; }
-    #cartList { max-height: 30vh; }
+    #itemGrid { padding-bottom: 88px; }          /* clear the dock */
+
+    /* The slip, docked. Reusing #rightPanel as the sheet body keeps every
+       existing cart/dining/table/pay handler working untouched. */
+    #rightPanel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+      width: 100%; max-height: 88dvh;
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      background: var(--bg-surface);
+      box-shadow: 0 -12px 32px rgba(0,0,0,.45);
+      overflow-y: auto;
+      transform: translateY(101%);
+      transition: transform .22s ease;
+      padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    }
+    body.cart-open #rightPanel { transform: translateY(0); }
+
+    /* Driven solely by body.cart-open. An id rule beats the UA's
+       [hidden]{display:none}, so keying this off the hidden attribute left an
+       invisible scrim over the whole till swallowing every tap. */
+    body.cart-open #cartScrim {
+      display: block; position: fixed; inset: 0; z-index: 39;
+      background: rgba(0,0,0,.5); border: none;
+    }
+
+    #cartDock {
+      display: flex; align-items: center; gap: 10px;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 41;
+      height: calc(64px + env(safe-area-inset-bottom));
+      padding: 0 16px env(safe-area-inset-bottom);
+      border: none; border-top: 1px solid var(--border);
+      background: var(--bg-surface-alt); color: var(--text-primary);
+      font-family: inherit; cursor: pointer; text-align: left;
+    }
+    body.cart-open #cartDock { display: none; }
+    #cartDockCount { flex: 1 1 auto; font-size: 13px; color: var(--text-secondary); }
+    #cartDockTotal {
+      font-family: var(--font-num); font-variant-numeric: tabular-nums;
+      font-size: 20px; font-weight: 600; color: var(--accent-strong);
+    }
+    #cartDockChevron { color: var(--text-secondary); }
+    /* Something in the cart is the one state worth shouting about. */
+    #cartDock.has-items { background: var(--accent); color: var(--accent-contrast); }
+    #cartDock.has-items #cartDockCount,
+    #cartDock.has-items #cartDockTotal,
+    #cartDock.has-items #cartDockChevron { color: var(--accent-contrast); }
+
+    /* The sync chip is a full-width banner on a phone, stealing 32px from the
+       menu for information that only matters when it is bad. */
+    #syncStatusChip { font-size: 11px; padding: 2px 8px; }
+    #syncStatusChip.chip-online { display: none; }
+
+    /* Two big fingers-wide controls plus a switcher will not fit one row. */
+    #filterBar { flex-wrap: wrap; gap: 8px; margin: 8px 12px; }
+    #categoryBar { flex: 1 1 auto; width: auto; }
+    #searchBar { flex: 1 0 100%; order: 3; }
+  }
+
+  /* Very narrow phones: the category select and switcher each need a full row
+     less than they need to be legible, so let the switcher share with search. */
+  @media (max-width: 380px) {
+    .view-mode-btn { width: 34px; }
+    #itemGrid[data-view="photo"] { --tile-min: 104px; }
   }
 
   /* Pay/Settings modals: never let content get taller than the viewport */
@@ -447,7 +600,12 @@
     <div id="leftPanel">
       <div id="filterBar">
         <select id="categoryBar"></select>
-        <div id="searchBar">
+        <div id="viewModes" role="group" aria-label="Item view">
+        <button type="button" class="view-mode-btn" data-view="photo"   onclick="window.posSetView('photo')"   title="Photo tiles"  aria-label="Photo tiles"><span data-icon="layout-grid" data-icon-size="18"></span></button>
+        <button type="button" class="view-mode-btn" data-view="compact" onclick="window.posSetView('compact')" title="Compact tiles" aria-label="Compact tiles"><span data-icon="grid-3x3" data-icon-size="18"></span></button>
+        <button type="button" class="view-mode-btn" data-view="list"    onclick="window.posSetView('list')"    title="List"          aria-label="List"><span data-icon="list" data-icon-size="18"></span></button>
+      </div>
+      <div id="searchBar">
           <input id="itemSearch" type="text" placeholder="Search items…" oninput="window.posOnSearch(this.value)"/>
         </div>
       </div>
@@ -483,6 +641,17 @@
       <button id="cancelOrderBtn" style="display:none;" onclick="window.posCancelOrder()">Cancel Order</button>
     </div>
   </div>
+
+  <!-- Phone only. The slip cannot fit beside the menu on a phone, so it docks:
+       the running total stays in the thumb zone and the panel above slides up
+       over the menu when tapped. There is deliberately no second Pay button —
+       Save/Pay live only in #rightPanel, so there is one code path, not two. -->
+  <button id="cartDock" type="button" onclick="window.posToggleCartSheet()" aria-controls="rightPanel" aria-expanded="false">
+    <span id="cartDockCount">Cart is empty</span>
+    <span id="cartDockTotal">៛0</span>
+    <span id="cartDockChevron" data-icon="chevron-up" data-icon-size="18"></span>
+  </button>
+  <div id="cartScrim" onclick="window.posToggleCartSheet()"></div>
 
 </div>
 

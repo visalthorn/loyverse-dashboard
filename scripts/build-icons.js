@@ -102,6 +102,12 @@ const ICONS = [
   'pause',             // ⏸ deactivate
   'skip-forward',      // ⏭ sync skipped
   'circle-x',          // ❌ sync failed
+
+  // ── POS item-grid density modes ───────────────────────────────────────────
+  'layout-grid',       // photo tiles
+  'grid-3x3',          // compact tiles
+  'list',              // ledger rows
+  'chevron-up',        // open the cart sheet
 ];
 
 function serializeNode([tag, attrs]) {

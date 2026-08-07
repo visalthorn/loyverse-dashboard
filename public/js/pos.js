@@ -23,6 +23,35 @@ let lastCatalogVersion = null;
 let activeCategory = 'all';
 let searchTerm     = '';
 
+// Item-grid density. Per-terminal, not per-user: a till's staff settle on one
+// and should not have to re-pick it every shift.
+const VIEW_MODE_KEY = 'pos_view_mode';
+const VIEW_MODES    = ['photo', 'compact', 'list'];
+
+function getViewMode() {
+  const stored = localStorage.getItem(VIEW_MODE_KEY);
+  return VIEW_MODES.includes(stored) ? stored : 'photo';
+}
+
+// Purely presentational: flips one attribute that the CSS keys off, so it
+// never re-renders the grid and never disturbs scroll position or the cart.
+export function posSetView(mode) {
+  if (!VIEW_MODES.includes(mode)) return;
+  localStorage.setItem(VIEW_MODE_KEY, mode);
+  applyViewMode();
+}
+
+function applyViewMode() {
+  const mode = getViewMode();
+  const grid = getEl('itemGrid');
+  if (grid) grid.dataset.view = mode;
+  document.querySelectorAll('.view-mode-btn').forEach(btn => {
+    const on = btn.dataset.view === mode;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+}
+
 // New, not-yet-persisted lines for the order currently in the panel.
 let cart = [];
 // The persisted order this panel represents, or null for a brand-new order.
@@ -160,6 +189,7 @@ function renderItemGrid() {
             ? `<img class="item-img" src="${esc(it.image_url)}" alt="" loading="lazy" onerror="this.remove()"/>`
             : ''}
           <span class="item-name">${it.name}</span>
+          <span class="item-leader" aria-hidden="true"></span>
           <span class="item-price">${khr(it.price)}</span>
         </span>
       </button>`;
@@ -380,6 +410,32 @@ function computeTotals() {
   return { subtotal, total, discount: persistedDiscount };
 }
 
+// ─── Cart dock (phones) ─────────────────────────────────────────────────────
+// On a phone the slip is a sheet, so the dock is the only thing showing what
+// the table owes. It mirrors renderCart()'s numbers; it never owns them.
+
+function renderCartDock(persisted, total) {
+  const dock = getEl('cartDock');
+  if (!dock) return;
+  const count = persisted.reduce((n, it) => n + it.quantity, 0) + cart.length;
+  getEl('cartDockCount').textContent = count
+    ? `${count} item${count === 1 ? '' : 's'}`
+    : 'Cart is empty';
+  getEl('cartDockTotal').textContent = khr(total);
+  dock.classList.toggle('has-items', count > 0);
+}
+
+export function posToggleCartSheet() {
+  const open = document.body.classList.toggle('cart-open');
+  getEl('cartDock')?.setAttribute('aria-expanded', String(open));
+}
+
+function closeCartSheet() {
+  if (!document.body.classList.contains('cart-open')) return;
+  document.body.classList.remove('cart-open');
+  getEl('cartDock')?.setAttribute('aria-expanded', 'false');
+}
+
 function renderCart() {
   const list = getEl('cartList');
   const persisted = currentOrder ? currentOrder.items : [];
@@ -433,6 +489,7 @@ function renderCart() {
   const { subtotal, total } = computeTotals();
   getEl('subtotalValue').textContent = khr(subtotal);
   getEl('totalValue').textContent    = khr(total);
+  renderCartDock(persisted, total);
 
   const badge = getEl('orderBadge');
   // Visible for as long as the panel is open -- unlike a toast, which fires
@@ -949,6 +1006,8 @@ function donePay() {
   closePayModal();
   clearDraft();
   resetPanel();
+  // The slip is settled; drop back to the menu ready for the next table.
+  closeCartSheet();
 }
 
 let cancelOrderInFlight = false;
@@ -1715,7 +1774,9 @@ window.posDonePay         = donePay;
 window.posCancelOrder     = cancelOrder;
 window.posCloseCancelItemModal = closeCancelItemModal;
 window.posConfirmCancelItem    = confirmCancelItem;
-window.posNewOrder        = () => { clearDraft(); resetPanel(); };
+window.posNewOrder        = () => { clearDraft(); resetPanel(); closeCartSheet(); };
+window.posSetView         = posSetView;
+window.posToggleCartSheet = posToggleCartSheet;
 window.posLockNow         = lockNow;
 window.posOpenSettings    = openSettings;
 window.posCloseSettings   = closeSettings;
@@ -1762,6 +1823,10 @@ async function startApp(terminal, idleTimeoutMinutes) {
   if (nameEl && info) nameEl.textContent = info.name || info.terminal_id;
   if (info) document.title = info.name || info.terminal_id;
   applyRoleUI(info);
+
+  // Before the grid is populated, so the first paint is already at the
+  // terminal's chosen density instead of flashing photo tiles first.
+  applyViewMode();
 
   const configData = await fetchJSON('/api/pos/config');
   if (configData) config = configData;

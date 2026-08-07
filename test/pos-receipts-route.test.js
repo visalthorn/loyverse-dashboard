@@ -56,8 +56,15 @@ after(async () => {
   await pool.end();
 });
 
+// The route buckets by Cambodia date (routes/pos.js: DATE(r.receipt_date) =
+// (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date), so the fixture has to ask for
+// the Cambodia day too. toISOString() yields the UTC day, which is a different
+// date every evening between 17:00 and 24:00 UTC — the test passed all morning
+// and failed after 17:00.
+const cambodiaToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+
 test('same-branch terminal sees the receipt in the list', async () => {
-  const res = await fetch(`${base}/api/pos/receipts?date=${new Date().toISOString().slice(0,10)}`, { headers: headersA });
+  const res = await fetch(`${base}/api/pos/receipts?date=${cambodiaToday()}`, { headers: headersA });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.ok(body.receipts.some(r => r.id === receiptId));
