@@ -8,30 +8,59 @@ dayjs.extend(utc);
 dayjs.extend(tzPlug);
 
 // Consumption-rate learning for inv_* ingredients. The only stock input is
-// restock events (date, qty_added, qty_remaining); everything here is derived:
-//   consumption per period  = prev total_after − next qty_remaining
+// restock events (date, qty_added, and OPTIONALLY qty_remaining); everything
+// here is derived:
+//   consumption per period  = measured from the count, or assumed (see below)
 //   rate_per_item / rate_per_day = recency-weighted averages across periods
-//   estimated remaining     = last total_after − learned rate × activity since
+//   estimated remaining     = last baseline − learned rate × activity since
 // Approximate by design — an early-warning nudge, not precision stock control.
 
 const round = (v, dp = 2) => (v == null ? null : Math.round(v * 10 ** dp) / 10 ** dp);
 
+const num = v => (v == null ? null : parseFloat(v));
+
 // ── Pure computations (unit-tested directly) ────────────────────────────────
 
-// restocks: chronological [{restock_date 'YYYY-MM-DD', qty_remaining, total_after}].
+// What an ingredient is known to hold immediately after a restock. With a
+// count that is exact; without one, all we can attest to is what was bought,
+// which understates the true figure by whatever remnant was on the shelf.
+// Understating is the safe direction for a stock alert — it warns early.
+function baselineAfter(restock) {
+  const total = num(restock.total_after);
+  return total != null ? total : num(restock.qty_added);
+}
+
+// restocks: chronological [{restock_date 'YYYY-MM-DD', qty_added, qty_remaining, total_after}].
 // A period runs from one restock to the next; sales on the end date belong to
-// the NEXT period ([start, end) semantics). Negative consumption means the
-// entries contradict each other — surfaced separately, never learned from.
+// the NEXT period ([start, end) semantics).
+//
+// Two ways to size a period's consumption:
+//   'counted'  someone recorded what was physically left at the closing
+//              restock, so consumption is measured: baseline − that count.
+//   'assumed'  no count, so we assume the ingredient was restocked at roughly
+//              the same (near-empty) level as last time, which makes the
+//              opening purchase the amount consumed. Holds whenever restocking
+//              happens when stock runs low; overstates consumption if someone
+//              tops up while still well stocked.
+// Negative consumption can only arise from counts that contradict each other —
+// surfaced separately, never learned from.
 function computePeriods(restocks) {
   const periods = [], badPeriods = [];
   for (let i = 0; i < restocks.length - 1; i++) {
     const a = restocks[i], b = restocks[i + 1];
-    const consumed = round(parseFloat(a.total_after) - parseFloat(b.qty_remaining));
+    const closingCount = num(b.qty_remaining);
+
+    const basis = closingCount != null ? 'counted' : 'assumed';
+    const consumed = basis === 'counted'
+      ? round(baselineAfter(a) - closingCount)
+      : round(num(a.qty_added));
+
     const period = {
       start: a.restock_date,
       end:   b.restock_date,
       days:  dayjs(b.restock_date).diff(dayjs(a.restock_date), 'day'),
       consumed,
+      basis,
     };
     (consumed < 0 ? badPeriods : periods).push(period);
   }
@@ -53,10 +82,17 @@ function learnRates(periods) {
   };
 }
 
-function confidenceFor(periodCount) {
-  if (periodCount < 2) return 'low';
-  if (periodCount <= 3) return 'medium';
-  return 'good';
+// More periods means more evidence. But an all-assumed history rests on the
+// restock-when-near-empty assumption with nothing to check it against, so it
+// never reaches 'good' — that ceiling is the standing reason to record an
+// actual count now and then, without ever requiring one.
+function confidenceFor(periodCount, countedPeriods = null) {
+  let level;
+  if (periodCount < 2) level = 'low';
+  else if (periodCount <= 3) level = 'medium';
+  else level = 'good';
+  if (countedPeriods === 0 && level === 'good') level = 'medium';
+  return level;
 }
 
 // Blend favours the sales-driven estimate (it tracks busy vs quiet days);
@@ -91,7 +127,7 @@ async function analyzeIngredient(ing, branchId = null) {
   const [restocksRes, linksRes, branchRes] = await Promise.all([
     pool.query(`
       SELECT to_char(restock_date, 'YYYY-MM-DD') AS restock_date,
-             qty_remaining::float, total_after::float
+             qty_added::float, qty_remaining::float, total_after::float
       FROM inv_restocks WHERE ingredient_id = $1${branchId ? ' AND branch_id = $2' : ''}
       ORDER BY restock_date, created_at
     `, restockParams),
@@ -142,7 +178,7 @@ async function analyzeIngredient(ing, branchId = null) {
   const salesSince  = last ? soldBetween(last.restock_date, null) : 0;
 
   const estimated = estimateRemaining({
-    lastTotal:   last ? last.total_after : null,
+    lastTotal:   last ? baselineAfter(last) : null,
     ratePerItem: rates.rate_per_item,
     ratePerDay:  rates.rate_per_day,
     salesSince, daysElapsed,
@@ -150,16 +186,22 @@ async function analyzeIngredient(ing, branchId = null) {
   const daysUntilEmpty = (estimated != null && rates.rate_per_day > 0)
     ? round(estimated / rates.rate_per_day, 1) : null;
 
+  const countedPeriods = periods.filter(p => p.basis === 'counted').length;
+
   return {
     id: ing.id, name: ing.name, name_kh: ing.name_kh, unit: ing.unit,
     alert_threshold: parseFloat(ing.alert_threshold),
     last_restock_date: last ? last.restock_date : null,
-    last_total:        last ? last.total_after : null,
+    last_total:        last ? baselineAfter(last) : null,
+    // Whether that baseline is a measured total or just the last purchase —
+    // the UI says "of the last delivery" rather than "on hand" when assumed.
+    last_total_basis:  last ? (last.total_after != null ? 'counted' : 'assumed') : null,
+    counted_periods:   countedPeriods,
     estimated_remaining: round(estimated),
     rate_per_item: round(rates.rate_per_item, 3),
     rate_per_day:  round(rates.rate_per_day, 3),
     days_until_empty: daysUntilEmpty,
-    confidence: confidenceFor(periods.length),
+    confidence: confidenceFor(periods.length, countedPeriods),
     status: statusFor({
       restockCount: restocks.length,
       periodCount:  periods.length,
@@ -183,5 +225,5 @@ async function analyzeAllActive(branchId = null) {
 
 module.exports = {
   computePeriods, learnRates, confidenceFor, estimateRemaining, statusFor,
-  analyzeIngredient, analyzeAllActive,
+  baselineAfter, analyzeIngredient, analyzeAllActive,
 };

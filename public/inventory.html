@@ -224,7 +224,7 @@
     <div id="restockModal" class="hidden inv-modal-overlay">
       <div class="card inv-modal">
         <h3 class="section-title mb-1"><span data-icon="package"></span> <span id="restockModalAction" data-i18n="inventory.restock">Restock</span> — <span id="restockIngName"></span></h3>
-        <p class="text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.restockHint">Record what was found remaining, then how much was added.</p>
+        <p class="text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.restockHint">Record how much was added. Counting what is left is optional.</p>
         <form onsubmit="invSubmitRestock(event)">
           <input type="hidden" id="restockIngredientId"/>
           <input type="hidden" id="restockEditId"/>
@@ -235,17 +235,21 @@
           <label class="inv-field-label" data-i18n="inventory.branch">Branch</label>
           <select id="restockBranch" class="field-input mb-3"></select>
 
-          <label class="inv-field-label" data-i18n="inventory.remainingFound">Remaining found</label>
-          <div class="flex items-center gap-2 mb-3">
-            <input id="restockRemaining" type="number" min="0" step="0.01" class="field-input" oninput="invUpdateRestockPreview()" required/>
-            <span id="restockUnit1" class="inv-unit-suffix"></span>
-          </div>
-
+          <!-- The purchase leads: it is the one number always known, and on its
+               own it is enough for the estimate. The count follows, clearly
+               skippable, so nobody is blocked waiting for a stocktake. -->
           <label class="inv-field-label" data-i18n="inventory.newQtyAdded">New qty added</label>
           <div class="flex items-center gap-2 mb-3">
             <input id="restockAdded" type="number" min="0" step="0.01" class="field-input" oninput="invUpdateRestockPreview()" required/>
             <span id="restockUnit2" class="inv-unit-suffix"></span>
           </div>
+
+          <label class="inv-field-label" data-i18n="inventory.remainingFound">Remaining found (optional)</label>
+          <div class="flex items-center gap-2 mb-1">
+            <input id="restockRemaining" type="number" min="0" step="0.01" class="field-input" oninput="invUpdateRestockPreview()" data-i18n-placeholder="inventory.remainingPlaceholder" placeholder="Leave blank if not counted"/>
+            <span id="restockUnit1" class="inv-unit-suffix"></span>
+          </div>
+          <p class="text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.remainingHint">Skip it and estimates still work. Counting now and then sharpens them.</p>
 
           <div id="restockPreview" class="inv-preview-line mb-3"></div>
 

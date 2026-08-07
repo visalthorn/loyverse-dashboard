@@ -36,12 +36,15 @@ router.get('/ingredients', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT i.id, i.name, i.name_kh, i.unit, i.alert_threshold, i.is_active,
-             lr.restock_date AS last_restock_date, lr.total_after AS last_total_after,
+             lr.restock_date AS last_restock_date,
+             -- total_after is NULL when that restock was not counted; the
+             -- amount bought is then the only figure we can stand behind.
+             COALESCE(lr.total_after, lr.qty_added) AS last_total_after,
              COALESCE(lc.link_count, 0) AS link_count,
              COALESCE(cc.component_count, 0) AS component_count
       FROM inv_ingredients i
       LEFT JOIN LATERAL (
-        SELECT restock_date, total_after FROM inv_restocks
+        SELECT restock_date, total_after, qty_added FROM inv_restocks
         WHERE ingredient_id = i.id
         ${branchId ? 'AND branch_id = $1' : ''}
         ORDER BY restock_date DESC, created_at DESC
@@ -121,19 +124,33 @@ router.patch('/ingredients/:id/toggle', requireAuth, async (req, res) => {
 
 // ── Restocks — the only stock input ────────────────────────────────────────
 
+// The physical count is optional (see migrations/028). Blank/absent means "not
+// counted" and stores NULL, which the analysis treats differently from a
+// counted 0 — so an empty string must never fall through to parseFloat('') and
+// become NaN, nor be coerced to 0.
+function optionalCount(raw) {
+  if (raw === undefined || raw === null || raw === '') return { ok: true, value: null };
+  const n = parseFloat(raw);
+  if (isNaN(n) || n < 0) return { ok: false };
+  return { ok: true, value: n };
+}
+
 router.post('/restocks', requireAuth, async (req, res) => {
   const ingredientId = parseInt(req.body.ingredient_id);
   const { restock_date, note } = req.body;
   const added     = parseFloat(req.body.qty_added);
-  const remaining = parseFloat(req.body.qty_remaining);
+  const count     = optionalCount(req.body.qty_remaining);
   const record_expense = req.body.record_expense !== false; // default ON
 
   if (!ingredientId || !restock_date || !DATE_RE.test(restock_date))
     return badRequest(res, 'ingredient_id and a valid restock_date (YYYY-MM-DD) are required.');
-  if (isNaN(added) || added < 0 || isNaN(remaining) || remaining < 0)
-    return badRequest(res, 'qty_added and qty_remaining must be numbers >= 0.');
+  if (isNaN(added) || added < 0)
+    return badRequest(res, 'qty_added must be a number >= 0.');
+  if (!count.ok)
+    return badRequest(res, 'qty_remaining must be a number >= 0, or left empty if not counted.');
 
-  const totalAfter = remaining + added;
+  const remaining  = count.value;
+  const totalAfter = remaining != null ? remaining + added : null;
   const cost = req.body.cost !== undefined && req.body.cost !== null && req.body.cost !== ''
     ? Math.round(parseFloat(req.body.cost)) : null;
   if (cost !== null && (isNaN(cost) || cost < 0)) return badRequest(res, 'cost must be a number >= 0.');
@@ -169,6 +186,7 @@ router.post('/restocks', requireAuth, async (req, res) => {
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ message: 'A restock for this ingredient already exists on that date.' });
     if (err.code === '23514') return badRequest(res, 'qty_added and qty_remaining must be >= 0.');
+    if (err.code === '23502') return badRequest(res, 'This server needs migration 028 before a restock can be saved without a count.');
     console.error('Inventory restocks POST error:', err);
     res.status(500).json({ error: err.message });
   }
@@ -192,11 +210,15 @@ router.get('/restocks', requireAuth, async (req, res) => {
       LIMIT $2
     `, [ingredientId, limit]);
 
+    // Consumption can only be stated for a row that carries a count; without
+    // one the figure belongs to the period as a whole (= the previous row's
+    // qty_added), which the analysis endpoint reports, not this history list.
     const rows = result.rows.map(r => ({
       ...r,
-      consumed_since_previous: r.prev_total_after != null
+      consumed_since_previous: (r.prev_total_after != null && r.qty_remaining != null)
         ? parseFloat((parseFloat(r.prev_total_after) - parseFloat(r.qty_remaining)).toFixed(2))
         : null,
+      counted: r.qty_remaining != null,
     }));
     res.json(rows);
   } catch (err) {
@@ -209,15 +231,18 @@ router.put('/restocks/:id', requireAuth, requireRole('admin'), async (req, res) 
   const id = parseInt(req.params.id);
   const { restock_date, note } = req.body;
   const added     = parseFloat(req.body.qty_added);
-  const remaining = parseFloat(req.body.qty_remaining);
+  const count     = optionalCount(req.body.qty_remaining);
 
   if (!id) return badRequest(res, 'Invalid id.');
   if (!restock_date || !DATE_RE.test(restock_date))
     return badRequest(res, 'A valid restock_date (YYYY-MM-DD) is required.');
-  if (isNaN(added) || added < 0 || isNaN(remaining) || remaining < 0)
-    return badRequest(res, 'qty_added and qty_remaining must be numbers >= 0.');
+  if (isNaN(added) || added < 0)
+    return badRequest(res, 'qty_added must be a number >= 0.');
+  if (!count.ok)
+    return badRequest(res, 'qty_remaining must be a number >= 0, or left empty if not counted.');
 
-  const totalAfter = remaining + added;
+  const remaining  = count.value;
+  const totalAfter = remaining != null ? remaining + added : null;
   const cost = req.body.cost !== undefined && req.body.cost !== null && req.body.cost !== ''
     ? Math.round(parseFloat(req.body.cost)) : null;
   if (cost !== null && (isNaN(cost) || cost < 0)) return badRequest(res, 'cost must be a number >= 0.');

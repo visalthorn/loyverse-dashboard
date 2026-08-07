@@ -263,7 +263,9 @@ export function invOpenRestock(id) {
   getEl('restockMsg').textContent = '';
   invUpdateRestockPreview();
   showModal('restockModal');
-  getEl('restockRemaining').focus();
+  // Focus the amount added — the field that is always filled in now that the
+  // count is optional.
+  getEl('restockAdded').focus();
 }
 
 export function invOpenEditRestock(id, ingredientId) {
@@ -280,7 +282,7 @@ export function invOpenEditRestock(id, ingredientId) {
   getEl('restockIngName').textContent = ing.name;
   getEl('restockDate').value = toISODate(row.restock_date);
   setFormBranch(row.branch_id);
-  getEl('restockRemaining').value = row.qty_remaining;
+  getEl('restockRemaining').value = row.qty_remaining ?? '';
   getEl('restockAdded').value = row.qty_added;
   getEl('restockCost').value = row.cost ?? '';
   getEl('restockNote').value = row.note || '';
@@ -289,14 +291,25 @@ export function invOpenEditRestock(id, ingredientId) {
   getEl('restockMsg').textContent = '';
   invUpdateRestockPreview();
   showModal('restockModal');
-  getEl('restockRemaining').focus();
+  // Focus the amount added — the field that is always filled in now that the
+  // count is optional.
+  getEl('restockAdded').focus();
 }
 
 export function invCloseRestock() { hideModal('restockModal'); }
 
 export function invUpdateRestockPreview() {
-  const remaining = parseFloat(getEl('restockRemaining').value) || 0;
-  const added     = parseFloat(getEl('restockAdded').value) || 0;
+  const remainingRaw = getEl('restockRemaining').value;
+  const added        = parseFloat(getEl('restockAdded').value) || 0;
+  // Without a count there is no "total after" to show — only what was bought.
+  // Claiming a total we cannot know is worse than showing the smaller truth.
+  if (remainingRaw === '') {
+    getEl('restockPreview').textContent = t('inventory.addedOnlyPreview', {
+      total: fmtQty(added), unit: currentRestockUnit,
+    });
+    return;
+  }
+  const remaining = parseFloat(remainingRaw) || 0;
   getEl('restockPreview').textContent = t('inventory.totalAfterPreview', {
     total: fmtQty(remaining + added), unit: currentRestockUnit,
   });
@@ -318,14 +331,16 @@ export async function invSubmitRestock(e) {
   const branchSel = getEl('restockBranch');
   const branch_id = branchSel?.value ? Number(branchSel.value) : null;
 
-  if (!restock_date || remainingVal === '' || addedVal === '') {
+  if (!restock_date || addedVal === '') {
     msg.textContent = t('inventory.errorRequiredFields');
     return;
   }
 
   const body = {
     restock_date,
-    qty_remaining: parseFloat(remainingVal),
+    // null, not 0 — "not counted" and "counted, and it was empty" drive
+    // different consumption maths server-side.
+    qty_remaining: remainingVal === '' ? null : parseFloat(remainingVal),
     qty_added:     parseFloat(addedVal),
     cost: costVal === '' ? null : parseFloat(costVal),
     note,
