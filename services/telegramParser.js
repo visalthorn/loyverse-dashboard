@@ -16,6 +16,12 @@ For each message, decide one of:
 
 Also check whether the message explicitly states when the expense happened (a specific day, "yesterday", "last Monday", a date like "July 1" or "01/07", or a date printed on a receipt). Dates are often written in Khmer, sometimes with Khmer numerals (០១២៣៤៥៦៧៨៩): "ម្សិលមិញ" = yesterday, "ថ្ងៃទី5" or "ទី៥" = the 5th day of the month. A bare day of the month like "ទី៨" or "ចំណាយទី៨" ("expense of the 8th") IS a stated date: resolve it to the most recent 8th on or before the reference date (usually the current month, or the previous month if the day number is after the reference day). If a date is stated, resolve it to an absolute date in YYYY-MM-DD format and set "date" to that value — use the reference date given with the message to resolve relative terms and to fill in an unstated year and month. If nothing states when the expense happened, set "date" to null.
 
+Rules about the reference date — follow these exactly, they matter more than anything you believe about what today's date is:
+- The reference date given with the message is authoritative. Never substitute your own idea of the current year, month, or day. Your training data is older than the reference date; trust the reference date, not your instincts.
+- Unless the message spells out a different year in full (e.g. "2024"), the year of "date" MUST be the year of the reference date, or the year before it when the day and month fall after the reference date within that year.
+- "date" must never be later than the reference date. An expense that has already been paid cannot happen in the future.
+- These messages report recent spending, so "date" is almost always the reference date itself or within the few days before it. If you are about to answer with a date more than a month before the reference date, re-check that you have not mistakenly used the wrong year.
+
 Respond only with the structured JSON — no other text.`;
 
 const OUTPUT_SCHEMA = {

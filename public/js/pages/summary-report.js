@@ -51,17 +51,12 @@ function addDays(dateStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
-// Most recent 9th of a month whose 30-day window ends on or before yesterday
-// (the owner's reports anchor on the 9th — PROD data starts 2026-06-09).
-function defaultMonthStart() {
+// The current calendar month, up to today. Ending on today rather than the
+// month's last day keeps the revenue-vs-expenses series — which fills every day
+// in the range via generate_series — from trailing off into empty future days.
+function defaultMonthRange() {
   const today = getTodayDate();
-  let candidate = today.slice(0, 8) + '09';
-  while (addDays(candidate, 29) >= today) {
-    const d = new Date(candidate + 'T00:00:00Z');
-    d.setUTCMonth(d.getUTCMonth() - 1);
-    candidate = d.toISOString().slice(0, 10);
-  }
-  return candidate;
+  return { start: today.slice(0, 8) + '01', end: today };
 }
 
 function blockRange(block) {
@@ -69,7 +64,9 @@ function blockRange(block) {
   const clamp = d => (d > end ? end : d);
   if (block === 'b1') return { start,                     end: clamp(addDays(start, 9))  };
   if (block === 'b2') return { start: addDays(start, 10), end: clamp(addDays(start, 19)) };
-  if (block === 'b3') return { start: addDays(start, 20), end: clamp(addDays(start, 29)) };
+  // The last block runs to the anchor end, not start+29, so the 31st of a
+  // 31-day month stays reachable from a block tab instead of only from Full.
+  if (block === 'b3') return { start: addDays(start, 20), end };
   return { start, end };
 }
 
@@ -132,8 +129,9 @@ export function init() {
   // otherwise every theme/language/currency switch (a full page reload)
   // would silently reset the range the user had selected.
   const restored = state.summaryAnchorStart && state.summaryAnchorEnd;
-  const start = restored ? state.summaryAnchorStart : defaultMonthStart();
-  anchor = { start, end: restored ? state.summaryAnchorEnd : addDays(start, 29) };
+  anchor = restored
+    ? { start: state.summaryAnchorStart, end: state.summaryAnchorEnd }
+    : defaultMonthRange();
   state.summaryAnchorStart = anchor.start;
   state.summaryAnchorEnd   = anchor.end;
   const customStart = getEl('customStart');
@@ -152,7 +150,12 @@ export function init() {
     });
   });
   updateBlockTabs();
-  selectBlock(['b1', 'b2', 'b3', 'full'].includes(state.summaryActiveBlock) ? state.summaryActiveBlock : 'full');
+  // A month-to-date anchor is short early in the month, so a block remembered
+  // from a longer range can resolve to an empty slice — selectBlock would bail
+  // without loading anything and leave the page blank. Fall back to Full.
+  const savedBlock = ['b1', 'b2', 'b3', 'full'].includes(state.summaryActiveBlock) ? state.summaryActiveBlock : 'full';
+  const savedRange = blockRange(savedBlock);
+  selectBlock(savedRange.start > savedRange.end ? 'full' : savedBlock);
   // Pin the sticky bar right below the (sticky) app header, whatever its height.
   const setStickyTop = () => {
     const h = document.querySelector('.app-header')?.offsetHeight ?? 56;
