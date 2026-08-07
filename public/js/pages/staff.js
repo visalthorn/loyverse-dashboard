@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { icon } from '../icons.js';
 import { fetchJSON, apiPost, apiPut, apiDelete } from '../api.js';
 import { getEl, fmtRaw, fmtKHR, fmtUSD, downloadCSV } from '../utils.js';
 import { logout } from '../auth.js';
@@ -83,7 +84,7 @@ export function renderStaffTable() {
       <td class="py-2.5 pr-3 text-center">${statusBadge}</td>
       <td class="py-2.5 pr-3 text-center">${shiftBadge}</td>
       <td class="py-2.5 text-center whitespace-nowrap">
-        ${s.join_date && s.position ? `<button onclick="viewInSchedule(${s.id})" class="text-xs text-[color:var(--text-muted)] hover:text-blue-400 mr-2" title="${t('staff.viewInScheduleTitle')}">📅</button>` : ''}
+        ${s.join_date && s.position ? `<button onclick="viewInSchedule(${s.id})" class="text-xs text-[color:var(--text-muted)] hover:text-blue-400 mr-2" title="${t('staff.viewInScheduleTitle')}">${icon('calendar', { size: 14 })}</button>` : ''}
         ${state.userPermissions.staff?.can_write ? `
           <button onclick="startEditStaff(${s.id})" class="text-xs text-[color:var(--text-muted)] hover:text-[color:var(--accent-strong)] mr-2">${t('common.edit')}</button>
           <button onclick="toggleStaffStatus(${s.id}, ${!s.is_active})" class="text-xs ${toggleColor} mr-2">${toggleLabel}</button>

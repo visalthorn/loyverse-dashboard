@@ -9,6 +9,8 @@
 // state-changing request. Nothing here persists a token to localStorage --
 // only display metadata (terminal name/branch) and small UX flags.
 
+import { icon } from './icons.js';
+
 const INFO_KEY      = 'terminal_info';        // display-only: { type, terminal_id, branch_id, name, idle_timeout_minutes }
 const DEVICE_ID_KEY = 'device_terminal_id';    // remembered terminal_id, just to prefill the login screen
 const LOCKED_KEY_PREFIX = 'terminal_locked_';  // per-terminal, so switching terminals on one browser doesn't cross-lock
@@ -172,7 +174,7 @@ function triggerLock() {
   showLockOverlay();
 }
 
-/** Manual lock, e.g. the POS header's 🔒 button. */
+/** Manual lock, e.g. the POS header's Lock button. */
 export function lockNow() { triggerLock(); }
 
 async function callUnlock(passcode) {
@@ -215,7 +217,7 @@ function showLockOverlay() {
     overlay.innerHTML = `
       <div style="width:100%;max-width:340px;padding:28px;border-radius:16px;background:var(--bg-surface);
         border:1px solid var(--border);box-shadow:var(--shadow-lift);">
-        <div style="text-align:center;font-size:22px;margin-bottom:6px;">🔒</div>
+        <div style="text-align:center;margin-bottom:6px;color:var(--accent-strong);">${icon('lock', { size: 22 })}</div>
         <div style="text-align:center;font-size:15px;font-weight:700;color:var(--accent-strong);margin-bottom:4px;">${info ? (info.name || info.terminal_id) : 'Locked'}</div>
         <div style="text-align:center;font-size:12px;color:var(--text-secondary);margin-bottom:18px;">Enter PIN to resume</div>
 
@@ -232,7 +234,7 @@ function showLockOverlay() {
           <button type="button" class="tlk-digit" data-d="0" style="height:52px;border-radius:10px;border:1px solid var(--border);
             background:var(--bg-surface-alt);color:var(--text-primary);font-size:18px;font-weight:700;cursor:pointer;">0</button>
           <button type="button" id="tlkBackspace" style="height:52px;border-radius:10px;border:1px solid var(--border);
-            background:none;color:var(--text-secondary);font-size:18px;cursor:pointer;">⌫</button>
+            background:none;color:var(--text-secondary);font-size:18px;cursor:pointer;" aria-label="Backspace">${icon('delete', { size: 18 })}</button>
         </div>
 
         <button type="button" id="tlkSubmit" style="width:100%;height:52px;margin-top:14px;border-radius:10px;border:none;
@@ -366,7 +368,7 @@ export function showTerminalLogin({ label, onSuccess }) {
           <button type="button" class="tl-digit" data-d="0" style="height:52px;border-radius:10px;border:1px solid var(--border);
             background:var(--bg-surface-alt);color:var(--text-primary);font-size:18px;font-weight:700;cursor:pointer;">0</button>
           <button type="button" id="tlBackspace" style="height:52px;border-radius:10px;border:1px solid var(--border);
-            background:none;color:var(--text-secondary);font-size:18px;cursor:pointer;">⌫</button>
+            background:none;color:var(--text-secondary);font-size:18px;cursor:pointer;" aria-label="Backspace">${icon('delete', { size: 18 })}</button>
         </div>
 
         <button type="button" id="tlSubmit" style="width:100%;height:52px;margin-top:14px;border-radius:10px;border:none;

@@ -1,5 +1,6 @@
 // public/js/userMenu.js
 import { t } from './i18n.js';
+import { icon } from './icons.js';
 
 export function renderUserMenu(mountEl) {
   if (!mountEl) return;
@@ -12,7 +13,7 @@ export function renderUserMenu(mountEl) {
         <span id="envBadge" class="px-2 py-0.5 rounded text-xs font-bold"></span>
       </div>
       <button onclick="logout()" class="user-menu-signout">
-        <span class="user-menu-icon" aria-hidden="true">⏻</span>
+        <span class="user-menu-icon">${icon('power', { size: 16 })}</span>
         <span data-i18n="common.signOut">${t('common.signOut')}</span>
       </button>
     </div>`;

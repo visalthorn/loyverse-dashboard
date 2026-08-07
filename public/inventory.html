@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Inventory</title>
 <script>
   (function() {
@@ -143,7 +143,7 @@
 <!-- Main content -->
 <div class="main-wrapper">
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+    <button onclick="toggleSidebar()" class="md:hidden px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu"><span data-icon="menu" data-icon-size="22"></span></button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="inventory.title">Inventory</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="inventory.subtitle">Ingredient stock control — restock only, no per-order deduction</p>
@@ -165,7 +165,7 @@
         <div class="flex-1"></div>
         <select id="inventoryBranchFilter" class="field-select" style="font-size:.75rem;padding:6px 26px 6px 9px"></select>
         <span id="aiStatusText" class="text-xs text-[color:var(--text-muted)]"></span>
-        <button id="aiAnalyzeBtn" onclick="invRunAiAnalysis()" class="inv-btn inv-btn--accent">🤖 Analyze with AI</button>
+        <button id="aiAnalyzeBtn" onclick="invRunAiAnalysis()" class="inv-btn inv-btn--accent"><span data-icon="bot" data-icon-size="16"></span> <span data-i18n="inventory.aiAnalyze">Analyze with AI</span></button>
       </div>
     </div>
 
@@ -176,7 +176,7 @@
 
     <!-- AI insights -->
     <section id="aiInsightsSection" class="hidden">
-      <h3 class="section-title mb-3" data-i18n="inventory.aiInsightsTitle">🤖 AI Insights</h3>
+      <h3 class="section-title mb-3"><span data-icon="bot"></span> <span data-i18n="inventory.aiInsightsTitle">AI Insights</span></h3>
       <div id="aiInsightsGrid" class="inv-grid"></div>
       <p id="aiUsageFooter" class="text-xs text-[color:var(--text-dim)] mt-2"></p>
     </section>
@@ -223,7 +223,7 @@
     <!-- Restock modal -->
     <div id="restockModal" class="hidden inv-modal-overlay">
       <div class="card inv-modal">
-        <h3 class="section-title mb-1">📦 <span id="restockModalAction" data-i18n="inventory.restock">Restock</span> — <span id="restockIngName"></span></h3>
+        <h3 class="section-title mb-1"><span data-icon="package"></span> <span id="restockModalAction" data-i18n="inventory.restock">Restock</span> — <span id="restockIngName"></span></h3>
         <p class="text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.restockHint">Record what was found remaining, then how much was added.</p>
         <form onsubmit="invSubmitRestock(event)">
           <input type="hidden" id="restockIngredientId"/>
@@ -275,7 +275,7 @@
     <!-- Linked items modal -->
     <div id="linksModal" class="hidden inv-modal-overlay">
       <div class="card inv-modal">
-        <h3 class="section-title mb-1">🔗 <span id="linksIngName"></span> — <span data-i18n="inventory.linkedItems">Linked items</span></h3>
+        <h3 class="section-title mb-1"><span data-icon="link"></span> <span id="linksIngName"></span> — <span data-i18n="inventory.linkedItems">Linked items</span></h3>
         <p class="text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.linksHint">Link only — no usage quantities.</p>
 
         <div id="linksCurrentList" class="inv-chip-list mb-4"></div>
@@ -293,7 +293,7 @@
     <!-- Ingredient components ("made from") modal -->
     <div id="componentsModal" class="hidden inv-modal-overlay">
       <div class="card inv-modal">
-        <h3 class="section-title mb-1">🧬 <span id="componentsIngName"></span> — <span data-i18n="inventory.madeFrom">Made from</span></h3>
+        <h3 class="section-title mb-1"><span data-icon="dna"></span> <span id="componentsIngName"></span> — <span data-i18n="inventory.madeFrom">Made from</span></h3>
         <p class="text-xs text-[color:var(--text-muted)] mb-3" data-i18n="inventory.componentsHint">Link only — no usage quantities. One level only: a composite can't be made from another composite.</p>
 
         <div id="componentsCurrentList" class="inv-chip-list mb-4"></div>
@@ -319,7 +319,7 @@
     <!-- Analysis detail modal -->
     <div id="analysisModal" class="hidden inv-modal-overlay">
       <div class="card inv-modal inv-modal--wide">
-        <h3 class="section-title mb-1">📈 <span id="analysisIngName"></span> — <span data-i18n="inventory.analysisTitle">Consumption analysis</span></h3>
+        <h3 class="section-title mb-1"><span data-icon="chart-line"></span> <span id="analysisIngName"></span> — <span data-i18n="inventory.analysisTitle">Consumption analysis</span></h3>
         <p id="analysisSummary" class="text-sm mb-3" style="color:var(--text-secondary)"></p>
         <div id="analysisChartWrap" class="chart-container"><canvas id="analysisChart"></canvas></div>
         <div id="analysisBadPeriods" class="inv-bad-periods" style="display:none"></div>
@@ -332,7 +332,7 @@
     <!-- History modal -->
     <div id="historyModal" class="hidden inv-modal-overlay">
       <div class="card inv-modal inv-modal--wide">
-        <h3 class="section-title mb-3">📜 <span id="historyIngName"></span> — <span data-i18n="inventory.historyTitle">Restock history</span></h3>
+        <h3 class="section-title mb-3"><span data-icon="scroll"></span> <span id="historyIngName"></span> — <span data-i18n="inventory.historyTitle">Restock history</span></h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>

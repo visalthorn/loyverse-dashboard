@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { getEl } from './utils.js';
 import { applyTranslations, t } from './i18n.js';
 import { renderSidebar } from './sidebar.js';
+import { renderIcons } from './icons.js';
 
 // Page modules — loaded on demand
 import * as Dashboard from './pages/dashboard.js';
@@ -256,6 +257,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   renderUserHeader(authData.user);
   applyPermissions();
   applyTranslations();
+  // Fills the <span data-icon> placeholders in the static page markup. Markup
+  // built in JS calls icon() inline instead, so it needs no second pass.
+  renderIcons();
 
   const navUsers = getEl('navUsers');
   if (navUsers) navUsers.style.display = state.currentUserRole === 'admin' ? '' : 'none';

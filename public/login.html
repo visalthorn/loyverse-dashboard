@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css"/>
 <title>POS Dashboard — Sign In</title>
 <script>
@@ -267,7 +267,7 @@
   <div class="card">
 
     <div class="logo">
-      <div class="logo-icon">📊</div>
+      <div class="logo-icon"><span data-icon="chart-column" data-icon-size="24"></span></div>
       <div class="logo-text">
         <h1 data-i18n="login.title">Dashboard Analytics</h1>
         <p data-i18n="login.subtitle">Dashboard Portal</p>
@@ -279,14 +279,14 @@
     <p class="page-sub" data-i18n="login.instructions">Sign in to access your analytics dashboard</p>
 
     <div class="error-msg" id="errorMsg">
-      <span>⚠️</span>
+      <span data-icon="triangle-alert" data-icon-size="16"></span>
       <span id="errorText" data-i18n="login.errorDefault">Invalid username or password.</span>
     </div>
 
     <div class="field">
       <label data-i18n="login.username">Username</label>
       <div class="input-wrap">
-        <span class="icon">👤</span>
+        <span class="icon" data-icon="user" data-icon-size="18"></span>
         <input type="text" id="username" data-i18n-placeholder="login.usernamePlaceholder" placeholder="Enter your username" autocomplete="username"/>
       </div>
     </div>
@@ -294,9 +294,9 @@
     <div class="field">
       <label data-i18n="login.password">Password</label>
       <div class="input-wrap">
-        <span class="icon">🔒</span>
+        <span class="icon" data-icon="lock" data-icon-size="18"></span>
         <input type="password" id="password" data-i18n-placeholder="login.passwordPlaceholder" placeholder="Enter your password" autocomplete="current-password"/>
-        <button class="toggle-pw" onclick="togglePassword()" id="toggleBtn" type="button">👁</button>
+        <button class="toggle-pw" onclick="togglePassword()" id="toggleBtn" type="button" aria-label="Show password"><span data-icon="eye" data-icon-size="18"></span></button>
       </div>
     </div>
 
@@ -313,8 +313,13 @@
 
 <script type="module">
   import { applyTranslations, renderLangSwitcher, t, getLang } from '/js/i18n.js';
+  import { icon, renderIcons } from '/js/icons.js';
   window.t = t;
+  // togglePassword() lives in the plain (non-module) script below and cannot
+  // import, so hand it the two SVGs it needs to swap between.
+  window.__pwIcons = { show: icon('eye', { size: 18 }), hide: icon('eye-off', { size: 18 }) };
   applyTranslations();
+  renderIcons();
   renderLangSwitcher(document.getElementById('langSwitcher'));
 
   // Footer copyright year: always current, Khmer numerals in Khmer.
@@ -333,8 +338,10 @@ document.addEventListener('keydown', e => {
 function togglePassword() {
   const pw  = document.getElementById('password');
   const btn = document.getElementById('toggleBtn');
-  if (pw.type === 'password') { pw.type = 'text';     btn.textContent = '🙈'; }
-  else                         { pw.type = 'password'; btn.textContent = '👁'; }
+  const showing = pw.type !== 'password';
+  pw.type = showing ? 'password' : 'text';
+  btn.innerHTML = showing ? window.__pwIcons.show : window.__pwIcons.hide;
+  btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
 }
 
 async function doLogin() {

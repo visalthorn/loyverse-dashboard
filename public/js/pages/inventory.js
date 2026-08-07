@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { icon } from '../icons.js';
 import { fetchJSON, apiPost, apiPut, apiPatch, apiDelete } from '../api.js';
 import { getEl, fmtKHR, fmtDate, getTodayDate, toISODate } from '../utils.js';
 import { t } from '../i18n.js';
@@ -116,7 +117,7 @@ function renderIngredients() {
   if (!grid) return;
 
   if (!ingredients.length) {
-    grid.innerHTML = emptyStateHTML({ titleKey: 'inventory.emptyTitle', hintKey: 'inventory.emptyHint', icon: '🧂' });
+    grid.innerHTML = emptyStateHTML({ titleKey: 'inventory.emptyTitle', hintKey: 'inventory.emptyHint', iconName: 'boxes' });
     return;
   }
 
@@ -145,12 +146,12 @@ function renderIngredients() {
       </div>
 
       <div class="inv-card-actions">
-        <button onclick="invOpenRestock(${ing.id})" class="inv-btn inv-btn--accent">📦 ${t('inventory.restock')}</button>
-        <button onclick="invOpenLinks(${ing.id})" class="inv-btn">🔗 ${t('inventory.items')} (${ing.link_count})</button>
-        <button onclick="invOpenComponents(${ing.id})" class="inv-btn">🧬 ${t('inventory.madeFrom')} (${ing.component_count})</button>
-        <button onclick="invOpenHistory(${ing.id})" class="inv-btn">📜 ${t('inventory.history')}</button>
-        <button onclick="invOpenEditIngredient(${ing.id})" class="inv-icon-btn" title="${t('common.edit')}">✏️</button>
-        <button onclick="invToggleActive(${ing.id})" class="inv-icon-btn" title="${t(ing.is_active ? 'inventory.deactivate' : 'inventory.activate')}">${ing.is_active ? '⏸' : '▶'}</button>
+        <button onclick="invOpenRestock(${ing.id})" class="inv-btn inv-btn--accent">${icon('package', { size: 16 })} ${t('inventory.restock')}</button>
+        <button onclick="invOpenLinks(${ing.id})" class="inv-btn">${icon('link', { size: 16 })} ${t('inventory.items')} (${ing.link_count})</button>
+        <button onclick="invOpenComponents(${ing.id})" class="inv-btn">${icon('dna', { size: 16 })} ${t('inventory.madeFrom')} (${ing.component_count})</button>
+        <button onclick="invOpenHistory(${ing.id})" class="inv-btn">${icon('scroll', { size: 16 })} ${t('inventory.history')}</button>
+        <button onclick="invOpenEditIngredient(${ing.id})" class="inv-icon-btn" title="${t('common.edit')}">${icon('pencil', { size: 16 })}</button>
+        <button onclick="invToggleActive(${ing.id})" class="inv-icon-btn" title="${t(ing.is_active ? 'inventory.deactivate' : 'inventory.activate')}">${icon(ing.is_active ? 'pause' : 'play', { size: 16 })}</button>
       </div>
     </div>`;
   }).join('');
@@ -357,7 +358,7 @@ function renderLinksList() {
     return;
   }
   el.innerHTML = currentLinks.map(l => `
-    <span class="chip">${esc(l.item_name || l.sku)}<button type="button" onclick="invRemoveLink(${l.id})" class="chip-remove" title="${t('common.delete')}">✕</button></span>
+    <span class="chip">${esc(l.item_name || l.sku)}<button type="button" onclick="invRemoveLink(${l.id})" class="chip-remove" title="${t('common.delete')}">${icon('x', { size: 14 })}</button></span>
   `).join('');
 }
 
@@ -428,7 +429,7 @@ function renderComponentsList() {
     return;
   }
   el.innerHTML = currentComponents.map(c => `
-    <span class="chip">${esc(c.name)}<button type="button" onclick="invRemoveComponent(${c.id})" class="chip-remove" title="${t('common.delete')}">✕</button></span>
+    <span class="chip">${esc(c.name)}<button type="button" onclick="invRemoveComponent(${c.id})" class="chip-remove" title="${t('common.delete')}">${icon('x', { size: 14 })}</button></span>
   `).join('');
 }
 
@@ -527,8 +528,8 @@ function renderHistory(rows, unit) {
       <td class="py-2 pr-3 text-right num">${r.cost ? fmtKHR(r.cost) : '—'}</td>
       <td class="py-2 pr-3 text-xs text-[color:var(--text-muted)]">${esc(r.note || '')}</td>
       <td class="py-2 text-center whitespace-nowrap">${isAdmin ? `
-        <button onclick="invOpenEditRestock(${r.id},${currentIngredientId})" class="inv-icon-btn" title="${t('common.edit')}">✏️</button>
-        <button onclick="invDeleteRestock(${r.id},${currentIngredientId})" class="inv-icon-btn" title="${t('common.delete')}">🗑️</button>` : ''}</td>
+        <button onclick="invOpenEditRestock(${r.id},${currentIngredientId})" class="inv-icon-btn" title="${t('common.edit')}">${icon('pencil', { size: 16 })}</button>
+        <button onclick="invDeleteRestock(${r.id},${currentIngredientId})" class="inv-icon-btn" title="${t('common.delete')}">${icon('trash-2', { size: 16 })}</button>` : ''}</td>
     </tr>`).join('');
 }
 
@@ -681,7 +682,7 @@ function aiCardHTML(r) {
     ? `<span class="badge ai-chip-cached">${t('inventory.aiCached')}</span>` : '';
   const branchChip = r.branch_name
     ? `<span class="badge ai-chip-branch">${esc(r.branch_name)}</span>` : '';
-  const anomalies = (r.anomalies || []).map(a => `<div class="ai-anomaly">⚠ ${esc(a)}</div>`).join('');
+  const anomalies = (r.anomalies || []).map(a => `<div class="ai-anomaly">${icon('triangle-alert', { size: 14 })} ${esc(a)}</div>`).join('');
   const note = r.data_quality_note
     ? `<div class="text-xs text-[color:var(--text-muted)]">${esc(r.data_quality_note)}</div>` : '';
   return `
@@ -698,7 +699,7 @@ function aiCardHTML(r) {
         ${r.summary_kh ? `<button type="button" class="ai-lang-toggle" onclick="invToggleAiLang(this)" title="ភាសាខ្មែរ / English">🇰🇭</button>` : ''}
       </div>
       ${anomalies}
-      ${r.refill_advice ? `<div class="ai-advice">📦 ${esc(r.refill_advice)}</div>` : ''}
+      ${r.refill_advice ? `<div class="ai-advice">${icon('package', { size: 14 })} ${esc(r.refill_advice)}</div>` : ''}
       ${note}
       <div class="text-xs text-[color:var(--text-dim)]">${fmtAiTime(r.analyzed_at)}</div>
     </div>`;

@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>User Management</title>
 <script>
   (function() {
@@ -44,7 +44,7 @@
 <!-- Main content -->
 <div class="main-wrapper">
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+    <button onclick="toggleSidebar()" class="md:hidden px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu"><span data-icon="menu" data-icon-size="22"></span></button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="users.title">User Management</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="users.subtitle">Manage users and role permissions</p>
@@ -58,7 +58,7 @@
     <!-- Add / Edit User Form -->
     <div class="card">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="section-title">👤 <span id="userFormTitle" data-i18n="users.addTitle">Add User</span></h2>
+        <h2 class="section-title"><span data-icon="user"></span> <span id="userFormTitle" data-i18n="users.addTitle">Add User</span></h2>
         <button id="userFormCancelBtn" onclick="cancelEditUser()" class="hidden text-xs text-[color:var(--text-secondary)] hover:text-[color:var(--accent-strong)] border border-[color:var(--border-strong)] hover:border-[color:var(--accent)] px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
       </div>
       <form id="userForm" onsubmit="submitUser(event)" class="grid md:grid-cols-3 gap-3">
@@ -96,7 +96,7 @@
 
     <!-- Users List -->
     <div class="card">
-      <h2 class="section-title mb-4" data-i18n="users.usersListTitle">📋 Users</h2>
+      <h2 class="section-title mb-4"><span data-icon="clipboard-list"></span> <span data-i18n="users.usersListTitle">Users</span></h2>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
@@ -120,7 +120,7 @@
     <!-- Permissions Matrix -->
     <div class="card">
       <div class="mb-4">
-        <h2 class="section-title" data-i18n="users.permissionsTitle">🔐 Role Permissions</h2>
+        <h2 class="section-title"><span data-icon="shield"></span> <span data-i18n="users.permissionsTitle">Role Permissions</span></h2>
         <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="users.permissionsSubtitle">Toggle write access per page for Manager role. Admin always has full access.</p>
       </div>
       <div class="overflow-x-auto">

@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css"/>
 <link rel="manifest" href="/manifest-kds.json"/>
 <link rel="apple-touch-icon" href="/icons-kds-192.png"/>
@@ -216,10 +216,10 @@
 <body>
 <div id="kdsApp">
   <div id="topBar">
-    <span class="brand">🍳 Kitchen Display</span>
+    <span class="brand"><span data-icon="chef-hat" data-icon-size="18"></span> Kitchen Display</span>
     <span id="connDot" title="Live connection"></span>
-    <button id="finishedBtn" onclick="window.kdsOpenFinished()">✅ Finished</button>
-    <button id="cancelledBtn" onclick="window.kdsOpenCancelled()">🚫 Cancelled<span id="cancelledDot" class="cancel-dot"></span></button>
+    <button id="finishedBtn" onclick="window.kdsOpenFinished()"><span data-icon="circle-check" data-icon-size="16"></span> Finished</button>
+    <button id="cancelledBtn" onclick="window.kdsOpenCancelled()"><span data-icon="ban" data-icon-size="16"></span> Cancelled<span id="cancelledDot" class="cancel-dot"></span></button>
     <span id="clock">--:--:--</span>
   </div>
 
@@ -233,9 +233,9 @@
 <div id="finishedModal" class="kds-modal">
   <div class="kds-modal-card">
     <div class="kds-modal-head">
-      <h2>✅ Finished Orders</h2>
-      <button id="finishedClearBtn" onclick="window.kdsClearFinished()">🗑 Clear</button>
-      <button id="finishedModalCloseBtn" onclick="window.kdsCloseFinished()">✕</button>
+      <h2><span data-icon="circle-check" data-icon-size="18"></span> Finished Orders</h2>
+      <button id="finishedClearBtn" onclick="window.kdsClearFinished()"><span data-icon="trash-2" data-icon-size="16"></span> Clear</button>
+      <button id="finishedModalCloseBtn" onclick="window.kdsCloseFinished()" aria-label="Close"><span data-icon="x" data-icon-size="18"></span></button>
     </div>
     <div id="finishedModalBody" class="kds-modal-body"></div>
   </div>
@@ -244,9 +244,9 @@
 <div id="cancelledModal" class="kds-modal">
   <div class="kds-modal-card">
     <div class="kds-modal-head">
-      <h2>🚫 Cancelled Orders</h2>
-      <button id="cancelledClearBtn" onclick="window.kdsClearCancelled()">🗑 Clear</button>
-      <button id="cancelledModalCloseBtn" onclick="window.kdsCloseCancelled()">✕</button>
+      <h2><span data-icon="ban" data-icon-size="18"></span> Cancelled Orders</h2>
+      <button id="cancelledClearBtn" onclick="window.kdsClearCancelled()"><span data-icon="trash-2" data-icon-size="16"></span> Clear</button>
+      <button id="cancelledModalCloseBtn" onclick="window.kdsCloseCancelled()" aria-label="Close"><span data-icon="x" data-icon-size="18"></span></button>
     </div>
     <div id="cancelledModalBody" class="kds-modal-body"></div>
   </div>

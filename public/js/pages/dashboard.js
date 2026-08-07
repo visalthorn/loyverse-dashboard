@@ -1,5 +1,6 @@
 import { state, COLORS } from '../state.js';
 import { t } from '../i18n.js';
+import { icon } from '../icons.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtRaw, fmtKHR, fmtDate, fmtDatetime, TZ } from '../utils.js';
 import { destroyChart, chartOpts, barOpts, donutOpts, themeColor, withAlpha, legendTheme } from '../charts.js';
@@ -54,14 +55,14 @@ async function loadKPIs() {
   const netPositive  = netVal >= 0;
   const netAccent    = netPositive ? 'emerald' : 'red';
   const netValClass  = netPositive ? 'val-gain' : 'val-loss';
-  const netIcon      = netPositive ? '📈' : '📉';
+  const netIcon      = icon(netPositive ? 'trending-up' : 'trending-down', { size: 20 });
   const margin       = grossVal > 0 ? Math.round((netVal / grossVal) * 100) : 0;
   const expPct       = grossVal > 0 ? Math.round((expVal / grossVal) * 100) : 0;
 
   // ── Section 1: Period totals ────────────────────────────────────────────────
   const primary = [
     {
-      accent: 'amber', icon: '💰', label: t('dashboard.kpi.grossIncome'),
+      accent: 'amber', icon: icon('coins', { size: 20 }), label: t('dashboard.kpi.grossIncome'),
       val: fmtKHR(grossVal), valClass: 'val-accent',
       growth: data.gross_income.growth,
       sub: `<span class="${netValClass} font-semibold num">Net ${fmtKHR(Math.abs(netVal))}</span>`
@@ -75,14 +76,14 @@ async function loadKPIs() {
       sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.netSub')}</span>`,
     },
     {
-      accent: 'blue', icon: '🧾', label: t('dashboard.kpi.orders'),
+      accent: 'blue', icon: icon('receipt', { size: 20 }), label: t('dashboard.kpi.orders'),
       val: fmtRaw(data.orders.value), valClass: 'val-blue',
       growth: data.orders.growth,
       sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.aovSub')} </span>`
          + `<span class="text-[color:var(--text-secondary)] font-semibold num">${fmtKHR(data.aov.value)}</span>`,
     },
     {
-      accent: 'red', icon: '💸', label: t('dashboard.kpi.expenses'),
+      accent: 'red', icon: icon('banknote', { size: 20 }), label: t('dashboard.kpi.expenses'),
       val: '-' + fmtKHR(expVal), valClass: 'val-loss',
       growth: data.expenses.growth,
       sub: `<span class="text-[color:var(--text-muted)]">${t('dashboard.kpi.pctOfGross', { pct: expPct })}</span>`,
@@ -285,7 +286,7 @@ export function toggleSlowMovers() {
   const isHidden = section.classList.contains('hidden');
   section.classList.toggle('hidden', !isHidden);
   if (btn) {
-    btn.innerHTML = `<span id="slowMoversArrow">${isHidden ? '▼' : '▶'}</span> ${isHidden ? t('dashboard.hideSlowMovers') : t('dashboard.showSlowMovers')}`;
+    btn.innerHTML = `<span id="slowMoversArrow">${icon(isHidden ? 'chevron-down' : 'chevron-right', { size: 14 })}</span> ${isHidden ? t('dashboard.hideSlowMovers') : t('dashboard.showSlowMovers')}`;
   }
 
   if (isHidden) loadSlowMovers();
@@ -436,7 +437,7 @@ export function applyDateFilter({ period, start, end }) {
 
 export async function init() {
   const slowMoversBtn = getEl('slowMoversBtn');
-  if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">▶</span> ${t('dashboard.showSlowMovers')}`;
+  if (slowMoversBtn) slowMoversBtn.innerHTML = `<span id="slowMoversArrow">${icon('chevron-right', { size: 14 })}</span> ${t('dashboard.showSlowMovers')}`;
   loadTopProductsCategories();
   renderDateFilter(getEl('dateFilterMount'), {
     presets: [

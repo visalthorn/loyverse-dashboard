@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Staff Management</title>
 <script>
   (function() {
@@ -261,7 +261,7 @@
 <!-- Main content -->
 <div class="main-wrapper">
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+    <button onclick="toggleSidebar()" class="md:hidden px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu"><span data-icon="menu" data-icon-size="22"></span></button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="staff.title">Staff</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="staff.subtitle">Manage staff profiles and monthly schedule</p>
@@ -275,10 +275,10 @@
     <!-- Tab bar -->
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="staff" onclick="switchTab('staff')">
-        <span data-i18n="staff.tabLabel">👥 Staff Management</span>
+        <span><span data-icon="users"></span> <span data-i18n="staff.tabLabel">Staff Management</span></span>
       </button>
       <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')">
-        <span data-i18n="schedule.tabLabel">📅 Schedule</span>
+        <span><span data-icon="calendar"></span> <span data-i18n="schedule.tabLabel">Schedule</span></span>
       </button>
     </div>
 
@@ -288,21 +288,21 @@
       <!-- Stats — 3-up only from lg: the md sidebar leaves ~416px, too narrow for three chips -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="stat-card">
-          <div class="stat-icon bg-[color:var(--bg-surface-alt)]">👥</div>
+          <div class="stat-icon bg-[color:var(--bg-surface-alt)]"><span data-icon="users" data-icon-size="20"></span></div>
           <div>
             <div class="text-xs text-[color:var(--text-secondary)] mb-0.5" data-i18n="staff.statActiveStaff">Active Staff</div>
             <div class="text-2xl font-bold text-[color:var(--text-primary)]" id="statActiveStaff">—</div>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon" style="background:rgba(34,197,94,.12)">💵</div>
+          <div class="stat-icon" style="background:rgba(34,197,94,.12);color:rgb(34,197,94)"><span data-icon="dollar-sign" data-icon-size="20"></span></div>
           <div>
             <div class="text-xs text-[color:var(--text-secondary)] mb-0.5" data-i18n="staff.statMonthlySalary">Monthly Salary</div>
             <div class="text-2xl font-bold text-emerald-400" id="statTotalSalary">—</div>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon" style="background:rgba(245,158,11,.12)">💳</div>
+          <div class="stat-icon" style="background:rgba(245,158,11,.12);color:rgb(245,158,11)"><span data-icon="credit-card" data-icon-size="20"></span></div>
           <div>
             <div class="text-xs text-[color:var(--text-secondary)] mb-0.5" data-i18n="staff.statTotalLoans">Total Loans</div>
             <div class="text-2xl font-bold text-[color:var(--accent-strong)]" id="statTotalLoan">—</div>
@@ -313,7 +313,7 @@
       <!-- Add / Edit form -->
       <div class="card" data-write-page="staff">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="section-title">👤 <span id="staffFormTitle" data-i18n="staff.addTitle">Add Staff</span></h2>
+          <h2 class="section-title"><span data-icon="user"></span> <span id="staffFormTitle" data-i18n="staff.addTitle">Add Staff</span></h2>
           <button id="staffFormCancelBtn" onclick="cancelEditStaff()" class="hidden text-xs text-[color:var(--text-secondary)] hover:text-[color:var(--accent-strong)] border border-[color:var(--border-strong)] hover:border-[color:var(--accent)] px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
         </div>
         <form id="staffForm" onsubmit="submitStaff(event)" class="grid md:grid-cols-3 gap-3">
@@ -390,13 +390,13 @@
       <!-- Staff list -->
       <div class="card">
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h2 class="section-title" data-i18n="staff.listTitle">📋 Staff List</h2>
+          <h2 class="section-title"><span data-icon="clipboard-list"></span> <span data-i18n="staff.listTitle">Staff List</span></h2>
           <div class="flex items-center gap-3">
             <label class="flex items-center gap-1.5 text-xs text-[color:var(--text-secondary)] cursor-pointer select-none">
               <input type="checkbox" id="showInactive" onchange="renderStaffTable()" style="accent-color:var(--accent)"/>
               <span data-i18n="staff.showInactive">Show inactive</span>
             </label>
-            <button onclick="exportStaffCSV()" class="btn-ghost"><span data-i18n="common.csv">⬇ CSV</span></button>
+            <button onclick="exportStaffCSV()" class="btn-ghost"><span><span data-icon="download"></span> <span data-i18n="common.csv">CSV</span></span></button>
           </div>
         </div>
         <div class="overflow-x-auto">
@@ -437,8 +437,8 @@
           <span id="scheduleFutureNote" class="hidden sch-future-badge" data-i18n="schedule.planningAhead">Planning ahead</span>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick="exportScheduleCSV()" class="sch-nav-btn" title="Export as CSV" data-i18n-title="schedule.exportCsvTitle"><span data-i18n="common.csv">⬇ CSV</span></button>
-          <button onclick="printSchedule()" class="sch-nav-btn" title="Print / Save as PDF" data-i18n-title="schedule.printTitle"><span data-i18n="schedule.printButton">🖨 Print</span></button>
+          <button onclick="exportScheduleCSV()" class="sch-nav-btn" title="Export as CSV" data-i18n-title="schedule.exportCsvTitle"><span><span data-icon="download"></span> <span data-i18n="common.csv">CSV</span></span></button>
+          <button onclick="printSchedule()" class="sch-nav-btn" title="Print / Save as PDF" data-i18n-title="schedule.printTitle"><span><span data-icon="printer"></span> <span data-i18n="schedule.printButton">Print</span></span></button>
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import {
   fetchTerminalJSON as fetchJSON, terminalApiPatch as apiPatch, terminalApiPost as apiPost,
 } from './terminalAuth.js';
 import { showToast } from './toast.js';
+import { icon, renderIcons } from './icons.js';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -151,7 +152,7 @@ function render() {
   if (noCategoriesAssigned) {
     board.innerHTML = '<div id="emptyBoardMsg">No categories assigned — ask a manager to configure this station.</div>';
   } else if (!active.length) {
-    board.innerHTML = '<div id="emptyBoardMsg">No orders in the kitchen 🎉</div>';
+    board.innerHTML = `<div id="emptyBoardMsg">No orders in the kitchen ${icon('party-popper', { size: 18 })}</div>`;
   } else {
     for (const order of active) {
       board.appendChild(renderCard(order));
@@ -366,7 +367,7 @@ function renderCancelledCard(order) {
     </div>
     <div class="oc-head-row2">
       <span class="oc-time-block">
-        <span class="oc-arrived">🚫 ${formatClock(order.cancelled_at)}</span>
+        <span class="oc-arrived">${icon('ban', { size: 14 })} ${formatClock(order.cancelled_at)}</span>
         <span class="oc-order-no">${esc(order.order_number)}</span>
       </span>
     </div>
@@ -381,7 +382,7 @@ function renderCancelledCard(order) {
     row.className = 'oc-item status-cancelled';
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
+      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">${icon('triangle-alert', { size: 13 })} ${esc(item.note)}</span>` : ''}</span>
     `;
     itemsEl.appendChild(row);
   }
@@ -403,10 +404,10 @@ function renderFinishedCard(order) {
     </div>
     <div class="oc-head-row2">
       <span class="oc-time-block">
-        <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+        <span class="oc-arrived">${icon('clock', { size: 14 })} ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
         <span class="oc-order-no">${esc(order.order_number)}</span>
       </span>
-      <span class="oc-served">✅ ${order.served_at ? formatClock(order.served_at) : '—'}</span>
+      <span class="oc-served">${icon('circle-check', { size: 14 })} ${order.served_at ? formatClock(order.served_at) : '—'}</span>
     </div>
   `;
   card.appendChild(head);
@@ -418,7 +419,7 @@ function renderFinishedCard(order) {
     row.className = 'oc-item status-done';
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
+      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">${icon('triangle-alert', { size: 13 })} ${esc(item.note)}</span>` : ''}</span>
     `;
     itemsEl.appendChild(row);
   }
@@ -442,10 +443,10 @@ function renderCard(order) {
     </div>
     <div class="oc-head-row2">
       <span class="oc-time-block">
-        <span class="oc-arrived">🕐 ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
+        <span class="oc-arrived">${icon('clock', { size: 14 })} ${formatClock(order.sent_to_kitchen_at || order.created_at)}</span>
         <span class="oc-order-no">${esc(order.order_number)}</span>
       </span>
-      <span class="oc-elapsed">⏱ 0:00</span>
+      <span class="oc-elapsed">${icon('timer', { size: 14 })} 0:00</span>
     </div>
   `;
   card.appendChild(head);
@@ -458,7 +459,7 @@ function renderCard(order) {
     row.dataset.itemId = item.id;
     row.innerHTML = `
       <span class="qty">${item.quantity}×</span>
-      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">⚠ ${esc(item.note)}</span>` : ''}</span>
+      <span class="name"><span class="name-text">${esc(item.item_name)}</span>${item.note ? `<span class="note">${icon('triangle-alert', { size: 13 })} ${esc(item.note)}</span>` : ''}</span>
     `;
     row.onclick = () => cycleItemStatus(item.id, item.kitchen_status);
     itemsEl.appendChild(row);
@@ -468,7 +469,7 @@ function renderCard(order) {
   const allDone = order.items.length > 0 && order.items.every(i => i.kitchen_status === 'done');
   const readyBtn = document.createElement('button');
   readyBtn.className = 'oc-ready-btn';
-  readyBtn.textContent = '✅ READY';
+  readyBtn.innerHTML = `${icon('circle-check', { size: 16 })} READY`;
   readyBtn.disabled = !allDone;
   readyBtn.onclick = () => markReady(order.id);
   card.appendChild(readyBtn);
@@ -491,7 +492,7 @@ function tickElapsed() {
     // Danger gets its own glyph, not just a color shift -- color-only
     // urgency cues are easy to miss at a glance and unreadable for
     // colorblind staff.
-    if (label) label.textContent = (cls === 'elapsed-danger' ? '⚠ ' : '⏱ ') + formatElapsed(elapsedMs);
+    if (label) label.innerHTML = icon(cls === 'elapsed-danger' ? 'triangle-alert' : 'timer', { size: 14 }) + ' ' + formatElapsed(elapsedMs);
   });
 }
 
@@ -627,7 +628,7 @@ let appStarted = false;
 async function startApp(terminal, idleTimeoutMinutes) {
   const info = terminal || getTerminalInfo();
   const brandEl = document.querySelector('#topBar .brand');
-  if (brandEl && info) brandEl.textContent = `🍳 ${info.name || info.terminal_id}`;
+  if (brandEl && info) brandEl.innerHTML = `${icon('chef-hat', { size: 18 })} ${esc(info.name || info.terminal_id)}`;
 
   await refresh();
   pollCancelledDot();
@@ -659,6 +660,8 @@ window.addEventListener('terminal-logged-out', requireLogin);
 // cookie is still good, staff land straight on the board with no login
 // prompt, no matter how long since the tablet was last touched or rebooted.
 (async () => {
+  // Fills the static data-icon placeholders in kds.html before anything paints.
+  renderIcons();
   const result = await bootSession();
   if (result.ok) startApp(result.terminal, result.idle_timeout_minutes);
   else requireLogin();

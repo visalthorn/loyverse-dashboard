@@ -48,9 +48,26 @@
   --hover-tint: rgba(255,255,255,.06);
   --shadow-lift: 0 10px 32px rgba(0,0,0,.4);
 
-  /* typography — sans for chrome, tabular mono for figures */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Khmer', Arial, sans-serif;
+  /* typography — one superfamily: Plex Sans for chrome, Plex Mono for figures.
+     Plex Sans replaces the system stack so the chrome and the ledger figures
+     share a skeleton, and because its squared terminals and open apertures sit
+     with the icon set's geometry where SF/Segoe read as generic OS chrome.
+     Noto Sans Khmer stays the Khmer face; it leads the stack only under
+     :lang(km) so Latin never falls into it. */
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Khmer', Arial, sans-serif;
+  --font-khmer: 'Noto Sans Khmer', 'IBM Plex Sans', sans-serif;
   --font-num: 'IBM Plex Mono', 'Noto Sans Khmer', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* icon ↔ type pairing -------------------------------------------------
+     An icon is a marker in the ledger margin: it sits one step below its
+     label in the ink ramp, tracks the label's size in em, and carries a
+     stroke matched to the label's weight. Lucide draws on a 24 grid, so the
+     rendered stroke is size x (stroke / 24) -- a fixed 2 goes wiry against
+     semibold text and blobby at large sizes, hence the per-context values. */
+  --icon-stroke: 2;      /* body / regular-weight companions */
+  --icon-stroke-bold: 2.3;   /* next to 600-weight titles and buttons */
+  --icon-stroke-light: 1.65; /* large decorative marks (empty states) */
+  --icon-gap: 0.5em;     /* icon → label, identical in flex and inline flow */
 }
 
 [data-theme="light"] {
@@ -180,16 +197,20 @@
 .kpi-primary--violet  { border-left-color: var(--chart-4); }
 .kpi-primary--violet::after  { background: var(--chart-4); }
 
+/* The rail, the figure and the chip tint all carry the card's semantic colour;
+   the icon takes it too, so each card reads as one coloured ledger entry
+   rather than a cream glyph parked in a tinted box. */
 .kpi-icon {
   width: 34px; height: 34px; border-radius: 8px;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 1rem; flex-shrink: 0;
 }
-.kpi-icon--amber   { background: var(--accent-soft); }
-.kpi-icon--emerald { background: var(--gain-soft); }
-.kpi-icon--red     { background: var(--loss-soft); }
-.kpi-icon--blue    { background: color-mix(in srgb, var(--chart-2) 14%, transparent); }
-.kpi-icon--violet  { background: color-mix(in srgb, var(--chart-4) 14%, transparent); }
+.kpi-icon .lucide { width: 18px; height: 18px }
+.kpi-icon--amber   { background: var(--accent-soft); color: var(--accent-strong); }
+.kpi-icon--emerald { background: var(--gain-soft);   color: var(--gain); }
+.kpi-icon--red     { background: var(--loss-soft);   color: var(--loss); }
+.kpi-icon--blue    { background: color-mix(in srgb, var(--chart-2) 14%, transparent); color: var(--chart-2); }
+.kpi-icon--violet  { background: color-mix(in srgb, var(--chart-4) 14%, transparent); color: var(--chart-4); }
 
 .kpi-primary-val {
   font-family: var(--font-num);
@@ -276,15 +297,80 @@
   letter-spacing: 0.06em;
 }
 
+/* Lucide icons ------------------------------------------------------------
+   Icons inherit the text colour and scale with it.
+
+   Alignment is inline-block + a negative vertical-align rather than flex on
+   the parent: making a <button> a flex container breaks layout in iOS Safari
+   (see the POS/KDS go-live notes), and most icons here sit inside buttons,
+   badges and table cells. Flex parents such as .section-title blockify these
+   boxes and use gap instead, which works either way. */
+.lucide {
+  display: inline-block;
+  flex: none;
+  vertical-align: -0.145em;
+  /* The generated SVGs carry no stroke-width attribute, so the fallback here
+     is the only thing standing between a missing token and hairline icons. */
+  stroke-width: var(--icon-stroke, 2);
+}
+
+/* Placeholder span that renderIcons() fills. Carries the baseline nudge itself
+   so the box aligns correctly even before the SVG lands, and nothing shifts. */
+[data-icon] {
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+  vertical-align: -0.145em;
+}
+[data-icon] > .lucide {
+  display: block;
+  vertical-align: 0;
+}
+
+/* Inline icon+label pairs are separated by a literal space in the markup,
+   which is only ~0.25em. Top it up to --icon-gap so inline pairs space the
+   same as flex rows. Flex rows use gap instead and zero this out below. */
+[data-icon] { margin-right: calc(var(--icon-gap) - 0.25em) }
+
+/* Icons that annotate a label sit one step below it in the ink ramp, so the
+   word leads and the marker supports. One step, not two — a section marker
+   still has to be scannable at a glance, which is the reason it is there. */
+.section-title > [data-icon] { color: var(--text-secondary) }
+.panel-state-icon { color: var(--text-muted) }
+
 .section-title {
   font-size: clamp(0.8125rem, 0.72rem + 0.5vw, 1rem);
   font-weight: 600;
+  /* Semibold at these sizes sets slightly loose; a hair of negative tracking
+     closes the word up so it reads as one mark beside the icon. */
+  letter-spacing: -0.006em;
   color: var(--text-primary);
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--icon-gap);
+  --icon-stroke: var(--icon-stroke-bold);
+}
+.section-title > [data-icon] { margin-right: 0 }
+
+/* The title's own size is fluid (clamp), so its icon has to be too — a fixed
+   px icon drifts from 1.13x the text at the top of the clamp to 1.38x at the
+   bottom. Sizing in em locks the ratio at every viewport. Khmer sets on a
+   taller body, so its marker needs a touch more to hold the same weight. */
+.section-title .lucide { width: 1.15em; height: 1.15em }
+/* Noto Sans Khmer sets a heavier semibold than Plex Sans, and scaling the icon
+   up also thins its rendered stroke (stroke = size x width/24) — so the Khmer
+   marker needs both dimensions raised to hold the same weight as the word. */
+.section-title:lang(km) .lucide { width: 1.25em; height: 1.25em; stroke-width: 2.6 }
+
+/* Truncation moves to the label span now that the title is a flex row —
+   otherwise the icon would be the thing that gets ellipsised away. */
+.section-title > :not([data-icon]) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-  max-width: 100%;
 }
 
 /* Period Buttons */
@@ -569,8 +655,10 @@ dialog.app-dialog[open] .app-dialog-card {
   text-align: center;
   padding: 28px 16px;
 }
-.panel-state-icon  { font-size: 1.25rem; opacity: .7; }
-.panel-state-title { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); }
+/* A large decorative mark: Lucide's default stroke goes blobby at this size,
+   and the opacity nudge keeps it under the title it introduces. */
+.panel-state-icon  { font-size: 1.25rem; opacity: .65; --icon-stroke: var(--icon-stroke-light); }
+.panel-state-title { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); letter-spacing: -0.004em; }
 .panel-state-hint  { font-size: 0.75rem; color: var(--text-muted); max-width: 36ch; line-height: 1.5; }
 .panel-state--error .panel-state-title { color: var(--loss); }
 
@@ -651,6 +739,10 @@ dialog.app-dialog[open] .app-dialog-card {
 /* ── base type: sans chrome, Khmer fallback built in ────── */
 body {
   font-family: var(--font-sans);
+  /* Light warm ink on a dark board renders a stem heavier than it is drawn;
+     subpixel smoothing pushes Plex Sans past the icon stroke it should match. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Khmer glyphs (stacked Coeng subscripts, diacritics) read smaller than
@@ -659,6 +751,11 @@ body {
    consistently without touching individual components. */
 html[lang="km"] {
   font-size: 106%;
+}
+/* Noto leads the stack only in Khmer, so Latin never falls into it by
+   accident and Khmer never waits on the Plex Sans download. */
+html[lang="km"] body {
+  font-family: var(--font-khmer);
 }
 
 /* ── i18n: language switcher ─────────────────────────────── */
@@ -766,10 +863,29 @@ body.app-shell {
   border-radius: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-primary);
+  letter-spacing: 0.004em;
+  color: var(--text-secondary);
   border-left: 3px solid transparent;
   transition: background-color .15s, color .15s, border-color .15s;
 }
+/* Resting nav is a quiet list; only the current page takes full ink. Without
+   this every item competed with the active one for attention. */
+.nav-item.active { font-weight: 600; letter-spacing: 0.002em; }
+/* Fixed box so labels line up whatever the glyph's own width, and so the
+   collapsed rail centres the icon exactly. The glyph itself sits at 1.28x the
+   label — 20px against a 14px label read as an icon list with captions; this
+   reads as a labelled marker. */
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex: none;
+  line-height: 0;
+  margin-right: 0;
+}
+.nav-icon .lucide { width: 1.28em; height: 1.28em }
+.nav-item:lang(km) .nav-icon .lucide { width: 1.38em; height: 1.38em }
 .nav-item:hover { background: var(--hover-tint); color: var(--text-primary); }
 .nav-item.active {
   background: var(--accent-soft);
@@ -815,10 +931,14 @@ body.app-shell {
 
 /* ── user menu dropdown (avatar-triggered) ───────────────── */
 .user-menu-caret {
-  display: inline-block;
-  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
   transition: transform .2s ease;
 }
+/* The SVG carries its own baseline nudge, which would tilt the rotation
+   origin off-centre — neutralise it inside the rotating wrapper. */
+.user-menu-caret .lucide { vertical-align: 0; }
 .user-menu-caret.open { transform: rotate(180deg); }
 .user-menu-panel {
   position: absolute;

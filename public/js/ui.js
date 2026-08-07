@@ -1,14 +1,15 @@
 import { t } from './i18n.js';
 import { getEl } from './utils.js';
+import { icon } from './icons.js';
 
 // Shared panel-state components. Every panel renders one of these instead of
 // a blank card: a skeleton while loading, an empty state that says what
 // happened and what to do, or an error state that says what failed.
 
-export function emptyStateHTML({ titleKey = 'common.emptyNoData', hintKey = 'common.emptyHintWiden', icon = '🧾', vars = {} } = {}) {
+export function emptyStateHTML({ titleKey = 'common.emptyNoData', hintKey = 'common.emptyHintWiden', iconName = 'receipt', vars = {} } = {}) {
   return `
     <div class="panel-state">
-      <div class="panel-state-icon">${icon}</div>
+      <div class="panel-state-icon">${icon(iconName, { size: 28 })}</div>
       <div class="panel-state-title">${t(titleKey, vars)}</div>
       <div class="panel-state-hint">${t(hintKey, vars)}</div>
     </div>`;
@@ -17,7 +18,7 @@ export function emptyStateHTML({ titleKey = 'common.emptyNoData', hintKey = 'com
 export function errorStateHTML({ titleKey = 'common.errorPanelTitle', hintKey = 'common.errorPanelHint', vars = {} } = {}) {
   return `
     <div class="panel-state panel-state--error">
-      <div class="panel-state-icon">⚠️</div>
+      <div class="panel-state-icon">${icon('triangle-alert', { size: 28 })}</div>
       <div class="panel-state-title">${t(titleKey, vars)}</div>
       <div class="panel-state-hint">${t(hintKey, vars)}</div>
     </div>`;
@@ -75,11 +76,12 @@ export function chartStateClear(canvasId) {
   canvas.style.display = '';
 }
 
-// ▲/▼/— delta chip for a period-over-period growth percentage. null = no
-// comparison available (renders nothing).
+// Up/down/flat delta chip for a period-over-period growth percentage.
+// null = no comparison available (renders nothing).
 export function growthBadge(g) {
   if (g == null) return '';
-  if (g > 0) return `<span class="badge-up">▲ ${g > 100 ? '>100' : g}%</span>`;
-  if (g < 0) return `<span class="badge-down">▼ ${Math.abs(g) > 100 ? '>100' : Math.abs(g)}%</span>`;
+  const arrow = dir => icon(dir, { size: 12 });
+  if (g > 0) return `<span class="badge-up">${arrow('arrow-up')} ${g > 100 ? '>100' : g}%</span>`;
+  if (g < 0) return `<span class="badge-down">${arrow('arrow-down')} ${Math.abs(g) > 100 ? '>100' : Math.abs(g)}%</span>`;
   return `<span class="badge-flat">— 0%</span>`;
 }

@@ -1,4 +1,5 @@
 import { apiPost, fetchJSON } from '../api.js';
+import { icon } from '../icons.js';
 import { getEl, fmtDatetime, TZ } from '../utils.js';
 import { t } from '../i18n.js';
 import { showToast } from '../toast.js';
@@ -10,7 +11,7 @@ let logs = [];
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function statusIcon(status) {
-  return status === 'success' ? '✅' : status === 'skipped' ? '⏭' : '❌';
+  return icon(status === 'success' ? 'circle-check' : status === 'skipped' ? 'skip-forward' : 'circle-x', { size: 15 });
 }
 
 const TYPE_KEYS = {

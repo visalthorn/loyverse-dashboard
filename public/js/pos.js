@@ -3,6 +3,7 @@ import { fetchTerminalJSON as fetchJSON, terminalApiPost } from './terminalAuth.
 import { getEl } from './utils.js';
 import { showConfirm, showPrompt, showAlert } from './dialog.js';
 import { showToast } from './toast.js';
+import { icon, renderIcons } from './icons.js';
 import { printReceipt, printKitchenTicket, getBridgeUrl, setBridgeUrl, receiptHTML } from './print.js';
 import {
   mutate, onQueueChange, onReplaySuccess, onReplayRejected, onDeadLetter, onSyncSummary,
@@ -399,7 +400,7 @@ function renderCart() {
             <div class="cl-price">${khr(it.price)} × ${it.quantity}${it.note ? ` · ${esc(it.note)}` : ''}</div>
           </div>
           <div class="cl-total">${khr(it.price * it.quantity)}</div>
-          ${canCancel ? `<button class="cl-remove" type="button" data-sent-cancel="${it.id}" title="Cancel item">✕</button>` : ''}
+          ${canCancel ? `<button class="cl-remove" type="button" data-sent-cancel="${it.id}" title="Cancel item" aria-label="Cancel item">${icon('x', { size: 14 })}</button>` : ''}
         </div>
       `;
     }).join('');
@@ -416,7 +417,7 @@ function renderCart() {
           <button type="button" data-inc="${idx}">+</button>
         </div>
         <div class="cl-total">${khr(l.price * l.quantity)}</div>
-        <button class="cl-remove" type="button" data-remove="${idx}">✕</button>
+        <button class="cl-remove" type="button" data-remove="${idx}" aria-label="Remove">${icon('x', { size: 14 })}</button>
       </div>
     `).join('');
 
@@ -442,7 +443,7 @@ function renderCart() {
   // this is the equivalent once you're actually looking at it.
   const lockedByOther = currentOrder && currentOrder.locked_by_terminal_id && !currentOrder.locked_by_me;
   badge.innerHTML = currentOrder
-    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}${lockedByOther ? ` · 🔒 ${esc(currentOrder.locked_by_terminal_name || 'locked by another terminal')}` : ''}`
+    ? `${currentOrder.name ? esc(currentOrder.name) + ' · ' : ''}<b>${currentOrder.order_number}</b> · ${currentOrder.status.replace(/_/g, ' ')}${lockedByOther ? ` · ${icon('lock', { size: 13 })} ${esc(currentOrder.locked_by_terminal_name || 'locked by another terminal')}` : ''}`
     : 'New order (not yet sent)';
 
   // Cancel Order is available on any role, any open order, regardless of
@@ -1179,7 +1180,7 @@ async function loadOpenOrders() {
     // up to one poll cycle (~15s) is a lock released moments ago; the real
     // enforcement is always the server-side check on claim/edit.
     const lockedByOther = o.locked_by_terminal_id && !o.locked_by_me;
-    const lockBadge = lockedByOther ? ` · 🔒 ${esc(o.locked_by_terminal_name || 'another terminal')}` : '';
+    const lockBadge = lockedByOther ? ` · ${icon('lock', { size: 13 })} ${esc(o.locked_by_terminal_name || 'another terminal')}` : '';
     row.innerHTML = `
       <div>
         <div class="or-title">${title}</div>
@@ -1188,7 +1189,7 @@ async function loadOpenOrders() {
         </div>
       </div>
       <span class="or-total">${khr(o.total)}</span>
-      <button class="chip-reprint" type="button" title="Reprint kitchen ticket">🖨</button>
+      <button class="chip-reprint" type="button" title="Reprint kitchen ticket" aria-label="Reprint kitchen ticket">${icon('printer', { size: 14 })}</button>
     `;
     row.addEventListener('click', () => {
       if (o._queued) applyOrderToPanel(o);
@@ -1255,7 +1256,7 @@ async function loadOrderIntoPanel(id, fallbackOrder, { force = false } = {}) {
     } else if (status === 409 && data.code === 'ORDER_LOCKED') {
       // Deliberately a modal, not a toast: the cashier just tapped this order
       // expecting it to open, and nothing visible happens otherwise. Refresh
-      // the list behind it so the 🔒 badge is up to date when they look back.
+      // the list behind it so the lock badge is up to date when they look back.
       await showAlert(data.message || 'Another terminal has this order open right now.',
         { title: 'Order locked' });
       loadOpenOrders();
@@ -1491,19 +1492,19 @@ async function updateStatusChip(pendingCount, deadCount) {
   }
   let label, cls;
   if (isOffline()) {
-    label = `⚠ Offline${pendingCount ? ` — ${pendingCount} queued` : ''}`;
+    label = `${icon('wifi-off', { size: 14 })} Offline${pendingCount ? ` — ${pendingCount} queued` : ''}`;
     cls = 'chip-offline';
   } else if (deadCount) {
-    label = `⚠ ${deadCount} need${deadCount === 1 ? 's' : ''} attention`;
+    label = `${icon('triangle-alert', { size: 14 })} ${deadCount} need${deadCount === 1 ? 's' : ''} attention`;
     cls = 'chip-attention';
   } else if (pendingCount) {
-    label = `↻ Syncing — ${pendingCount} queued`;
+    label = `${icon('refresh-cw', { size: 14 })} Syncing — ${pendingCount} queued`;
     cls = 'chip-syncing';
   } else {
-    label = '● Online';
+    label = `${icon('circle-dot', { size: 14 })} Online`;
     cls = 'chip-online';
   }
-  chip.textContent = label;
+  chip.innerHTML = label;
   chip.className = `sync-status-chip ${cls}`;
 }
 
@@ -1744,7 +1745,9 @@ function applyRoleUI(info) {
   const supervisor = info && info.role === 'supervisor';
   const payBtn = getEl('payBtn');
   if (payBtn) {
-    payBtn.textContent = supervisor ? '💳 Pay' : '🧾 Ready to Bill';
+    payBtn.innerHTML = supervisor
+      ? `${icon('credit-card', { size: 18 })} Pay`
+      : `${icon('receipt', { size: 18 })} Ready to Bill`;
     payBtn.onclick = supervisor ? openPayModal : readyToBill;
   }
   const settleBtn = getEl('toSettleBtn');
@@ -1789,6 +1792,8 @@ window.addEventListener('terminal-logged-out', requireLogin);
 // cookie is still good, staff land straight in the POS with no login
 // prompt, no matter how long since the tablet was last touched or rebooted.
 window.addEventListener('DOMContentLoaded', async () => {
+  // Fills the static data-icon placeholders in pos.html before anything paints.
+  renderIcons();
   const result = await bootSession();
   if (result.ok) startApp(result.terminal, result.idle_timeout_minutes);
   else requireLogin();

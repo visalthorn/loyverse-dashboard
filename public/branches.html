@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Branch Management</title>
 <script>
   (function() {
@@ -46,7 +46,7 @@
 <!-- Main content -->
 <div class="main-wrapper">
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+    <button onclick="toggleSidebar()" class="md:hidden px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu"><span data-icon="menu" data-icon-size="22"></span></button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="branches.title">Branch Management</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="branches.subtitle">Manage branches and assign POS devices</p>
@@ -61,7 +61,7 @@
       <!-- Branches card -->
       <div class="card">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="section-title">🏬 <span id="branchFormTitle" data-i18n="branches.addTitle">Add Branch</span></h2>
+          <h2 class="section-title"><span data-icon="store"></span> <span id="branchFormTitle" data-i18n="branches.addTitle">Add Branch</span></h2>
           <button id="branchFormCancelBtn" onclick="cancelEditBranch()" class="hidden text-xs text-[color:var(--text-secondary)] hover:text-[color:var(--accent-strong)] border border-[color:var(--border-strong)] hover:border-[color:var(--accent)] px-3 py-1 rounded transition-colors" data-i18n="common.cancel">Cancel Edit</button>
         </div>
         <form id="branchForm" onsubmit="submitBranch(event)" class="grid md:grid-cols-2 gap-2 mb-4">
@@ -92,7 +92,7 @@
       <!-- Devices card -->
       <div class="card">
         <div class="mb-4">
-          <h2 class="section-title" data-i18n="branches.devicesTitle">🖥️ POS Devices</h2>
+          <h2 class="section-title"><span data-icon="monitor"></span> <span data-i18n="branches.devicesTitle">POS Devices</span></h2>
           <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="branches.devicesSubtitle">Assign each Loyverse POS device to a branch</p>
         </div>
         <div class="overflow-x-auto">
@@ -115,7 +115,7 @@
       <div class="card lg:col-span-2">
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
           <div>
-            <h2 class="section-title" data-i18n="branches.terminalsTitle">🖲️ POS / KDS Terminals</h2>
+            <h2 class="section-title"><span data-icon="scan-barcode"></span> <span data-i18n="branches.terminalsTitle">POS / KDS Terminals</span></h2>
             <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="branches.terminalsSubtitle">Shop-floor devices log in with a terminal ID + PIN — no dashboard account needed</p>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
@@ -150,7 +150,7 @@
       <!-- KDS Display Settings card -->
       <div class="card">
         <div class="mb-4">
-          <h2 class="section-title" data-i18n="branches.kdsSettingsTitle">⏱️ KDS Display Settings</h2>
+          <h2 class="section-title"><span data-icon="timer"></span> <span data-i18n="branches.kdsSettingsTitle">KDS Display Settings</span></h2>
           <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="branches.kdsSettingsSubtitle">Minute thresholds that color-code KDS order cards (Good → Warning → Late)</p>
         </div>
         <form id="kdsSettingsForm" onsubmit="saveKdsDisplaySettings(event)" class="grid grid-cols-2 gap-3 items-end">

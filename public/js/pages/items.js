@@ -1,4 +1,5 @@
 import { fetchJSON, apiPut, apiPost, apiDelete } from '../api.js';
+import { icon } from '../icons.js';
 import { getEl } from '../utils.js';
 import { t } from '../i18n.js';
 import { showToast } from '../toast.js';
@@ -93,7 +94,7 @@ function renderItems() {
       <td class="py-2 pr-3">${canWrite() ? reportCategoryDropdown(i) : esc(i.report_category_name || t('items.reportCategoryNone'))}</td>
       <td class="py-2 pr-3 text-right">${fmtPrice(i.price)}</td>
       <td class="py-2 text-center" data-write-page="items">
-        <button onclick="openRename('item','${i.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" title="${t('items.renameTitle')}">✏️</button>
+        <button onclick="openRename('item','${i.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" title="${t('items.renameTitle')}">${icon('pencil', { size: 14 })}</button>
         ${i.custom_name ? `<button onclick="resetItemName('${i.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" title="${t('items.reset')}">↩</button>` : ''}
       </td>
     </tr>`).join('');
@@ -111,7 +112,7 @@ function renderCategoriesPanel() {
       </td>
       <td class="py-2 pr-3 text-xs text-[color:var(--text-muted)]">${esc(c.name)}</td>
       <td class="py-2 text-center" data-write-page="items">
-        <button onclick="openRename('category','${c.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]">✏️</button>
+        <button onclick="openRename('category','${c.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]">${icon('pencil', { size: 14 })}</button>
       </td>
     </tr>`).join('');
   if (!canWrite()) document.querySelectorAll('#categoriesTableBody [data-write-page]').forEach(el => el.style.display = 'none');
@@ -124,8 +125,8 @@ function renderReportCategoriesPanel() {
     <tr class="border-b border-[color:var(--border-subtle)]">
       <td class="py-2 pr-3 font-medium">${esc(c.name)}</td>
       <td class="py-2 text-center" data-write-page="items">
-        <button onclick="openRename('reportCategory','${c.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]">✏️</button>
-        <button onclick="confirmDeleteReportCategory('${c.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]">🗑️</button>
+        <button onclick="openRename('reportCategory','${c.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]">${icon('pencil', { size: 14 })}</button>
+        <button onclick="confirmDeleteReportCategory('${c.id}')" class="text-xs px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]">${icon('trash-2', { size: 14 })}</button>
       </td>
     </tr>`).join('');
   if (!canWrite()) document.querySelectorAll('#reportCategoriesTableBody [data-write-page]').forEach(el => el.style.display = 'none');

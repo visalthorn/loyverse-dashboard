@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { icon } from '../icons.js';
 import { fetchJSON, apiPut } from '../api.js';
 import { getEl } from '../utils.js';
 import { t, getLang } from '../i18n.js';
@@ -364,7 +365,7 @@ export function openShiftPicker(event, staffId, dateStr, defaultShift) {
   picker.innerHTML = opts.map(o => {
     const icon = o.shift
       ? `<span class="sch-picker-badge" style="background:${SHIFTS[o.shift].bg};color:${SHIFTS[o.shift].color}">${o.shift}</span>`
-      : `<span class="sch-picker-clear">✕</span>`;
+      : `<span class="sch-picker-clear">${icon('x', { size: 12 })}</span>`;
     const arg = o.shift ? `'${o.shift}'` : 'null';
     return `<button class="sch-picker-opt" onclick="applyShift(${staffId},'${dateStr}',${arg})">${icon}<span>${o.label}</span></button>`;
   }).join('');
@@ -431,7 +432,7 @@ export function openRosterFill(event, staffId) {
       </button>`).join('')}
     <hr class="sch-roster-divider"/>
     <button class="sch-roster-opt" style="color:#f87171" onclick="applyRosterFill(${staffId},'clear')">
-      <span class="sch-picker-clear" style="background:var(--loss-soft);color:var(--loss)">✕</span>
+      <span class="sch-picker-clear" style="background:var(--loss-soft);color:var(--loss)">${icon('x', { size: 12 })}</span>
       <span>${t('schedule.clearAllEntries')}</span>
     </button>`;
 

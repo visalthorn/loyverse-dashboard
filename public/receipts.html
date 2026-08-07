@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>POS Receipts</title>
 <script>
   (function() {
@@ -184,7 +184,7 @@
 
   <!-- Top bar -->
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+    <button onclick="toggleSidebar()" class="md:hidden px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu"><span data-icon="menu" data-icon-size="22"></span></button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="receipts.title">Orders and Receipts</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="receipts.subtitle">View and search receipt records</p>
@@ -210,7 +210,7 @@
     <!-- Own-POS: live orders (shown only on the Own tab) -->
     <div id="liveOrdersCard" class="card">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="section-title">🔴 Live Orders</h2>
+        <h2 class="section-title"><span data-icon="circle-dot" style="color:var(--loss)"></span> <span>Live Orders</span></h2>
         <span class="text-xs text-[color:var(--text-secondary)]" id="liveOrdersCount">—</span>
       </div>
       <div id="liveOrdersList" class="space-y-2"></div>
@@ -219,7 +219,7 @@
     <!-- Own-POS: recent activity across every terminal (shown only on the Own tab) -->
     <div id="liveActivityCard" class="card">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="section-title">📋 Recent Activity</h2>
+        <h2 class="section-title"><span data-icon="activity"></span> <span>Recent Activity</span></h2>
         <span class="text-xs text-[color:var(--text-secondary)]" id="liveActivityCount">—</span>
       </div>
       <div id="liveActivityList" class="space-y-1"></div>
@@ -228,7 +228,7 @@
     <!-- Summary stats -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="statsRow">
       <div class="stat-card">
-        <div class="stat-icon bg-[color:var(--bg-surface-alt)]">🧾</div>
+        <div class="stat-icon bg-[color:var(--bg-surface-alt)]"><span data-icon="receipt" data-icon-size="20"></span></div>
         <div>
           <div class="text-xs text-[color:var(--text-secondary)] mb-0.5" data-i18n="receipts.statAllReceipts">All Receipts</div>
           <div class="text-2xl font-bold text-[color:var(--text-primary)]" id="statTotal">—</div>
@@ -236,7 +236,7 @@
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(34,197,94,.12)">🟢</div>
+        <div class="stat-icon" style="background:rgba(34,197,94,.12);color:rgb(34,197,94)"><span data-icon="circle-dot" data-icon-size="20"></span></div>
         <div>
           <div class="text-xs text-[color:var(--text-secondary)] mb-0.5" data-i18n="receipts.statSales">Sales</div>
           <div class="text-2xl font-bold text-emerald-400" id="statSales">—</div>
@@ -244,7 +244,7 @@
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(239,68,68,.12)">🔴</div>
+        <div class="stat-icon" style="background:rgba(239,68,68,.12);color:rgb(239,68,68)"><span data-icon="circle-dot" data-icon-size="20"></span></div>
         <div>
           <div class="text-xs text-[color:var(--text-secondary)] mb-0.5" data-i18n="receipts.statRefunds">Refunds</div>
           <div class="text-2xl font-bold text-[color:var(--loss)]" id="statRefunds">—</div>
@@ -269,7 +269,7 @@
       </div>
 
       <div class="card">
-        <h2 class="section-title mb-3" data-i18n="receipts.cancelledOrders">🚫 Cancelled Orders</h2>
+        <h2 class="section-title mb-3"><span data-icon="ban"></span> <span data-i18n="receipts.cancelledOrders">Cancelled Orders</span></h2>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
@@ -290,7 +290,7 @@
       </div>
 
       <div class="card">
-        <h2 class="section-title mb-3" data-i18n="receipts.cancelledItems">✂️ Cancelled / Reduced Items</h2>
+        <h2 class="section-title mb-3"><span data-icon="scissors"></span> <span data-i18n="receipts.cancelledItems">Cancelled / Reduced Items</span></h2>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
@@ -324,7 +324,7 @@
             <div class="flex-1 min-w-[180px]">
               <label class="block text-xs text-[color:var(--text-secondary)] mb-1" data-i18n="receipts.search">Search</label>
               <div class="relative">
-                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--text-secondary)] text-sm">🔍</span>
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--text-secondary)]"><span data-icon="search" data-icon-size="16"></span></span>
                 <input id="searchInput" type="text" placeholder="Receipt no., employee…" data-i18n-placeholder="receipts.searchPlaceholder" class="filter-input w-full pl-8" oninput="onSearchChange()"/>
               </div>
             </div>
@@ -347,10 +347,10 @@
         <!-- Table -->
         <div class="card">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="section-title" data-i18n="receipts.listTitle">🧾 Receipts List</h2>
+            <h2 class="section-title"><span data-icon="receipt"></span> <span data-i18n="receipts.listTitle">Receipts List</span></h2>
             <div class="flex items-center gap-3">
               <span class="text-xs text-[color:var(--text-secondary)]" id="resultCount">—</span>
-              <button onclick="exportReceiptsCSV()" class="btn-ghost"><span data-i18n="common.csv">⬇ CSV</span></button>
+              <button onclick="exportReceiptsCSV()" class="btn-ghost"><span><span data-icon="download"></span> <span data-i18n="common.csv">CSV</span></span></button>
             </div>
           </div>
           <div class="overflow-x-auto">
@@ -385,7 +385,7 @@
       <!-- Right: Detail panel -->
       <div class="detail-panel" id="detailPanel">
         <div id="detailEmpty" class="empty-state py-16">
-          <div class="text-3xl mb-2">🧾</div>
+          <div class="mb-2 text-[color:var(--text-muted)]"><span data-icon="receipt" data-icon-size="32"></span></div>
           <div class="text-sm" data-i18n="receipts.selectPrompt">Select a receipt to view details</div>
         </div>
         <div id="detailContent" class="hidden">

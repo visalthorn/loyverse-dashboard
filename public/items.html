@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Items Management</title>
 <script>
   (function() {
@@ -44,7 +44,7 @@
 <!-- Main content -->
 <div class="main-wrapper">
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+    <button onclick="toggleSidebar()" class="md:hidden px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu"><span data-icon="menu" data-icon-size="22"></span></button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="items.title">Items Management</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="items.subtitle">Items and categories synced from Loyverse</p>
@@ -104,7 +104,7 @@
 
     <!-- Items table -->
     <div class="card">
-      <h2 class="section-title mb-4"><span data-i18n="items.listTitle">🏷️ Items</span> <span id="itemCount" class="text-xs font-normal text-[color:var(--text-secondary)]"></span></h2>
+      <h2 class="section-title mb-4"><span><span data-icon="tag"></span> <span data-i18n="items.listTitle">Items</span></span> <span id="itemCount" class="text-xs font-normal text-[color:var(--text-secondary)]"></span></h2>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>

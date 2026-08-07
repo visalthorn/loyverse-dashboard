@@ -1,4 +1,5 @@
 import { state, COLORS } from '../state.js';
+import { icon } from '../icons.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtKHR, fmtDate } from '../utils.js';
 import { emptyStateHTML, errorStateHTML, chartStateShow, chartStateClear, legendRowsHTML } from '../ui.js';
@@ -27,8 +28,8 @@ function trendGranularity() {
 
 function growthBadge(g) {
   if (g == null) return '<span class="growth-nil">—</span>';
-  if (g > 0) return `<span class="growth-up">▲ ${g > 100 ? '>100' : g}%</span>`;
-  if (g < 0) return `<span class="growth-down">▼ ${Math.abs(g) > 100 ? '>100' : Math.abs(g)}%</span>`;
+  if (g > 0) return `<span class="growth-up">${icon('arrow-up', { size: 12 })} ${g > 100 ? '>100' : g}%</span>`;
+  if (g < 0) return `<span class="growth-down">${icon('arrow-down', { size: 12 })} ${Math.abs(g) > 100 ? '>100' : Math.abs(g)}%</span>`;
   return '<span class="growth-nil">0%</span>';
 }
 
@@ -67,24 +68,24 @@ export function createReportSections(api, opts = {}) {
 
     el.innerHTML = [
       {
-        accent: 'amber', icon: '💰', label: t('report.kpi.totalRevenue'),
+        accent: 'amber', icon: icon('coins', { size: 20 }), label: t('report.kpi.totalRevenue'),
         val: fmtKHR(grossVal), valClass: 'val-accent',
         sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.vsPrev')} </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.gross_income.growth)}</span>`,
       },
       {
-        accent: 'red', icon: '💸', label: t('dashboard.kpi.expenses'),
+        accent: 'red', icon: icon('banknote', { size: 20 }), label: t('dashboard.kpi.expenses'),
         val: '-' + fmtKHR(expVal), valClass: 'val-loss',
         sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.pctOfRevenue', { pct: expPct })} · </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.expenses.growth)}</span>`,
       },
       {
-        accent: netVal >= 0 ? 'emerald' : 'red', icon: netVal >= 0 ? '📈' : '📉',
+        accent: netVal >= 0 ? 'emerald' : 'red', icon: icon(netVal >= 0 ? 'trending-up' : 'trending-down', { size: 20 }),
         label: t('dashboard.kpi.netProfit'),
         val: (netVal < 0 ? '-' : '') + fmtKHR(Math.abs(netVal)),
         valClass: netVal >= 0 ? 'val-gain' : 'val-loss',
         sub: `<span class="text-[color:var(--text-muted)]">${t('report.kpi.vsPrev')} </span><span class="text-[color:var(--text-secondary)]">${growthBadge(data.net_growth)}</span>`,
       },
       {
-        accent: 'emerald', icon: '📊', label: t('report.kpi.netMargin'),
+        accent: 'emerald', icon: icon('chart-column', { size: 20 }), label: t('report.kpi.netMargin'),
         val: margin + '%', valClass: netVal >= 0 ? 'val-blue' : 'val-loss',
         sub: `<span class="text-[color:var(--chart-2)] num">${t('report.kpi.netAmount', { amount: fmtKHR(Math.abs(netVal)) })}</span>`,
       },
@@ -289,7 +290,7 @@ export function createReportSections(api, opts = {}) {
       const message = !data
         ? errorStateHTML({ vars: { range: rangeLabel() } })
         : categoryLabel
-          ? `<div class="panel-state"><div class="panel-state-icon">🧾</div><div class="panel-state-title">${t('report.noCategoryItemsForPeriod', { category: categoryLabel })}</div><div class="panel-state-hint">${t('common.emptyHintWiden')}</div></div>`
+          ? `<div class="panel-state"><div class="panel-state-icon">${icon('receipt', { size: 28 })}</div><div class="panel-state-title">${t('report.noCategoryItemsForPeriod', { category: categoryLabel })}</div><div class="panel-state-hint">${t('common.emptyHintWiden')}</div></div>`
           : emptyStateHTML({ titleKey: 'common.emptyNoSales', hintKey: 'common.emptyHintSync' });
       chartStateShow('topProductsChart', message);
       if (legend) legend.innerHTML = '';

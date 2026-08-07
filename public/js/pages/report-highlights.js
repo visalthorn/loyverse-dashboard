@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { icon } from '../icons.js';
 import { fetchJSON } from '../api.js';
 import { getEl, fmt, fmtKHR } from '../utils.js';
 import { t, getLang } from '../i18n.js';
@@ -110,7 +111,7 @@ export function createHighlights() {
     if (!el) return;
     if (data.dataQuality.zeroExpenseDays > 0) {
       el.style.display = '';
-      el.innerHTML = `<span>⚠️</span><span>${t('summary.hl.dataQualityNotice', {
+      el.innerHTML = `<span>${icon('triangle-alert', { size: 14 })}</span><span>${t('summary.hl.dataQualityNotice', {
         n: data.dataQuality.zeroExpenseDays, m: data.dataQuality.totalDays,
       })}</span>`;
     } else {

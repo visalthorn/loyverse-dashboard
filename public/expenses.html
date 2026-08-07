@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>POS Expenses</title>
 <script>
   (function() {
@@ -30,7 +30,7 @@
 
   <!-- Top bar -->
   <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
-    <button onclick="toggleSidebar()" class="md:hidden text-xl px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu">☰</button>
+    <button onclick="toggleSidebar()" class="md:hidden px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu"><span data-icon="menu" data-icon-size="22"></span></button>
     <div>
       <h2 class="text-lg font-semibold" data-i18n="expenses.title">Expenses</h2>
       <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="expenses.subtitle">Manage expense entries</p>
@@ -43,7 +43,7 @@
     <section class="card">
       <div class="flex items-center justify-between mb-4">
         <div>
-          <h2 class="section-title">💸 Expenses</h2>
+          <h2 class="section-title"><span data-icon="banknote"></span> <span>Expenses</span></h2>
           <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="expenses.listSubtitle">Add, edit, and review expense records</p>
         </div>
       </div>
@@ -77,13 +77,13 @@
 
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-3">
         <div class="flex flex-wrap items-center gap-3">
-          <h2 class="section-title" data-i18n="expenses.listTitle">💸 Expenses List</h2>
+          <h2 class="section-title"><span data-icon="banknote"></span> <span data-i18n="expenses.listTitle">Expenses List</span></h2>
           <span id="expensesSummary" class="text-sm text-[color:var(--text-secondary)]"><span class="text-sm text-[color:var(--accent-strong)] font-bold">0</span> items · Total: <span class="text-sm text-[color:var(--accent-strong)] font-bold">៛0.00</span></span>
         </div>
         <div class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--text-secondary)]">
           <select id="expenseBranchFilter" class="field-select" style="font-size:.75rem;padding:6px 26px 6px 9px"></select>
           <div id="dateFilterMount"></div>
-          <button onclick="exportExpensesCSV()" class="btn-ghost"><span data-i18n="common.csv">⬇ CSV</span></button>
+          <button onclick="exportExpensesCSV()" class="btn-ghost"><span><span data-icon="download"></span> <span data-i18n="common.csv">CSV</span></span></button>
         </div>
       </div>
       <div id="expensesList" class="space-y-2 text-sm text-[color:var(--text-secondary)]"></div>
