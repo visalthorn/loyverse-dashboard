@@ -363,11 +363,11 @@ export function openShiftPicker(event, staffId, dateStr, defaultShift) {
   const picker = document.createElement('div');
   picker.className = 'sch-picker';
   picker.innerHTML = opts.map(o => {
-    const icon = o.shift
+    const badge = o.shift
       ? `<span class="sch-picker-badge" style="background:${SHIFTS[o.shift].bg};color:${SHIFTS[o.shift].color}">${o.shift}</span>`
       : `<span class="sch-picker-clear">${icon('x', { size: 12 })}</span>`;
     const arg = o.shift ? `'${o.shift}'` : 'null';
-    return `<button class="sch-picker-opt" onclick="applyShift(${staffId},'${dateStr}',${arg})">${icon}<span>${o.label}</span></button>`;
+    return `<button class="sch-picker-opt" onclick="applyShift(${staffId},'${dateStr}',${arg})">${badge}<span>${o.label}</span></button>`;
   }).join('');
 
   document.body.appendChild(picker);

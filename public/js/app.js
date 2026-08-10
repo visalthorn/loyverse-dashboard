@@ -114,6 +114,7 @@ window.selectReceipt      = Receipts.selectReceipt;
 window.exportReceiptsCSV  = Receipts.exportReceiptsCSV;
 window.exportReceiptPDF   = Receipts.exportReceiptPDF;
 window.refundReceipt      = Receipts.refundReceipt;
+window.onCancellationsTerminalChange = Receipts.onCancellationsTerminalChange;
 
 // Staff
 window.submitStaff        = Staff.submitStaff;
@@ -189,6 +190,7 @@ window.changeDeviceBranch  = Branches.changeDeviceBranch;
 window.onTerminalBranchChange   = Branches.onTerminalBranchChange;
 window.switchTerminalTab        = Branches.switchTerminalTab;
 window.toggleTerminalActive     = Branches.toggleTerminalActive;
+window.changeTerminalRole       = Branches.changeTerminalRole;
 window.resetTerminalPasscode    = Branches.resetTerminalPasscode;
 window.openCreateTerminalModal  = Branches.openCreateTerminalModal;
 window.openCategoriesModal      = Branches.openCategoriesModal;
