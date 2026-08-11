@@ -35,19 +35,25 @@ function legacyTriggeredBy(triggeredBy) {
 // per-line id), and this also picks up edits Loyverse made to an existing
 // receipt after its first sync. Must run inside the caller's transaction.
 async function upsertReceipt(client, r) {
+  // DO UPDATE SET is deliberately narrow -- only fields Loyverse can change
+  // after a receipt is first created (cancelled_at, total_money, receipt_type,
+  // updated_at, dining_option). Everything else (receipt_date, source,
+  // store_id, pos_device_id, employee_id, order, refund_for, created_at) is
+  // identity/context set once at insert and never touched again, and
+  // created_db_at is never in this column list at all.
   const res = await client.query(`
     INSERT INTO receipts
-      (receipt_number,receipt_type,total_money,receipt_date,created_at,updated_at,cancelled_at,dining_option,source,store_id,pos_device_id,employee_id,"order")
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      (receipt_number,receipt_type,total_money,receipt_date,created_at,updated_at,cancelled_at,dining_option,source,store_id,pos_device_id,employee_id,"order",refund_for)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
     ON CONFLICT (receipt_number) DO UPDATE SET
-      receipt_type=$2, total_money=$3, receipt_date=$4, updated_at=$6, cancelled_at=$7,
-      dining_option=$8, source=$9, store_id=$10, pos_device_id=$11, employee_id=$12, "order"=$13
+      cancelled_at=$7, total_money=$3, receipt_type=$2, updated_at=$6, dining_option=$8
     RETURNING (xmax = 0) AS was_insert
   `, [
     r.receipt_number, r.receipt_type, r.total_money,
     toCambodiaTime(r.receipt_date), toCambodiaTime(r.created_at),
     toCambodiaTime(r.updated_at),   toCambodiaTime(r.cancelled_at),
     r.dining_option, r.source, r.store_id, r.pos_device_id, r.employee_id, r.order ?? null,
+    r.refund_for ?? null,
   ]);
   const wasInsert = res.rows[0].was_insert;
 
@@ -192,4 +198,4 @@ async function syncReceiptsRange(startDateStr, endDateStr, triggeredBy = 'manual
   return results;
 }
 
-module.exports = { syncReceiptsForDate, syncYesterdayReceipts, syncReceiptsRange, MAX_RANGE_DAYS };
+module.exports = { syncReceiptsForDate, syncYesterdayReceipts, syncReceiptsRange, MAX_RANGE_DAYS, upsertReceipt };

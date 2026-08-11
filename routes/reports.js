@@ -26,10 +26,14 @@ function prevRange(start, end) {
   };
 }
 
-// /api/kpis formula: gross = SALE-not-cancelled + REFUND-cancelled.
+// Mirrors /api/kpis: net gross = SALE(not cancelled) - REFUND(not cancelled).
+// daily_summary.sales_gross is SALE-only and refund_amount is genuine
+// (not-cancelled) REFUND -- see services/sync/summaries.js and
+// utils/money.js for the full rule. refund_open_amount/cancelled_amount are
+// informational only and must never be added into gross_income.
 const TOTALS_SQL = `
-  SELECT COALESCE(SUM(sales_gross + refund_amount), 0) AS gross_income,
-         COALESCE(SUM(sales_orders + refund_count), 0) AS orders
+  SELECT COALESCE(SUM(sales_gross - refund_amount), 0) AS gross_income,
+         COALESCE(SUM(sales_orders), 0) AS orders
   FROM daily_summary WHERE day BETWEEN $1 AND $2`;
 
 const EXPENSES_SQL = `
@@ -41,7 +45,7 @@ const DAILY_AVG_SQL = `
          COALESCE(AVG(expense), 0)         AS avg_expense,
          COALESCE(AVG(gross - expense), 0) AS avg_net
   FROM (
-    SELECT COALESCE(ds.sales_gross + ds.refund_amount, 0) AS gross,
+    SELECT COALESCE(ds.sales_gross - ds.refund_amount, 0) AS gross,
            COALESCE(e.daily_expense, 0)                   AS expense
     FROM generate_series($1::date, $2::date, '1 day'::interval) AS gs(day)
     LEFT JOIN daily_summary ds ON ds.day = gs.day::date
@@ -232,13 +236,15 @@ router.get('/trend', requireAuth, async (req, res) => {
   const range = parseRange(req, res);
   if (!range) return;
   try {
-    // /api/gross-income formula: any receipt_type with cancelled_at IS NULL.
+    // Mirrors /api/gross-income: SALE(not cancelled) - REFUND(not cancelled).
+    // See utils/money.js. sales_orders > 0 alone would hide a day that had
+    // only refunds against a prior day's sale, so it checks refund_count too.
     const result = await pool.query(`
       SELECT day AS period,
-             sales_gross + refund_open_amount AS gross_income,
-             sales_orders + refund_open_count AS orders
+             sales_gross - refund_amount AS gross_income,
+             sales_orders AS orders
       FROM daily_summary
-      WHERE day BETWEEN $1 AND $2 AND (sales_orders + refund_open_count) > 0
+      WHERE day BETWEEN $1 AND $2 AND (sales_orders > 0 OR refund_count > 0)
       ORDER BY day
     `, [range.start, range.end]);
     res.json(result.rows);
@@ -254,7 +260,7 @@ router.get('/revenue-expenses', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT gs.day::date AS period,
-             COALESCE(ds.sales_gross + ds.refund_open_amount, 0) AS gross_income,
+             COALESCE(ds.sales_gross - ds.refund_amount, 0) AS gross_income,
              COALESCE(e.daily_expense, 0) AS total_expense
       FROM generate_series($1::date, $2::date, '1 day'::interval) AS gs(day)
       LEFT JOIN daily_summary ds ON ds.day = gs.day::date

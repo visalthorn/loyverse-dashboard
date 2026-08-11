@@ -74,8 +74,8 @@ export async function loadReceipts() {
 // ─── Stats ───────────────────────────────────────────────────────────────────
 
 function renderStats() {
-  const salesRows  = allReceipts.filter(r => r.receipt_type === 'SALE' && r.is_canceled === 'No');
-  const refundRows = allReceipts.filter(r => r.receipt_type === 'REFUND');
+  const salesRows  = allReceipts.filter(r => r.receipt_type === 'SALE'   && r.is_canceled === 'No');
+  const refundRows = allReceipts.filter(r => r.receipt_type === 'REFUND' && r.is_canceled === 'No');
 
   const salesAmt  = salesRows.reduce((s, r)  => s + parseFloat(r.total_money || 0), 0);
   const refundAmt = refundRows.reduce((s, r) => s + parseFloat(r.total_money || 0), 0);
