@@ -1,6 +1,12 @@
+const dayjs  = require('dayjs');
+const utc    = require('dayjs/plugin/utc');
+const tzPlug = require('dayjs/plugin/timezone');
 const { sendTelegramMessage } = require('../telegramBot');
-const { telegramBotToken, telegramChatId } = require('../../config');
+const { telegramBotToken, telegramChatId, tz } = require('../../config');
 const { getReceiptsCoverage } = require('./coverage');
+
+dayjs.extend(utc);
+dayjs.extend(tzPlug);
 
 // Alerts are entirely optional -- the scheduler and sync work fine without
 // Telegram configured, they just log instead of sending. See
@@ -68,4 +74,17 @@ async function sendHealthSummaryIfNeeded() {
   return { sent, gaps: gapDays.length };
 }
 
-module.exports = { alertsConfigured, sendAlert, alertSyncFailure, alertSyncPartial, sendHealthSummaryIfNeeded };
+// Fired once from server.js's app.listen() callback, PROD only. Confirms a
+// deploy actually came up alive without waiting for real traffic or a sync
+// to run/fail -- Railway injects the RAILWAY_* vars automatically, no setup
+// needed on our end.
+async function alertServerStarted() {
+  const commit = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || 'unknown';
+  const branch = process.env.RAILWAY_GIT_BRANCH || 'unknown';
+  const at = dayjs().tz(tz).format('YYYY-MM-DD HH:mm:ss');
+  return sendAlert(
+    `🚀 Dashboard deployed and running\ncommit: ${commit} (${branch})\nat: ${at} (Asia/Phnom_Penh)`
+  );
+}
+
+module.exports = { alertsConfigured, sendAlert, alertSyncFailure, alertSyncPartial, sendHealthSummaryIfNeeded, alertServerStarted };

@@ -3,7 +3,7 @@ require('./utils/logger').install();
 const app  = require('./app');
 const config = require('./config');
 const { port, env } = config;
-const { startScheduler } = require('./services/sync');
+const { startScheduler, alertServerStarted } = require('./services/sync');
 const { startStockAlertScheduler } = require('./services/stockAlert');
 const { warnIfTelegramConfigMissing, warnIfAlertConfigMissing } = require('./utils/startupChecks');
 
@@ -20,4 +20,8 @@ app.listen(port, () => {
 
   startScheduler();
   startStockAlertScheduler();
+
+  if (env === 'PROD') {
+    alertServerStarted().catch(err => console.error('❌ [alerts] Failed to send deploy alert:', err.message));
+  }
 });

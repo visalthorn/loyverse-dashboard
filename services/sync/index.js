@@ -5,6 +5,7 @@ const { rebuildSummaries } = require('./summaries');
 const { startScheduler, getSchedulerStatus, runDailySync, runWeeklyHeal, runCatchupIfNeeded } = require('./scheduler');
 const { latestRunsInRange } = require('./runs');
 const { getReceiptsCoverage } = require('./coverage');
+const { alertServerStarted } = require('./alerts');
 
 module.exports = {
   syncYesterdayReceipts, syncReceiptsForDate, syncReceiptsRange, MAX_RANGE_DAYS, latestRunsInRange,
@@ -12,4 +13,5 @@ module.exports = {
   syncItems, upsertCatalog, rebuildItemCategories, rebuildSummaries,
   syncPosDevices, upsertPosDevices,
   startScheduler, getSchedulerStatus, runDailySync, runWeeklyHeal, runCatchupIfNeeded,
+  alertServerStarted,
 };
