@@ -20,8 +20,16 @@ const posRouter         = require('./pos');
 const terminalAuthRouter = require('./terminalAuth');
 const terminalsRouter    = require('./terminals');
 const cancellationsRouter = require('./cancellations');
+const healthRouter       = require('./health');
+const adminRouter        = require('./admin');
 
 router.use('/api/auth',        authRouter);
+// health/admin are registered ahead of the broad, unscoped '/api' mount
+// below (terminalsRouter applies a blanket requireAuth+admin check with no
+// path restriction, so anything registered after it under '/api' would
+// otherwise 401 before ever reaching its own route).
+router.use('/api/health',      healthRouter);
+router.use('/api/admin',       adminRouter);
 router.use('/api',             analyticsRouter);
 router.use('/api/expenses',    expensesRouter);
 router.use('/api/receipts',    receiptsRouter);

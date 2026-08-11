@@ -99,6 +99,7 @@ window.syncPosDevices  = Sync.syncPosDevices;
 window.setCoverageDays = Sync.setCoverageDays;
 window.backfillDate    = Sync.backfillDate;
 window.backfillRange   = Sync.backfillRange;
+window.testTelegram    = Sync.testTelegram;
 
 // Expenses
 window.submitExpense        = Expenses.submitExpense;

@@ -620,6 +620,10 @@ export const en = {
   'sync.backfillConfirmRange': 'Re-sync {start} through {end} from Loyverse? Existing data is kept and only repaired if incomplete.',
   'sync.backfillNoRange': 'Pick a start and end date first',
   'sync.backfillDone': 'Backfill complete — {inserted} inserted, {updated} updated',
+  'sync.telegramCard': 'Sync Alerts',
+  'sync.telegramCardSub': 'Sends a test message to confirm TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are wired up correctly',
+  'sync.telegramTestBtn': 'Send Test Alert',
+  'sync.telegramTestSent': 'Test alert sent — check Telegram',
 
   // ── items page ──
   'items.title': 'Items Management',

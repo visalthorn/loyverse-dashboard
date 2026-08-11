@@ -25,7 +25,7 @@ function renderLastSync(type, mountId) {
   if (!el) return;
   const row = logs.find(l => l.sync_type === type);
   if (!row) { el.textContent = t('sync.never'); return; }
-  const by = row.triggered_by === 'auto' ? t('sync.auto') : t('sync.manual');
+  const by = row.triggered_by === 'auto' || row.triggered_by === 'scheduler' ? t('sync.auto') : t('sync.manual');
   el.innerHTML = t('sync.lastSync', { icon: statusIcon(row.status), date: esc(fmtDatetime(row.created_at)), by: esc(by) });
 }
 
@@ -42,7 +42,7 @@ function renderHistory() {
       <td class="py-2 pr-3">${fmtDatetime(l.created_at)}</td>
       <td class="py-2 pr-3">${statusIcon(l.status)} ${esc(l.status)}</td>
       <td class="py-2 pr-3 text-right">${l.inserted ?? 0}</td>
-      <td class="py-2 pr-3">${l.triggered_by === 'auto' ? t('sync.auto') : l.triggered_by === 'catchup' ? t('sync.catchup') : t('sync.manual')}</td>
+      <td class="py-2 pr-3">${l.triggered_by === 'auto' || l.triggered_by === 'scheduler' ? t('sync.auto') : l.triggered_by === 'catchup' ? t('sync.catchup') : t('sync.manual')}</td>
       <td class="py-2 text-xs text-[color:var(--loss)]">${esc(l.error_message || '')}</td>
     </tr>`).join('');
 }
@@ -74,7 +74,7 @@ async function loadSchedulerStatus() {
 
   const y = s.yesterday;
   let coverLine;
-  if (s.yesterdayCoveredBy === 'auto' || s.yesterdayCoveredBy === 'catchup') {
+  if (s.yesterdayCoveredBy === 'auto' || s.yesterdayCoveredBy === 'catchup' || s.yesterdayCoveredBy === 'scheduler') {
     coverLine = `${dot('var(--gain)')} ${t('sync.schedYAuto', { date: y })}`;
   } else if (s.yesterdayCoveredBy === 'manual') {
     coverLine = `${dot('var(--accent)')} ${t('sync.schedYManual', { date: y })}`;
@@ -247,6 +247,21 @@ async function runBackfill(start, end) {
   }
 }
 
+export async function testTelegram() {
+  const btn = getEl('testTelegramBtn');
+  if (btn) { btn.disabled = true; btn.textContent = t('sync.syncing'); }
+  try {
+    const res = await apiPost('/api/admin/test-telegram', {});
+    const data = res.data || {};
+    if (res.ok) showToast(t('sync.telegramTestSent'), 'success');
+    else showToast(data.message || t('sync.failed'), 'error');
+  } catch {
+    showToast(t('sync.failedConnection'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = t('sync.telegramTestBtn'); }
+  }
+}
+
 export function init() {
   loadLogs();
   loadSchedulerStatus();
@@ -258,5 +273,8 @@ export function init() {
 
     const pdCard = getEl('posDevicesCard');
     if (pdCard) pdCard.style.display = '';
+
+    const tgCard = getEl('telegramTestCard');
+    if (tgCard) tgCard.style.display = '';
   }
 }

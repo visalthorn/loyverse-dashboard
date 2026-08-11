@@ -43,5 +43,11 @@ module.exports = {
   telegramBotToken:      process.env.TELEGRAM_BOT_TOKEN,
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET,
   telegramGroupChatId:   process.env.TELEGRAM_GROUP_CHAT_ID,
+  // Separate from telegramGroupChatId (the staff-facing expense-bot channel)
+  // deliberately -- ops alerts (sync failures, gap reports) shouldn't land
+  // in a channel staff use for day-to-day expense recording. Points the
+  // scheduler's Telegram alerts (services/sync/alerts.js) at whichever
+  // chat/channel an admin wants them in.
+  telegramChatId:        process.env.TELEGRAM_CHAT_ID,
   anthropicApiKey:       process.env.ANTHROPIC_API_KEY,
 };

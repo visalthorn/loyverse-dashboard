@@ -20,13 +20,16 @@ function rangeError(message) {
   return err;
 }
 
-// sync_logs.triggered_by is read with exact-match checks elsewhere (scheduler
-// status card, GET /api/sync/status) that only know 'auto' | 'catchup' |
-// 'manual' -- so a real username (now recorded on sync_runs for a proper
-// audit trail) still collapses to 'manual' here to keep that display logic
-// working unchanged.
+// sync_logs.triggered_by is VARCHAR(10) and read with exact-match checks
+// elsewhere (scheduler status card, GET /api/sync/status) that only know
+// 'auto' | 'catchup' | 'scheduler' | 'manual' -- 'auto'/'catchup' are the
+// old cron's values, kept recognized here for existing history even though
+// nothing produces them anymore (the new cron uses 'scheduler' for
+// everything automated, see services/sync/scheduler.js). A real username
+// (now recorded on sync_runs for a proper audit trail) collapses to
+// 'manual' here to keep that display logic working unchanged.
 function legacyTriggeredBy(triggeredBy) {
-  return triggeredBy === 'auto' || triggeredBy === 'catchup' ? triggeredBy : 'manual';
+  return ['auto', 'catchup', 'scheduler'].includes(triggeredBy) ? triggeredBy : 'manual';
 }
 
 // Upserts one Loyverse receipt plus its line items and payments. Child rows
@@ -154,7 +157,7 @@ async function syncReceiptsForDate(dateStr, triggeredBy = 'auto') {
       console.error('❌ [sync] Summary rebuild failed:', err.message);
     }
 
-    return { status, inserted, updated, fetched: loyverseCount };
+    return { status, inserted, updated, fetched: loyverseCount, stored: ourCountAfter };
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(`❌ [sync] DB upsert failed for ${dateStr}:`, err.message);

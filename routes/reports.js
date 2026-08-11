@@ -31,8 +31,12 @@ function prevRange(start, end) {
 // (not-cancelled) REFUND -- see services/sync/summaries.js and
 // utils/money.js for the full rule. refund_open_amount/cancelled_amount are
 // informational only and must never be added into gross_income.
+// sales_gross_only backs aov: mirrors /api/kpis, whose aov averages only
+// SALE transactions (a refund elsewhere shouldn't shrink "how big is a
+// typical sale" -- that's what gross_income/net_revenue already show).
 const TOTALS_SQL = `
   SELECT COALESCE(SUM(sales_gross - refund_amount), 0) AS gross_income,
+         COALESCE(SUM(sales_gross), 0) AS sales_gross_only,
          COALESCE(SUM(sales_orders), 0) AS orders
   FROM daily_summary WHERE day BETWEEN $1 AND $2`;
 
@@ -66,12 +70,13 @@ async function periodTotals(start, end) {
     pool.query(DAILY_AVG_SQL, [start, end]),
     pool.query(ITEMS_SOLD_SQL, [start, end]),
   ]);
-  const gross  = parseFloat(tot.rows[0].gross_income);
-  const orders = parseInt(tot.rows[0].orders);
+  const gross         = parseFloat(tot.rows[0].gross_income);
+  const salesGrossOnly = parseFloat(tot.rows[0].sales_gross_only);
+  const orders        = parseInt(tot.rows[0].orders);
   return {
     gross,
     orders,
-    aov:        orders > 0 ? gross / orders : 0,
+    aov:        orders > 0 ? salesGrossOnly / orders : 0,
     expenses:   parseFloat(exp.rows[0].total_expense),
     avgGross:   parseFloat(avg.rows[0].avg_gross),
     avgExpense: parseFloat(avg.rows[0].avg_expense),

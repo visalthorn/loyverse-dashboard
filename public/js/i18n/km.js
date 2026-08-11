@@ -620,6 +620,10 @@ export const km = {
   'sync.backfillConfirmRange': 'សមកាលពី {start} ដល់ {end} ពី Loyverse ឡើងវិញ? ទិន្នន័យដែលមានស្រាប់ត្រូវបានរក្សាទុក ហើយនឹងកែតែក្នុងករណីមិនពេញលេញ។',
   'sync.backfillNoRange': 'សូមជ្រើសរើសកាលបរិច្ឆេទចាប់ផ្តើម និងបញ្ចប់សិន',
   'sync.backfillDone': 'បំពេញរួចរាល់ — បន្ថែម {inserted}, កែប្រែ {updated}',
+  'sync.telegramCard': 'ការជូនដំណឹងសមកាល',
+  'sync.telegramCardSub': 'ផ្ញើសារសាកល្បងដើម្បីបញ្ជាក់ថា TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID ត្រូវបានកំណត់ត្រឹមត្រូវ',
+  'sync.telegramTestBtn': 'ផ្ញើការជូនដំណឹងសាកល្បង',
+  'sync.telegramTestSent': 'បានផ្ញើការជូនដំណឹងសាកល្បង — សូមពិនិត្យ Telegram',
 
   // ── items page ──
   'items.title': 'គ្រប់គ្រងទំនិញ',
