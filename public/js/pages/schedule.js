@@ -4,12 +4,15 @@ import { fetchJSON, apiPut } from '../api.js';
 import { getEl } from '../utils.js';
 import { t, getLang } from '../i18n.js';
 import { showToast } from '../toast.js';
+import { showPrompt } from '../dialog.js';
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
 let staffList     = [];
 let scheduleMap   = {};      // staffId → { day: shift }  for current month grid
 let scheduleByDate = {};     // staffId → { 'YYYY-MM-DD': shift } current + prev month
+let noteMap     = {};        // staffId → { day: note }  for current month grid
+let noteByDate  = {};        // staffId → { 'YYYY-MM-DD': note } current + prev month
 
 let currentYear  = new Date().getFullYear();
 let currentMonth = new Date().getMonth() + 1;
@@ -24,6 +27,7 @@ const SHIFTS = {
   M:   { bg: 'rgba(59,130,246,0.22)',  color: '#60a5fa', label: 'Morning (11am–10pm)' },
   A:   { bg: 'rgba(251,207,232,0.7)',  color: '#9d174d', label: 'Afternoon (2pm–1am)' },
   Off: { bg: 'rgba(254,240,138,0.75)', color: '#92400e', label: 'Day Off'              },
+  SL:  { bg: 'rgba(252,165,165,0.8)',  color: '#7f1d1d', label: 'Sick Leave'           },
 };
 
 // English month names used only for filename slugs (exported CSV/PDF filenames stay ASCII).
@@ -59,6 +63,10 @@ function isOnOrAfterJoin(y, m, d, joinStr) {
 
 function toDateStr(y, m, d) {
   return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+function _escapeAttr(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function shortDate(dateStr) {
@@ -166,16 +174,19 @@ export function exportScheduleCSV() {
     dayHeaders.push(`${d} ${dayLabels[dowOf(currentYear, currentMonth, d)]}`);
   }
 
-  const headers = [t('schedule.csvStaffName'), t('schedule.csvStaffId'), t('schedule.csvPosition'), ...dayHeaders];
+  const headers = [t('schedule.csvStaffName'), t('schedule.csvStaffId'), t('schedule.csvPosition'), ...dayHeaders, t('schedule.csvNotes')];
 
   const dataRows = staffList.map(s => {
     const defaultShift = s.default_shift || 'A';
     const cells = [];
+    const notes = [];
     for (let d = 1; d <= days; d++) {
       const { shift } = effectiveShift(s.id, d, defaultShift, s.join_date);
       cells.push(shift || '');
+      const note = noteMap[s.id]?.[d];
+      if (note) notes.push(`${d}: ${note}`);
     }
-    return [s.full_name, s.staff_id, s.position, ...cells];
+    return [s.full_name, s.staff_id, s.position, ...cells, notes.join('; ')];
   });
 
   const csv = [headers, ...dataRows]
@@ -212,6 +223,8 @@ async function load() {
 
   scheduleMap    = {};
   scheduleByDate = {};
+  noteMap        = {};
+  noteByDate     = {};
 
   for (const data of [curSched, prevSched]) {
     if (!Array.isArray(data)) continue;
@@ -222,9 +235,19 @@ async function load() {
       if (!scheduleByDate[row.staff_id]) scheduleByDate[row.staff_id] = {};
       scheduleByDate[row.staff_id][ds] = row.shift;
 
+      if (row.note) {
+        if (!noteByDate[row.staff_id]) noteByDate[row.staff_id] = {};
+        noteByDate[row.staff_id][ds] = row.note;
+      }
+
       if (ry === currentYear && rm === currentMonth) {
         if (!scheduleMap[row.staff_id]) scheduleMap[row.staff_id] = {};
         scheduleMap[row.staff_id][rd] = row.shift;
+
+        if (row.note) {
+          if (!noteMap[row.staff_id]) noteMap[row.staff_id] = {};
+          noteMap[row.staff_id][rd] = row.note;
+        }
       }
     }
   }
@@ -296,6 +319,8 @@ function render() {
         <span class="rst-leg rst-leg-m">${t('schedule.legendMorning')}</span>
         <span class="rst-leg rst-leg-a">${t('schedule.legendAfternoon')}</span>
         <span class="rst-leg rst-leg-off">${t('schedule.legendOff')}</span>
+        <span class="rst-leg rst-leg-sl">${t('schedule.legendSick')}</span>
+        <span class="rst-leg-note"><span class="rst-note-dot"></span>${t('schedule.legendNote')}</span>
       </div>
     </div>`;
 }
@@ -324,15 +349,17 @@ function buildRosterRow(s, days, canEdit, index) {
     const we      = dw === 0 || dw === 6;
     const dateStr  = toDateStr(currentYear, currentMonth, d);
     const eligible = isOnOrAfterJoin(currentYear, currentMonth, d, joinStr);
+    const note     = noteMap[s.id]?.[d];
 
     const clickAttr = canEdit && eligible
-      ? ` onclick="openShiftPicker(event,${s.id},'${dateStr}','${defaultShift}')"`
+      ? ` onclick="openShiftPicker(event,${s.id},'${dateStr}','${defaultShift}','${shift}')"`
       : '';
+    const titleAttr = note ? ` title="${_escapeAttr(note)}"` : '';
 
-    const shiftCls = shift === 'M' ? ' rst-m' : shift === 'A' ? ' rst-a' : shift === 'Off' ? ' rst-off' : '';
-    const cls = `rst-td${we ? ' rst-we' : ''}${shiftCls}${auto ? ' rst-auto' : ''}`;
+    const shiftCls = shift === 'M' ? ' rst-m' : shift === 'A' ? ' rst-a' : shift === 'Off' ? ' rst-off' : shift === 'SL' ? ' rst-sl' : '';
+    const cls = `rst-td${we ? ' rst-we' : ''}${shiftCls}${auto ? ' rst-auto' : ''}${note ? ' rst-has-note' : ''}`;
 
-    cells += `<td class="${cls}"${clickAttr}>${shift || ''}</td>`;
+    cells += `<td class="${cls}"${clickAttr}${titleAttr}>${shift || ''}</td>`;
   }
 
   cells += `<td class="rst-sum-cell${alt ? ' rst-sum-alt' : ''}">
@@ -348,7 +375,7 @@ function buildRosterRow(s, days, canEdit, index) {
 
 let activePicker = null;
 
-export function openShiftPicker(event, staffId, dateStr, defaultShift) {
+export function openShiftPicker(event, staffId, dateStr, defaultShift, effShift) {
   event.stopPropagation();
   closeShiftPicker();
   closeRosterFill();
@@ -357,8 +384,11 @@ export function openShiftPicker(event, staffId, dateStr, defaultShift) {
     { shift: 'M',   label: t('schedule.optMorning') },
     { shift: 'A',   label: t('schedule.optAfternoon') },
     { shift: 'Off', label: t('schedule.optDayOff')     },
+    { shift: 'SL',  label: t('schedule.optSick')       },
     { shift: null,  label: t('schedule.optClear')      },
   ].filter(o => o.shift !== defaultShift);
+
+  const hasNote = !!noteByDate[staffId]?.[dateStr];
 
   const picker = document.createElement('div');
   picker.className = 'sch-picker';
@@ -368,11 +398,16 @@ export function openShiftPicker(event, staffId, dateStr, defaultShift) {
       : `<span class="sch-picker-clear">${icon('x', { size: 12 })}</span>`;
     const arg = o.shift ? `'${o.shift}'` : 'null';
     return `<button class="sch-picker-opt" onclick="applyShift(${staffId},'${dateStr}',${arg})">${badge}<span>${o.label}</span></button>`;
-  }).join('');
+  }).join('') + `
+    <hr class="sch-roster-divider"/>
+    <button class="sch-picker-opt" onclick="openNoteEditor(event,${staffId},'${dateStr}','${effShift}')">
+      <span class="sch-picker-clear">${icon('pencil', { size: 12 })}</span>
+      <span>${hasNote ? t('schedule.noteButtonEdit') : t('schedule.noteButton')}</span>
+    </button>`;
 
   document.body.appendChild(picker);
   activePicker = picker;
-  _positionNear(picker, event, 200, 170);
+  _positionNear(picker, event, 200, 210);
   setTimeout(() => document.addEventListener('click', closeShiftPicker, { once: true }), 0);
 }
 
@@ -396,6 +431,50 @@ export async function applyShift(staffId, dateStr, shift) {
   } else {
     delete scheduleMap[staffId][day];
     delete scheduleByDate[staffId][dateStr];
+    // Clearing a shift deletes the DB row entirely, taking any note with it.
+    delete noteMap[staffId]?.[day];
+    delete noteByDate[staffId]?.[dateStr];
+  }
+
+  render();
+}
+
+export async function openNoteEditor(event, staffId, dateStr, effShift) {
+  event?.stopPropagation();
+  closeShiftPicker();
+
+  const staff   = staffList.find(s => s.id === staffId);
+  const name    = staff ? staff.full_name : t('schedule.staffFallback');
+  const current = noteByDate[staffId]?.[dateStr] || '';
+
+  const value = await showPrompt(
+    t('schedule.notePromptMessage', { date: shortDate(dateStr) }),
+    {
+      title: t('schedule.notePromptTitle', { name }),
+      placeholder: t('schedule.notePlaceholder'),
+      defaultValue: current,
+      maxLength: 200,
+    }
+  );
+  if (value === null) return;
+
+  const res = await apiPut('/api/schedule', { staff_id: staffId, schedule_date: dateStr, shift: effShift, note: value });
+  if (!res.ok) { showToast(t('schedule.noteUpdateFailed'), 'error'); return; }
+
+  const day = parseInt(dateStr.split('-')[2], 10);
+  if (!scheduleMap[staffId])    scheduleMap[staffId]    = {};
+  if (!scheduleByDate[staffId]) scheduleByDate[staffId] = {};
+  scheduleMap[staffId][day]        = effShift;
+  scheduleByDate[staffId][dateStr] = effShift;
+
+  if (!noteMap[staffId])    noteMap[staffId]    = {};
+  if (!noteByDate[staffId]) noteByDate[staffId] = {};
+  if (value) {
+    noteMap[staffId][day]        = value;
+    noteByDate[staffId][dateStr] = value;
+  } else {
+    delete noteMap[staffId][day];
+    delete noteByDate[staffId][dateStr];
   }
 
   render();

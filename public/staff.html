@@ -153,7 +153,7 @@
   .rst-row-alt .rst-td-name { background: #eef2ff; }
 
   /* Day data cells */
-  .rst-td { font-weight: 700; cursor: default; user-select: none; width: 24px; min-width: 24px; padding: 3px 1px; }
+  .rst-td { position: relative; font-weight: 700; cursor: default; user-select: none; width: 24px; min-width: 24px; padding: 3px 1px; }
   .rst-td[onclick] { cursor: pointer; }
   .rst-td[onclick]:hover { filter: brightness(0.85); }
   .rst-we { background: rgba(254,202,202,0.3); }
@@ -162,7 +162,19 @@
   .rst-m   { background: #3b82f6 !important; color: #fff    !important; }
   .rst-a   { background: #fbcfe8 !important; color: #9d174d !important; }
   .rst-off { background: #fef08a !important; color: #713f12 !important; }
+  .rst-sl  { background: #fca5a5 !important; color: #7f1d1d !important; }
   .rst-auto { opacity: 0.55; }
+
+  /* Note indicator — small dot in the corner of a day cell that has a note */
+  .rst-note-dot {
+    display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+    background: #0ea5e9; box-shadow: 0 0 0 1px rgba(255,255,255,0.7);
+  }
+  .rst-has-note::after {
+    content: ''; position: absolute; top: 1px; right: 1px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: #0ea5e9; box-shadow: 0 0 0 1px rgba(255,255,255,0.7);
+  }
 
   /* Today column — header-only marker; body cells are clean */
 
@@ -198,6 +210,11 @@
   .rst-leg-m   { background: #3b82f6; color: #fff;    }
   .rst-leg-a   { background: #fbcfe8; color: #9d174d; }
   .rst-leg-off { background: #fef08a; color: #713f12; }
+  .rst-leg-sl  { background: #fca5a5; color: #7f1d1d; }
+  .rst-leg-note {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.75rem; font-weight: 600; color: #6b7280;
+  }
 
   /* Row highlight from staff-tab link */
   @keyframes rst-row-flash {

@@ -134,6 +134,7 @@ window.exportScheduleCSV = Schedule.exportScheduleCSV;
 window.printSchedule     = Schedule.printSchedule;
 window.openRosterFill   = Schedule.openRosterFill;
 window.applyRosterFill  = Schedule.applyRosterFill;
+window.openNoteEditor   = Schedule.openNoteEditor;
 
 // Schedule helpers
 window.reloadScheduleIfLoaded = Schedule.reloadIfLoaded;
