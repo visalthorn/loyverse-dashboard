@@ -96,6 +96,9 @@ window.syncReceipts    = Sync.syncReceipts;
 window.syncItemsNow    = Sync.syncItems;
 window.archiveReceipts = Sync.archiveReceipts;
 window.syncPosDevices  = Sync.syncPosDevices;
+window.setCoverageDays = Sync.setCoverageDays;
+window.backfillDate    = Sync.backfillDate;
+window.backfillRange   = Sync.backfillRange;
 
 // Expenses
 window.submitExpense        = Expenses.submitExpense;

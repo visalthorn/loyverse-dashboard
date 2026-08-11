@@ -11,7 +11,7 @@ let logs = [];
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function statusIcon(status) {
-  return icon(status === 'success' ? 'circle-check' : status === 'skipped' ? 'skip-forward' : 'circle-x', { size: 15 });
+  return icon(status === 'success' ? 'circle-check' : status === 'skipped' ? 'skip-forward' : status === 'partial' ? 'triangle-alert' : 'circle-x', { size: 15 });
 }
 
 const TYPE_KEYS = {
@@ -26,7 +26,7 @@ function renderLastSync(type, mountId) {
   const row = logs.find(l => l.sync_type === type);
   if (!row) { el.textContent = t('sync.never'); return; }
   const by = row.triggered_by === 'auto' ? t('sync.auto') : t('sync.manual');
-  el.textContent = t('sync.lastSync', { icon: statusIcon(row.status), date: fmtDatetime(row.created_at), by });
+  el.innerHTML = t('sync.lastSync', { icon: statusIcon(row.status), date: esc(fmtDatetime(row.created_at)), by: esc(by) });
 }
 
 function renderHistory() {
@@ -173,9 +173,84 @@ export async function archiveReceipts() {
   }
 }
 
+// ─── Receipts coverage / gap report ───────────────────────────────────────────
+
+const COVERAGE_STATUS_KEYS = {
+  success: 'sync.covSuccess', partial: 'sync.covPartial',
+  missing: 'sync.covMissing', failed: 'sync.covFailed', running: 'sync.covRunning',
+};
+
+let coverageDays = 60;
+
+function coverageCellClass(status) {
+  if (status === 'success') return 'cov-success';
+  if (status === 'partial') return 'cov-partial';
+  if (status === 'running') return 'cov-running';
+  return 'cov-missing'; // 'missing' and 'failed' read the same — both need a backfill
+}
+
+async function loadCoverage() {
+  const strip = getEl('coverageStrip');
+  if (!strip) return;
+  strip.innerHTML = `<div class="text-xs text-[color:var(--text-secondary)]">${t('common.loading')}</div>`;
+
+  const data = await fetchJSON(`/api/sync/receipts/coverage?days=${coverageDays}`);
+  if (!data) { strip.innerHTML = `<div class="text-xs" style="color:var(--loss)">${t('sync.failed')}</div>`; return; }
+
+  strip.innerHTML = data.days.map(d => {
+    const cls = coverageCellClass(d.status);
+    const label = t(COVERAGE_STATUS_KEYS[d.status] || 'sync.covMissing');
+    const title = `${d.date} · ${esc(label)} · ${t('sync.covCount', { count: d.count })}`;
+    const onclick = d.gap ? ` onclick="backfillDate('${d.date}')"` : '';
+    return `<span class="coverage-cell ${cls}${d.gap ? ' coverage-cell--gap' : ''}" title="${title}"${onclick}></span>`;
+  }).join('');
+}
+
+export function setCoverageDays(value) {
+  coverageDays = parseInt(value, 10) || 60;
+  loadCoverage();
+}
+
+export async function backfillDate(dateStr) {
+  if (!(await showConfirm(t('sync.backfillConfirmDay', { date: dateStr }), { confirmText: t('sync.backfillBtn') }))) return;
+  await runBackfill(dateStr, dateStr);
+}
+
+export async function backfillRange() {
+  const start = getEl('backfillStart')?.value;
+  const end   = getEl('backfillEnd')?.value;
+  if (!start || !end) { showToast(t('sync.backfillNoRange'), 'error'); return; }
+  if (!(await showConfirm(t('sync.backfillConfirmRange', { start, end }), { confirmText: t('sync.backfillBtn') }))) return;
+  await runBackfill(start, end);
+}
+
+async function runBackfill(start, end) {
+  const btn = getEl('backfillRangeBtn');
+  if (btn) { btn.disabled = true; btn.textContent = t('sync.syncing'); }
+  try {
+    const res = await apiPost('/api/sync/receipts', { start_date: start, end_date: end });
+    const data = res.data || {};
+    if (res.ok) {
+      const totalInserted = (data.days || []).reduce((sum, d) => sum + (d.inserted || 0), 0);
+      const totalUpdated  = (data.days || []).reduce((sum, d) => sum + (d.updated  || 0), 0);
+      showToast(t('sync.backfillDone', { inserted: totalInserted, updated: totalUpdated }), data.status === 'failed' ? 'error' : 'success');
+    } else {
+      showToast(data.message || data.error || t('sync.failed'), 'error');
+    }
+  } catch {
+    showToast(t('sync.failedConnection'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = t('sync.backfillRange'); }
+    loadCoverage();
+    loadLogs();
+    loadSchedulerStatus();
+  }
+}
+
 export function init() {
   loadLogs();
   loadSchedulerStatus();
+  loadCoverage();
   if (state.currentUserRole === 'admin') {
     const card = getEl('archiveCard');
     if (card) card.style.display = '';

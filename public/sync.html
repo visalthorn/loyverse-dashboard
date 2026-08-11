@@ -28,6 +28,24 @@
   .field-input::placeholder { color: var(--text-dim); }
   .field-input:disabled { opacity: 0.5; cursor: not-allowed; }
   .badge { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; }
+  .coverage-strip { display: flex; flex-wrap: wrap; gap: 3px; }
+  .coverage-cell {
+    width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+    background: var(--border); cursor: default;
+  }
+  .coverage-cell--gap { cursor: pointer; }
+  .coverage-cell--gap:hover { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
+  .coverage-cell.cov-success { background: var(--gain); }
+  .coverage-cell.cov-partial { background: #f59e0b; }
+  .coverage-cell.cov-missing { background: var(--loss); }
+  .coverage-cell.cov-running { background: var(--accent); animation: cov-pulse 1.2s ease-in-out infinite; }
+  @keyframes cov-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .coverage-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.75rem; color: var(--text-secondary); }
+  .coverage-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .coverage-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+  .coverage-dot.cov-success { background: var(--gain); }
+  .coverage-dot.cov-partial { background: #f59e0b; }
+  .coverage-dot.cov-missing { background: var(--loss); }
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
@@ -60,6 +78,33 @@
       <h2 class="section-title mb-2"><span data-icon="alarm-clock"></span> <span data-i18n="sync.schedulerTitle">Auto-Sync Scheduler</span></h2>
       <div id="schedulerStatus" class="text-sm space-y-1">
         <div class="text-xs text-[color:var(--text-secondary)]" data-i18n="common.loading">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Receipts coverage / gap report (rendered by pages/sync.js) -->
+    <div class="card">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 class="section-title"><span data-icon="calendar"></span> <span data-i18n="sync.coverageTitle">Receipts Coverage</span></h2>
+          <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="sync.coverageSub">Which days have complete Loyverse data — click a red/amber day to backfill it</p>
+        </div>
+        <select id="coverageDaysSelect" class="field-input" style="max-width:90px" onchange="setCoverageDays(this.value)">
+          <option value="30">30d</option>
+          <option value="60" selected>60d</option>
+          <option value="90">90d</option>
+        </select>
+      </div>
+      <div id="coverageStrip" class="coverage-strip mt-3"></div>
+      <div class="coverage-legend mt-3">
+        <span><span class="coverage-dot cov-success"></span><span data-i18n="sync.covSuccess">Synced</span></span>
+        <span><span class="coverage-dot cov-partial"></span><span data-i18n="sync.covPartial">Partial</span></span>
+        <span><span class="coverage-dot cov-missing"></span><span data-i18n="sync.covMissing">Missing / Failed</span></span>
+      </div>
+      <div class="flex items-center gap-2 mt-4 flex-wrap">
+        <input type="date" id="backfillStart" class="field-input" style="max-width:160px">
+        <span class="text-xs text-[color:var(--text-secondary)]">&rarr;</span>
+        <input type="date" id="backfillEnd" class="field-input" style="max-width:160px">
+        <button id="backfillRangeBtn" onclick="backfillRange()" class="btn-accent flex-shrink-0" data-write-page="receipts" data-i18n="sync.backfillRange">Backfill Range</button>
       </div>
     </div>
 
