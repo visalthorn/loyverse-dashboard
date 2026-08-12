@@ -2,7 +2,10 @@ const dayjs  = require('dayjs');
 const utc    = require('dayjs/plugin/utc');
 const tzPlug = require('dayjs/plugin/timezone');
 const pool   = require('../../db');
-const { fetchReceipts } = require('../loyverse');
+// Namespace import (not destructured) so test/money/sync-completeness.test.js
+// can monkey-patch loyverse.fetchReceipts to avoid a real network call --
+// destructuring would freeze a reference to the real function at require time.
+const loyverse = require('../loyverse');
 const { toCambodiaTime } = require('../../utils/date');
 const { tz } = require('../../config');
 const { writeSyncLog } = require('./log');
@@ -100,7 +103,7 @@ async function syncReceiptsForDate(dateStr, triggeredBy = 'auto') {
 
   let receipts;
   try {
-    receipts = await fetchReceipts(dayStart, dayEnd);
+    receipts = await loyverse.fetchReceipts(dayStart, dayEnd);
   } catch (err) {
     console.error(`❌ [sync] Loyverse fetch failed for ${dateStr}:`, err.message);
     await finishSyncRun(runId, { status: 'failed', errorMessage: err.message });

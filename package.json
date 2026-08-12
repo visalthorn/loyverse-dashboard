@@ -11,6 +11,9 @@
     "dev:uat": "cross-env ENV=UAT nodemon server.js",
     "dev:prod": "cross-env ENV=PROD nodemon server.js",
     "test": "cross-env ENV=UAT node --test",
+    "test:money": "cross-env ENV=TEST node --test --test-concurrency=1 test/money/**/*.test.js",
+    "test:money:watch": "cross-env ENV=TEST node --test --watch --test-concurrency=1 test/money/**/*.test.js",
+    "db:test:init": "cross-env ENV=TEST node scripts/init-test-db.js",
     "build:icons": "node scripts/build-icons.js"
   },
   "dependencies": {

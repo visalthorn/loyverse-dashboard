@@ -21,6 +21,22 @@ if (ENV === 'PROD') {
     database: process.env.DB_NAME_PROD || 'postgres',
     ssl: { rejectUnauthorized: false }
   });
+} else if (ENV === 'TEST') {
+  // Dedicated database for test/money/ (see scripts/init-test-db.js) --
+  // never UAT or PROD. Fail loudly rather than silently running tests
+  // against the wrong database if DB_NAME_TEST is missing or misconfigured.
+  console.log('🧪 Using TEST (isolated local DB)');
+  const dbName = process.env.DB_NAME_TEST;
+  if (!dbName || !/test/i.test(dbName)) {
+    throw new Error(`ENV=TEST but DB_NAME_TEST (${JSON.stringify(dbName)}) doesn't look like a test database. Refusing to connect.`);
+  }
+  pool = new Pool({
+    host:     process.env.DB_HOST_TEST || 'localhost',
+    port:     parseInt(process.env.DB_PORT_TEST) || 5432,
+    user:     process.env.DB_USER_TEST,
+    password: process.env.DB_PASSWORD_TEST,
+    database: dbName,
+  });
 } else {
   console.log('🖥  Using UAT (Local DB)');
   pool = new Pool({
