@@ -1,3 +1,8 @@
+// SUPERSEDED (2026-08-12): this schema is now tracked as
+// migrations/001b_summary_tables.sql, applied via `npm run migrate`. Kept
+// here for history only -- do not run this directly; it isn't checksum-
+// tracked and running it outside the migration tool would leave
+// schema_migrations unaware it happened.
 const pool = require('../db');
 
 async function migrate() {

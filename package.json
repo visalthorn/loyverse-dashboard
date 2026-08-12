@@ -14,6 +14,8 @@
     "test:money": "cross-env ENV=TEST node --test --test-concurrency=1 test/money/**/*.test.js",
     "test:money:watch": "cross-env ENV=TEST node --test --watch --test-concurrency=1 test/money/**/*.test.js",
     "db:test:init": "cross-env ENV=TEST node scripts/init-test-db.js",
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status",
     "build:icons": "node scripts/build-icons.js"
   },
   "dependencies": {

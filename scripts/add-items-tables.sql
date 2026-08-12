@@ -1,3 +1,7 @@
+-- SUPERSEDED (2026-08-12): now tracked as migrations/001a_items_categories.sql,
+-- applied via `npm run migrate`. Kept here for history only -- do not run
+-- this file directly, it isn't checksum-tracked.
+--
 -- Items management + centralized Loyverse sync: schema migration.
 -- SQL mirror of scripts/add-items-tables.js for running manually
 -- (e.g. in the Supabase SQL editor). Safe to run more than once.

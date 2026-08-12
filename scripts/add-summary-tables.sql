@@ -1,3 +1,7 @@
+-- SUPERSEDED (2026-08-12): now tracked as migrations/001b_summary_tables.sql,
+-- applied via `npm run migrate`. Kept here for history only -- do not run
+-- this file directly, it isn't checksum-tracked.
+--
 -- SQL mirror of scripts/add-summary-tables.js for manual PROD (Supabase) execution.
 -- Idempotent: safe to run more than once.
 -- After running this on PROD, deploy the app and call POST /api/reports/rebuild
