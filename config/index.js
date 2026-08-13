@@ -50,4 +50,9 @@ module.exports = {
   // chat/channel an admin wants them in.
   telegramChatId:        process.env.TELEGRAM_CHAT_ID,
   anthropicApiKey:       process.env.ANTHROPIC_API_KEY,
+  // Off by default -- set AUDIT_LOG_ENABLED=true in .env to record writes to
+  // audit_log (see services/audit.js). Deliberately opt-in rather than
+  // opt-out: flip it on when the accountability trail is actually needed
+  // instead of paying the write cost continuously.
+  auditLogEnabled:       process.env.AUDIT_LOG_ENABLED === 'true',
 };

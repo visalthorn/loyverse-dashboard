@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { requireAuth, requireWrite } = require('../middleware/auth');
+const { writeAudit } = require('../services/audit');
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -35,6 +36,7 @@ router.post('/', requireAuth, requireWrite('staff'), async (req, res) => {
         salary || 0, salary_ccy || 'USD', phone || null,
         loan_amount || 0, loan_ccy || 'KHR', notes || null,
         default_shift || null]);
+    await writeAudit({ req, action: 'create', entity: 'staff', entityId: result.rows[0].id, after: result.rows[0] });
     res.status(201).json({ staff: result.rows[0] });
   } catch (err) {
     console.error('Staff POST error:', err);
@@ -50,6 +52,8 @@ router.put('/:id', requireAuth, requireWrite('staff'), async (req, res) => {
   if (!id || !staff_id || !full_name)
     return res.status(400).json({ message: 'id, staff_id and full_name are required.' });
   try {
+    const before = await pool.query('SELECT * FROM staff WHERE id=$1', [id]);
+    if (!before.rows.length) return res.status(404).json({ message: 'Staff not found.' });
     const result = await pool.query(`
       UPDATE staff
       SET staff_id=$1, full_name=$2, position=$3, join_date=$4,
@@ -63,6 +67,7 @@ router.put('/:id', requireAuth, requireWrite('staff'), async (req, res) => {
         is_active !== undefined ? is_active : true,
         notes || null, default_shift || null, last_salary_date || null, id]);
     if (!result.rows.length) return res.status(404).json({ message: 'Staff not found.' });
+    await writeAudit({ req, action: 'update', entity: 'staff', entityId: id, before: before.rows[0], after: result.rows[0] });
     res.json({ staff: result.rows[0] });
   } catch (err) {
     console.error('Staff PUT error:', err);
@@ -76,12 +81,15 @@ router.put('/:id/salary-mark', requireAuth, requireWrite('staff'), async (req, r
   if (!id) return res.status(400).json({ message: 'Invalid id.' });
   const { last_salary_date } = req.body;
   try {
+    const before = await pool.query('SELECT id, last_salary_date FROM staff WHERE id=$1', [id]);
+    if (!before.rows.length) return res.status(404).json({ message: 'Staff not found.' });
     const result = await pool.query(
       `UPDATE staff SET last_salary_date=$1, updated_at=NOW()
        WHERE id=$2 RETURNING id, last_salary_date`,
       [last_salary_date || null, id]
     );
     if (!result.rows.length) return res.status(404).json({ message: 'Staff not found.' });
+    await writeAudit({ req, action: 'update', entity: 'staff', entityId: id, before: before.rows[0], after: result.rows[0] });
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Staff salary-mark error:', err);
@@ -93,8 +101,9 @@ router.delete('/:id', requireAuth, requireWrite('staff'), async (req, res) => {
   const id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid id.' });
   try {
-    const result = await pool.query('DELETE FROM staff WHERE id=$1 RETURNING id', [id]);
+    const result = await pool.query('DELETE FROM staff WHERE id=$1 RETURNING *', [id]);
     if (!result.rows.length) return res.status(404).json({ message: 'Staff not found.' });
+    await writeAudit({ req, action: 'delete', entity: 'staff', entityId: id, before: result.rows[0] });
     res.json({ deleted: true, id });
   } catch (err) {
     console.error('Staff DELETE error:', err);

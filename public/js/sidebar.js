@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { page: 'inventory', href: '/inventory',      icon: 'boxes',          labelKey: 'nav.inventory' },
   { page: 'branches',  href: '/branches.html',  icon: 'store',          labelKey: 'nav.branches', id: 'navBranches', adminOnly: true },
   { page: 'users',     href: '/users.html',     icon: 'settings',       labelKey: 'nav.users', id: 'navUsers', adminOnly: true },
+  { page: 'audit',     href: '/audit',          icon: 'scroll',         labelKey: 'nav.audit', id: 'navAudit', adminOnly: true },
   { page: 'sync',      href: '/sync.html',      icon: 'refresh-cw',     labelKey: 'nav.sync'      },
 ];
 

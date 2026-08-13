@@ -73,3 +73,29 @@ All accept `?period=today|week|month|year`
 | GET /api/employee-performance | Staff bar chart |
 | GET /api/device-performance | Device bar chart |
 | GET /api/cancelled-orders | Alert panel |
+
+## 📝 Audit Log
+
+**Off by default.** Set `AUDIT_LOG_ENABLED=true` in `.env` to start
+recording; unset (or anything other than `true`) and `writeAudit()` is a
+no-op — no query, no write, no cost. The `/audit` viewer and `/api/audit`
+still work either way (over whatever history already exists); the flag only
+controls whether *new* writes get recorded going forward.
+
+`audit_log` (migration `036_audit_log.sql`) records every write to
+`expenses`, `staff`, `users` and `role_permissions`, plus login attempts —
+see `services/audit.js` (the writer, `writeAudit()`) and `routes/audit.js`
+(the admin-only `/api/audit` reader). Viewable at `/audit` (admin only):
+filter by date range, actor, entity or action; expand a row for a
+field-by-field before/after diff; export the filtered set as CSV.
+
+Sensitive fields (`users.password`, and anything else not explicitly
+listed) are never captured — each entity has an explicit **allowlist** of
+fields `writeAudit()` is permitted to log, defined in `services/audit.js`.
+Adding a new sensitive column to an audited table is safe by default: it's
+simply not recorded until someone deliberately adds it to that entity's
+allowlist.
+
+**Retention: 12 months.** A monthly cron job (`services/auditPrune.js`,
+1st of the month at 03:00 Asia/Phnom_Penh) deletes `audit_log` rows older
+than 12 months. Read operations are never logged — only writes.

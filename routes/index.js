@@ -22,6 +22,7 @@ const terminalsRouter    = require('./terminals');
 const cancellationsRouter = require('./cancellations');
 const healthRouter       = require('./health');
 const adminRouter        = require('./admin');
+const auditRouter        = require('./audit');
 
 router.use('/api/auth',        authRouter);
 // health/admin are registered ahead of the broad, unscoped '/api' mount
@@ -48,12 +49,14 @@ router.use('/api/pos',         posRouter);
 router.use('/api/terminal',    terminalAuthRouter);
 router.use('/api',             terminalsRouter);
 router.use('/api/dashboard',   cancellationsRouter);
+router.use('/api/audit',       auditRouter);
 
 router.get('/login',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
 router.get('/pos',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'pos.html')));
 router.get('/kds',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'kds.html')));
 router.get('/',            (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 router.get('/users',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'users.html')));
+router.get('/audit',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'audit.html')));
 router.get('/inventory',   (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'inventory.html')));
 router.get('/report.html',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'report.html')));
 router.get('/summary-report.html', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'summary-report.html')));

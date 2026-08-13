@@ -18,6 +18,7 @@ import * as SummaryReport from './pages/summary-report.js';
 import * as Sync      from './pages/sync.js';
 import * as Items     from './pages/items.js';
 import * as Inventory from './pages/inventory.js';
+import * as Audit     from './pages/audit.js';
 
 // ─── Shared UI ───────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ function detectPage() {
   if (document.getElementById('itemsTableBody'))    return 'items';
   if (document.getElementById('ingredientsGrid'))   return 'inventory';
   if (document.getElementById('branchesTableBody')) return 'branches';
+  if (document.getElementById('auditTableBody'))    return 'audit';
   return null;
 }
 
@@ -186,6 +188,14 @@ window.toggleUserStatus   = Users.toggleUserStatus;
 window.confirmDeleteUser  = Users.confirmDeleteUser;
 window.togglePermission   = Users.togglePermission;
 
+// Audit
+window.applyAuditFilters = Audit.applyAuditFilters;
+window.resetAuditFilters = Audit.resetAuditFilters;
+window.exportAuditCSV    = Audit.exportAuditCSV;
+window.toggleAuditDiff   = Audit.toggleAuditDiff;
+window.auditPrevPage     = Audit.auditPrevPage;
+window.auditNextPage     = Audit.auditNextPage;
+
 // Branches
 window.submitBranch        = Branches.submitBranch;
 window.startEditBranch     = Branches.startEditBranch;
@@ -274,7 +284,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   const navBranches = getEl('navBranches');
   if (navBranches) navBranches.style.display = state.currentUserRole === 'admin' ? '' : 'none';
 
-  if ((document.getElementById('usersTableBody') || document.getElementById('branchesTableBody'))
+  const navAudit = getEl('navAudit');
+  if (navAudit) navAudit.style.display = state.currentUserRole === 'admin' ? '' : 'none';
+
+  if ((document.getElementById('usersTableBody') || document.getElementById('branchesTableBody') || document.getElementById('auditTableBody'))
       && state.currentUserRole !== 'admin') {
     window.location.href = '/';
     return;
@@ -291,4 +304,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (page === 'items')     Items.init();
   if (page === 'inventory') Inventory.init();
   if (page === 'branches')  Branches.init();
+  if (page === 'audit')     Audit.init();
 });

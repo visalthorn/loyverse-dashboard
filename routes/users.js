@@ -2,6 +2,7 @@ const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const pool   = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { writeAudit } = require('../services/audit');
 
 router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   try {
@@ -28,6 +29,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
        RETURNING id, username, email, full_name, role, is_active, created_at`,
       [username.toLowerCase().trim(), hash, email.trim(), full_name || null, role]
     );
+    await writeAudit({ req, action: 'create', entity: 'users', entityId: r.rows[0].id, after: r.rows[0] });
     res.status(201).json({ user: r.rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ message: 'Username or email already exists.' });
@@ -42,6 +44,9 @@ router.put('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   if (id === req.user.id && role && role !== 'admin')
     return res.status(400).json({ message: 'Cannot change your own role.' });
   try {
+    const before = await pool.query('SELECT id, username, email, full_name, role, is_active FROM users WHERE id=$1', [id]);
+    if (!before.rows.length) return res.status(404).json({ message: 'User not found.' });
+
     let r;
     if (password) {
       const hash = await bcrypt.hash(password, 10);
@@ -58,6 +63,7 @@ router.put('/:id', requireAuth, requireRole('admin'), async (req, res) => {
       );
     }
     if (!r.rows.length) return res.status(404).json({ message: 'User not found.' });
+    await writeAudit({ req, action: 'update', entity: 'users', entityId: id, before: before.rows[0], after: r.rows[0] });
     res.json({ user: r.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -69,8 +75,9 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   if (!id) return res.status(400).json({ message: 'Invalid id.' });
   if (id === req.user.id) return res.status(400).json({ message: 'Cannot delete your own account.' });
   try {
-    const r = await pool.query('DELETE FROM users WHERE id=$1 RETURNING id', [id]);
+    const r = await pool.query('DELETE FROM users WHERE id=$1 RETURNING id, username, email, full_name, role, is_active', [id]);
     if (!r.rows.length) return res.status(404).json({ message: 'User not found.' });
+    await writeAudit({ req, action: 'delete', entity: 'users', entityId: id, before: r.rows[0] });
     res.json({ deleted: true, id });
   } catch (err) {
     res.status(500).json({ error: err.message });

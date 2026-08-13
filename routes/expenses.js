@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db');
 const { requireAuth, requireWrite } = require('../middleware/auth');
 const { insertExpense } = require('../services/expenses');
+const { writeAudit } = require('../services/audit');
 
 async function validBranchId(branch_id) {
   if (branch_id == null) return { ok: true, value: null };
@@ -64,6 +65,7 @@ router.post('/', requireAuth, requireWrite('expenses'), async (req, res) => {
     const branch = await validBranchId(branch_id);
     if (!branch.ok) return res.status(400).json({ message: 'Unknown branch.' });
     const expense = await insertExpense({ expense_date, amount, remark, expense_by, branch_id: branch.value });
+    await writeAudit({ req, action: 'create', entity: 'expenses', entityId: expense.id, after: expense });
     res.status(201).json({ expense });
   } catch (err) {
     console.error('Expenses POST error:', err);
@@ -79,12 +81,15 @@ router.put('/:id', requireAuth, requireWrite('expenses'), async (req, res) => {
   try {
     const branch = await validBranchId(branch_id);
     if (!branch.ok) return res.status(400).json({ message: 'Unknown branch.' });
+    const before = await pool.query('SELECT * FROM expenses WHERE id=$1', [id]);
+    if (!before.rows.length) return res.status(404).json({ message: 'Expense not found.' });
     const result = await pool.query(`
       UPDATE expenses SET expense_date=$1, amount=$2, remark=$3, expense_by=$4,
              branch_id = COALESCE($5, branch_id)
-      WHERE id=$6 RETURNING id, expense_date, amount, remark, expense_by, branch_id, created_at
+      WHERE id=$6 RETURNING *
     `, [expense_date, amount, remark || null, expense_by, branch.value, id]);
     if (!result.rows.length) return res.status(404).json({ message: 'Expense not found.' });
+    await writeAudit({ req, action: 'update', entity: 'expenses', entityId: id, before: before.rows[0], after: result.rows[0] });
     res.json({ expense: result.rows[0] });
   } catch (err) {
     console.error('Expenses PUT error:', err);
@@ -96,8 +101,9 @@ router.delete('/:id', requireAuth, requireWrite('expenses'), async (req, res) =>
   const id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ message: 'Invalid id.' });
   try {
-    const result = await pool.query('DELETE FROM expenses WHERE id=$1 RETURNING id', [id]);
+    const result = await pool.query('DELETE FROM expenses WHERE id=$1 RETURNING *', [id]);
     if (!result.rows.length) return res.status(404).json({ message: 'Expense not found.' });
+    await writeAudit({ req, action: 'delete', entity: 'expenses', entityId: id, before: result.rows[0] });
     res.json({ deleted: true, id });
   } catch (err) {
     console.error('Expenses DELETE error:', err);
