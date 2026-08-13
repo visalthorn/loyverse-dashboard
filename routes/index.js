@@ -23,6 +23,7 @@ const cancellationsRouter = require('./cancellations');
 const healthRouter       = require('./health');
 const adminRouter        = require('./admin');
 const auditRouter        = require('./audit');
+const catalogRouter      = require('./catalog');
 
 router.use('/api/auth',        authRouter);
 // health/admin are registered ahead of the broad, unscoped '/api' mount
@@ -50,6 +51,7 @@ router.use('/api/terminal',    terminalAuthRouter);
 router.use('/api',             terminalsRouter);
 router.use('/api/dashboard',   cancellationsRouter);
 router.use('/api/audit',       auditRouter);
+router.use('/api/catalog',     catalogRouter);
 
 router.get('/login',       (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
 router.get('/pos',         (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'pos.html')));

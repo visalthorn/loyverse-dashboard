@@ -19,6 +19,7 @@ import * as Sync      from './pages/sync.js';
 import * as Items     from './pages/items.js';
 import * as Inventory from './pages/inventory.js';
 import * as Audit     from './pages/audit.js';
+import * as Catalog   from './pages/catalog.js';
 
 // ─── Shared UI ───────────────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ function detectPage() {
   if (document.getElementById('ingredientsGrid'))   return 'inventory';
   if (document.getElementById('branchesTableBody')) return 'branches';
   if (document.getElementById('auditTableBody'))    return 'audit';
+  if (document.getElementById('catalogItemsBody'))  return 'catalog';
   return null;
 }
 
@@ -305,4 +307,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (page === 'inventory') Inventory.init();
   if (page === 'branches')  Branches.init();
   if (page === 'audit')     Audit.init();
+  if (page === 'catalog')   Catalog.init();
 });

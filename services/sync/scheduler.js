@@ -5,6 +5,7 @@ const tzPlug = require('dayjs/plugin/timezone');
 const pool   = require('../../db');
 const { tz, env } = require('../../config');
 const { syncYesterdayReceipts, syncReceiptsForDate } = require('./receipts');
+const { syncItems } = require('./items');
 const { getReceiptsCoverage } = require('./coverage');
 const { alertSyncFailure, alertSyncPartial, sendHealthSummaryIfNeeded } = require('./alerts');
 
@@ -36,6 +37,7 @@ function nextRunAt() {
 const LOCK_DAILY_SYNC   = 8821001;
 const LOCK_WEEKLY_HEAL  = 8821002;
 const LOCK_HEALTH_ALERT = 8821003;
+const LOCK_ITEMS_SYNC   = 8821004;
 
 async function withAdvisoryLock(key, label, fn) {
   const client = await pool.connect();
@@ -73,6 +75,22 @@ async function runDailySync() {
   return syncDateAndAlert(yesterday, 'scheduler');
 }
 
+// Catalog (items + categories) sync -- runs before the 09:00 receipts sync
+// so a menu change made the previous evening is reflected before the day's
+// first receipts land. Failure here is logged (via syncItems' own
+// writeSyncLog call) but doesn't raise a Telegram alert the way receipts
+// sync failures do -- a stale catalog for one day is a minor inconvenience,
+// not a data-completeness problem the way a missed receipts sync is.
+async function runItemsSync() {
+  const result = await syncItems('scheduler');
+  if (result.status === 'failed') {
+    console.error(`❌ [cron] Scheduled items sync failed: ${result.error}`);
+  } else {
+    console.log(`✅ [cron] Scheduled items sync — ${result.status} (${result.inserted} upserted)`);
+  }
+  return result;
+}
+
 // Scans the last 14 days for gaps (missing/partial/failed) and re-syncs
 // only those dates -- self-heals a day that was missed or came back
 // partial without anyone having to notice and click Backfill.
@@ -106,6 +124,12 @@ async function runCatchupIfNeeded() {
 }
 
 function startScheduler() {
+  cron.schedule('45 8 * * *', () => {
+    console.log('⏰ [cron] Firing daily items/categories sync (08:45)');
+    withAdvisoryLock(LOCK_ITEMS_SYNC, 'items sync', runItemsSync)
+      .catch(err => console.error('❌ [cron] Items sync failed:', err.message));
+  }, { scheduled: true, timezone: tz });
+
   cron.schedule('0 9 * * *', () => {
     status.lastCronFireAt = new Date().toISOString();
     console.log('⏰ [cron] Firing daily receipts sync (09:00)');
@@ -126,7 +150,7 @@ function startScheduler() {
   }, { scheduled: true, timezone: tz });
 
   status.schedulerActive = true;
-  console.log(`⏰  Scheduled: daily sync 09:00, weekly gap-heal Monday 09:30, health check 09:15 (${tz})\n`);
+  console.log(`⏰  Scheduled: items sync 08:45, daily receipts sync 09:00, weekly gap-heal Monday 09:30, health check 09:15 (${tz})\n`);
 
   if (env === 'PROD') {
     withAdvisoryLock(LOCK_DAILY_SYNC, 'boot catch-up', runCatchupIfNeeded)
@@ -140,5 +164,5 @@ function getSchedulerStatus() {
 
 module.exports = {
   startScheduler, getSchedulerStatus,
-  runDailySync, runWeeklyHeal, runCatchupIfNeeded,
+  runDailySync, runWeeklyHeal, runCatchupIfNeeded, runItemsSync,
 };

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Catalog</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+    document.documentElement.classList.toggle('dark', t === 'dark');
+  })();
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+<link rel="stylesheet" href="/css/style.css"/>
+<style>
+  .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; }
+  .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+  .field-input {
+    background: var(--bg-canvas); border: 1px solid var(--border); border-radius: 0.5rem;
+    color: var(--text-primary); font-size: 0.8125rem; padding: 0.5rem 0.75rem;
+    transition: border-color .15s; outline: none; width: 100%;
+  }
+  .field-input:focus { border-color: var(--accent-strong); }
+  .field-input::placeholder { color: var(--text-dim); }
+  .badge { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; }
+  .stat-tile { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem 1.25rem; }
+  .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); font-family: 'IBM Plex Mono', monospace; }
+  .stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.125rem; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
+</style>
+</head>
+<body class="app-shell min-h-screen">
+
+<!-- Sidebar -->
+<aside id="sidebar" class="sidebar"></aside>
+
+<!-- Mobile overlay -->
+<div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Main content -->
+<div class="main-wrapper">
+  <header class="app-header px-4 md:px-6 py-3 flex items-center gap-3">
+    <button onclick="toggleSidebar()" class="md:hidden px-2 py-1 rounded hover:bg-[color:var(--hover-tint)]" aria-label="Open menu"><span data-icon="menu" data-icon-size="22"></span></button>
+    <div>
+      <h2 class="text-lg font-semibold" data-i18n="catalog.title">Catalog</h2>
+      <p class="text-xs text-[color:var(--text-secondary)]" data-i18n="catalog.subtitle">Read-only snapshot of the synced Loyverse menu</p>
+    </div>
+    <div class="flex-1"></div>
+    <button onclick="logout()" class="header-signout" data-i18n-title="common.signOut" aria-label="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+  </header>
+
+  <main class="p-4 md:p-6 space-y-4 w-full max-w-screen-xl mx-auto">
+
+    <!-- Stat tiles -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="stat-tile">
+        <div id="catalogStatActive" class="stat-value">—</div>
+        <div class="stat-label" data-i18n="catalog.statActiveItems">Active Items</div>
+      </div>
+      <div class="stat-tile">
+        <div id="catalogStatTotal" class="stat-value">—</div>
+        <div class="stat-label" data-i18n="catalog.statTotalItems">Total Items</div>
+      </div>
+      <div class="stat-tile">
+        <div id="catalogStatCategories" class="stat-value">—</div>
+        <div class="stat-label" data-i18n="catalog.statCategories">Categories</div>
+      </div>
+      <div class="stat-tile">
+        <div id="catalogStatSynced" class="stat-value" style="font-size:1rem;">—</div>
+        <div class="stat-label" data-i18n="catalog.statLastSynced">Last Synced</div>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-4 items-start">
+
+      <!-- Category breakdown -->
+      <div class="card lg:col-span-1">
+        <h2 class="section-title mb-4"><span data-icon="tag"></span> <span data-i18n="catalog.categoriesTitle">Categories</span></h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left text-xs">
+                <th class="pb-2 pr-3 font-medium" data-i18n="catalog.thCategory">Category</th>
+                <th class="pb-2 pr-3 font-medium text-right" data-i18n="catalog.thActive">Active</th>
+                <th class="pb-2 font-medium text-right" data-i18n="catalog.thTotal">Total</th>
+              </tr>
+            </thead>
+            <tbody id="catalogCategoriesBody">
+              <tr><td colspan="3" class="py-10 text-center text-[color:var(--text-secondary)]" data-i18n="catalog.loadingRow">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Item list -->
+      <div class="card lg:col-span-2">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 class="section-title"><span data-icon="list"></span> <span data-i18n="catalog.itemsTitle">Items</span></h2>
+          <div class="flex items-center gap-2">
+            <input id="catalogSearch" type="text" data-i18n-placeholder="catalog.searchPlaceholder" placeholder="Search items…" class="field-input" style="width:180px"/>
+            <select id="catalogCategoryFilter" class="field-input" style="width:160px">
+              <option value="" data-i18n="catalog.allCategories">All categories</option>
+            </select>
+          </div>
+        </div>
+        <div class="overflow-x-auto" style="max-height:520px;overflow-y:auto;">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-[color:var(--text-secondary)] border-b border-[color:var(--border)] text-left text-xs sticky top-0" style="background:var(--bg-surface);">
+                <th class="pb-2 pr-3 font-medium" data-i18n="catalog.thItem">Item</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="catalog.thCategory">Category</th>
+                <th class="pb-2 pr-3 font-medium" data-i18n="catalog.thSku">SKU</th>
+                <th class="pb-2 pr-3 font-medium text-right" data-i18n="catalog.thPrice">Price</th>
+                <th class="pb-2 font-medium text-center" data-i18n="catalog.thStatus">Status</th>
+              </tr>
+            </thead>
+            <tbody id="catalogItemsBody">
+              <tr><td colspan="5" class="py-10 text-center text-[color:var(--text-secondary)]" data-i18n="catalog.loadingRow">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="catalogItemsCount" class="text-xs text-[color:var(--text-secondary)] mt-3"></div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('sidebar-open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function toggleSidebarCollapse() {
+    document.body.classList.toggle('sidebar-collapsed');
+  }
+</script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

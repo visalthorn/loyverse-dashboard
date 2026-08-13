@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { page: 'receipts',  href: '/receipts.html',  icon: 'receipt',        labelKey: 'nav.receipts'  },
   { page: 'staff',     href: '/staff.html',     icon: 'users',          labelKey: 'nav.staff'     },
   { page: 'items',     href: '/items.html',     icon: 'tag',            labelKey: 'nav.items'     },
+  { page: 'catalog',   href: '/catalog.html',   icon: 'list',           labelKey: 'nav.catalog'   },
   { page: 'inventory', href: '/inventory',      icon: 'boxes',          labelKey: 'nav.inventory' },
   { page: 'branches',  href: '/branches.html',  icon: 'store',          labelKey: 'nav.branches', id: 'navBranches', adminOnly: true },
   { page: 'users',     href: '/users.html',     icon: 'settings',       labelKey: 'nav.users', id: 'navUsers', adminOnly: true },

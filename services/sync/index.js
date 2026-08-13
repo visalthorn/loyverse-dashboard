@@ -2,7 +2,7 @@ const { syncYesterdayReceipts, syncReceiptsForDate, syncReceiptsRange, MAX_RANGE
 const { syncItems, upsertCatalog, rebuildItemCategories } = require('./items');
 const { syncPosDevices, upsertPosDevices } = require('./posDevices');
 const { rebuildSummaries } = require('./summaries');
-const { startScheduler, getSchedulerStatus, runDailySync, runWeeklyHeal, runCatchupIfNeeded } = require('./scheduler');
+const { startScheduler, getSchedulerStatus, runDailySync, runWeeklyHeal, runCatchupIfNeeded, runItemsSync } = require('./scheduler');
 const { latestRunsInRange } = require('./runs');
 const { getReceiptsCoverage } = require('./coverage');
 const { alertServerStarted } = require('./alerts');
@@ -12,6 +12,6 @@ module.exports = {
   getReceiptsCoverage,
   syncItems, upsertCatalog, rebuildItemCategories, rebuildSummaries,
   syncPosDevices, upsertPosDevices,
-  startScheduler, getSchedulerStatus, runDailySync, runWeeklyHeal, runCatchupIfNeeded,
+  startScheduler, getSchedulerStatus, runDailySync, runWeeklyHeal, runCatchupIfNeeded, runItemsSync,
   alertServerStarted,
 };
