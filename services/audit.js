@@ -11,7 +11,8 @@ const { auditLogEnabled } = require('../config');
 // someone thought to blocklist it. An allowlist fails closed instead: an
 // unlisted field is simply never captured, whether or not it's sensitive.
 const ALLOWLISTS = {
-  expenses: ['id', 'expense_date', 'amount', 'remark', 'expense_by', 'branch_id', 'source', 'telegram_message_id'],
+  expenses: ['id', 'expense_date', 'amount', 'remark', 'expense_by', 'branch_id', 'source', 'telegram_message_id', 'recurring_expense_id', 'recurring_period'],
+  recurring_expenses: ['id', 'name', 'amount', 'category', 'frequency', 'day_of_month', 'day_of_week', 'branch_id', 'start_date', 'end_date', 'is_active', 'backfill_inserted', 'backfill_checked'],
   staff: [
     'id', 'staff_id', 'full_name', 'position', 'join_date', 'salary', 'salary_ccy',
     'phone', 'loan_amount', 'loan_ccy', 'is_active', 'notes', 'default_shift', 'last_salary_date',

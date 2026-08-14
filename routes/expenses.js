@@ -15,7 +15,7 @@ async function validBranchId(branch_id) {
 router.get('/', requireAuth, async (req, res) => {
   try {
     const page     = Math.max(1, parseInt(req.query.page) || 1);
-    const per_page = Math.min(1000, Math.max(1, parseInt(req.query.per_page) || 10));
+    const per_page = Math.min(500, Math.max(1, parseInt(req.query.per_page) || 50));
     const offset   = (page - 1) * per_page;
 
     const filters = [];
@@ -37,7 +37,7 @@ router.get('/', requireAuth, async (req, res) => {
       pool.query(`SELECT COALESCE(SUM(amount),0) AS total_amount FROM expenses e ${where}`, params),
       pool.query(`
         SELECT e.id, e.expense_date, e.amount, e.remark, e.expense_by, e.created_at,
-               e.branch_id, b.name AS branch_name
+               e.branch_id, b.name AS branch_name, e.source, e.recurring_expense_id
         FROM expenses e LEFT JOIN branches b ON b.id = e.branch_id ${where}
         ORDER BY e.expense_date DESC, e.created_at DESC
         LIMIT $${i} OFFSET $${i + 1}

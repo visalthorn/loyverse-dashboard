@@ -24,6 +24,7 @@ const healthRouter       = require('./health');
 const adminRouter        = require('./admin');
 const auditRouter        = require('./audit');
 const catalogRouter      = require('./catalog');
+const recurringExpensesRouter = require('./recurringExpenses');
 
 router.use('/api/auth',        authRouter);
 // health/admin are registered ahead of the broad, unscoped '/api' mount
@@ -34,6 +35,7 @@ router.use('/api/health',      healthRouter);
 router.use('/api/admin',       adminRouter);
 router.use('/api',             analyticsRouter);
 router.use('/api/expenses',    expensesRouter);
+router.use('/api/recurring-expenses', recurringExpensesRouter);
 router.use('/api/receipts',    receiptsRouter);
 router.use('/api/staff',       staffRouter);
 router.use('/api/schedule',    scheduleRouter);

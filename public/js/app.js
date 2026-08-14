@@ -110,6 +110,12 @@ window.submitExpense        = Expenses.submitExpense;
 window.startEditExpense     = Expenses.startEditExpense;
 window.confirmDeleteExpense = Expenses.confirmDeleteExpense;
 window.exportExpensesCSV    = Expenses.exportExpensesCSV;
+window.switchExpensesTab            = Expenses.switchExpensesTab;
+window.onRecurringFrequencyChange   = Expenses.onRecurringFrequencyChange;
+window.submitRecurringTemplate      = Expenses.submitRecurringTemplate;
+window.startEditRecurringTemplate   = Expenses.startEditRecurringTemplate;
+window.confirmDeleteRecurringTemplate = Expenses.confirmDeleteRecurringTemplate;
+window.requestRecurringBackfill     = Expenses.requestRecurringBackfill;
 
 // Receipts
 window.loadReceipts       = Receipts.loadReceipts;

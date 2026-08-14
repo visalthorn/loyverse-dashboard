@@ -14,7 +14,7 @@ router.get('/', requireAuth, async (req, res) => {
 
   try {
     const page     = Math.max(1, parseInt(req.query.page) || 1);
-    const per_page = Math.min(500, Math.max(1, parseInt(req.query.per_page) || 25));
+    const per_page = Math.min(500, Math.max(1, parseInt(req.query.per_page) || 50));
     const offset   = (page - 1) * per_page;
 
     const filters = [];
@@ -101,7 +101,7 @@ router.post('/:id/refund', requireAuth, requireWrite('receipts'), async (req, re
 async function getOwnReceipts(req, res) {
   try {
     const page     = Math.max(1, parseInt(req.query.page) || 1);
-    const per_page = Math.min(500, Math.max(1, parseInt(req.query.per_page) || 25));
+    const per_page = Math.min(500, Math.max(1, parseInt(req.query.per_page) || 50));
     const offset   = (page - 1) * per_page;
 
     const filters = [];

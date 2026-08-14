@@ -6,6 +6,7 @@ const { port, env } = config;
 const { startScheduler, alertServerStarted } = require('./services/sync');
 const { startStockAlertScheduler } = require('./services/stockAlert');
 const { startAuditPruneScheduler } = require('./services/auditPrune');
+const { startRecurringExpenseScheduler } = require('./services/recurringExpenses');
 const { warnIfTelegramConfigMissing, warnIfAlertConfigMissing } = require('./utils/startupChecks');
 
 warnIfTelegramConfigMissing(config);
@@ -22,6 +23,7 @@ app.listen(port, () => {
   startScheduler();
   startStockAlertScheduler();
   startAuditPruneScheduler();
+  startRecurringExpenseScheduler();
 
   if (env === 'PROD') {
     alertServerStarted().catch(err => console.error('❌ [alerts] Failed to send deploy alert:', err.message));

@@ -10,6 +10,8 @@ import { showConfirm } from '../dialog.js';
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 let branchOptions = [];
+let recurringTemplates = [];
+const DOW_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 function defaultBranchId() {
   return branchOptions.find(b => b.is_default)?.id ?? null;
@@ -36,6 +38,10 @@ async function loadBranchOptions() {
       window.expensesPage = 1;
       loadExpenses();
     };
+  }
+  const recurringSel = getEl('recurringBranch');
+  if (recurringSel) {
+    recurringSel.innerHTML = branchOptions.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
   }
 }
 
@@ -87,7 +93,7 @@ export async function loadExpenses() {
     return `${showHeader ? `<div class="mt-3 mb-1 text-xs uppercase tracking-wide text-[color:var(--accent-strong)] font-bold border-b border-[color:var(--border)] pb-1">${dayLabel}</div>` : ''}
     <div class="flex items-center justify-between p-2 bg-[color:var(--bg-surface-alt)] rounded ${showHeader ? '' : 'mt-2'}">
       <div>
-        <div class="font-medium">${esc(e.expense_by)}</div>
+        <div class="font-medium">${esc(e.expense_by)}${e.source === 'recurring' ? `<span class="recurring-badge">${t('expenses.badgeRecurring')}</span>` : ''}</div>
         <div class="text-xs text-[color:var(--text-muted)]">${esc(e.remark || '')}${e.branch_name ? `<span class="text-[color:var(--accent-strong)]"> · ${esc(e.branch_name)}</span>` : ''}</div>
       </div>
       <div class="flex items-center gap-3">
@@ -226,6 +232,141 @@ export async function exportExpensesCSV() {
     [t('expenses.csvDate'), t('expenses.csvAmount'), t('expenses.csvExpenseBy'), t('expenses.csvBranch'), t('expenses.csvRemark')],
     ...data.items.map(e => [e.expense_date?.slice(0, 10) || '', e.amount, e.expense_by, e.branch_name ?? '', e.remark ?? '']),
   ]);
+}
+
+// ─── Recurring templates ───────────────────────────────────────────────────
+
+export function switchExpensesTab(tab) {
+  const isList = tab === 'list';
+  getEl('expensesTabList')?.classList.toggle('active', isList);
+  getEl('expensesTabRecurring')?.classList.toggle('active', !isList);
+  getEl('expensesListSection').style.display = isList ? '' : 'none';
+  getEl('recurringSection').style.display    = isList ? 'none' : '';
+  if (!isList) loadRecurringTemplates();
+}
+
+export function onRecurringFrequencyChange() {
+  const freq = getEl('recurringFrequency').value;
+  getEl('recurringDayOfMonthField').style.display = freq === 'monthly' ? '' : 'none';
+  getEl('recurringDayOfWeekField').style.display  = freq === 'weekly'  ? '' : 'none';
+}
+
+async function loadRecurringTemplates() {
+  const container = getEl('recurringList');
+  if (!container) return;
+  container.innerHTML = `<div class="text-[color:var(--text-muted)]">${t('expenses.recurringLoading')}</div>`;
+
+  const data = await fetchJSON('/api/recurring-expenses');
+  if (!data) { container.innerHTML = `<div class="text-[color:var(--text-muted)]">${t('expenses.recurringLoadFailed')}</div>`; return; }
+  recurringTemplates = data.templates || [];
+  if (!recurringTemplates.length) { container.innerHTML = `<div class="text-[color:var(--text-muted)]">${t('expenses.recurringNone')}</div>`; return; }
+
+  container.innerHTML = recurringTemplates.map(rt => {
+    const freqLabel = rt.frequency === 'monthly'
+      ? `${t('expenses.recurringMonthly')} (${rt.day_of_month})`
+      : `${t('expenses.recurringWeekly')} (${t('common.' + DOW_KEYS[rt.day_of_week])})`;
+    return `
+    <div class="flex items-center justify-between p-2 bg-[color:var(--bg-surface-alt)] rounded">
+      <div>
+        <div class="font-medium">${esc(rt.name)}${rt.is_active ? '' : `<span class="recurring-badge" style="background:var(--text-muted)">${t('expenses.recurringInactive')}</span>`}</div>
+        <div class="text-xs text-[color:var(--text-muted)]">${esc(freqLabel)}${rt.category ? ` · ${esc(rt.category)}` : ''}${rt.branch_name ? ` · ${esc(rt.branch_name)}` : ''} · ${t('expenses.recurringGeneratedCount', { count: rt.generated_count })}</div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="val-accent font-bold num">${fmtKHR(rt.amount)}</div>
+        ${state.userPermissions.expenses?.can_write ? `
+          <button onclick="requestRecurringBackfill(${rt.id})" class="text-sm text-[color:var(--text-secondary)] hover:text-[color:var(--accent-strong)]">${t('expenses.recurringBackfillButton')}</button>
+          <button onclick="startEditRecurringTemplate(${rt.id})" class="text-sm text-[color:var(--text-secondary)] hover:text-[color:var(--accent-strong)]">${t('common.edit')}</button>
+          <button onclick="confirmDeleteRecurringTemplate(${rt.id})" class="text-sm text-[color:var(--loss)] hover:opacity-80">${t('common.delete')}</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+export async function submitRecurringTemplate(e) {
+  e.preventDefault();
+  const msg = getEl('recurringMsg');
+  if (msg) msg.textContent = '';
+
+  const name          = getEl('recurringName').value.trim();
+  const amount         = getEl('recurringAmount').value;
+  const category        = getEl('recurringCategory').value.trim();
+  const frequency      = getEl('recurringFrequency').value;
+  const day_of_month   = frequency === 'monthly' ? Number(getEl('recurringDayOfMonth').value) : null;
+  const day_of_week    = frequency === 'weekly'  ? Number(getEl('recurringDayOfWeek').value)  : null;
+  const branchSel      = getEl('recurringBranch');
+  const branch_id      = branchSel?.value ? Number(branchSel.value) : null;
+  const start_date     = getEl('recurringStartDate').value;
+  const end_date       = getEl('recurringEndDate').value || null;
+  const editingId      = window.editingRecurringId || null;
+
+  if (!name || !amount || !frequency || !start_date) {
+    if (msg) msg.textContent = t('expenses.recurringErrorRequiredFields');
+    return;
+  }
+
+  const body = { name, amount, category, frequency, day_of_month, day_of_week, branch_id, start_date, end_date };
+  const res  = editingId
+    ? await apiPut(`/api/recurring-expenses/${editingId}`, body)
+    : await apiPost('/api/recurring-expenses', body);
+
+  if (!res.ok) {
+    if (msg) msg.textContent = res.data?.message || t('expenses.recurringSaveFailed');
+    return;
+  }
+
+  if (msg) msg.textContent = editingId ? t('expenses.recurringUpdated') : t('expenses.recurringSaved');
+  getEl('recurringForm').reset();
+  onRecurringFrequencyChange();
+  window.editingRecurringId = null;
+  getEl('recurringForm').querySelector('button[type=submit]').textContent = t('expenses.recurringAddButton');
+  loadRecurringTemplates();
+}
+
+export function startEditRecurringTemplate(id) {
+  const rt = recurringTemplates.find(x => x.id === id);
+  if (!rt) return;
+  getEl('recurringName').value      = rt.name;
+  getEl('recurringAmount').value    = rt.amount;
+  getEl('recurringCategory').value  = rt.category || '';
+  getEl('recurringFrequency').value = rt.frequency;
+  onRecurringFrequencyChange();
+  if (rt.frequency === 'monthly') getEl('recurringDayOfMonth').value = rt.day_of_month;
+  else getEl('recurringDayOfWeek').value = rt.day_of_week;
+  getEl('recurringBranch').value    = rt.branch_id ?? '';
+  getEl('recurringStartDate').value = rt.start_date.split('T')[0];
+  getEl('recurringEndDate').value   = rt.end_date ? rt.end_date.split('T')[0] : '';
+  window.editingRecurringId = id;
+  getEl('recurringForm').querySelector('button[type=submit]').textContent = t('expenses.recurringSaveButton');
+  window.scrollTo({ top: (getEl('recurringForm')?.offsetTop ?? 0) - 50, behavior: 'smooth' });
+}
+
+export async function confirmDeleteRecurringTemplate(id) {
+  if (!(await showConfirm(t('expenses.recurringConfirmDelete'), { danger: true, confirmText: t('common.delete') }))) return;
+  const res = await apiDelete(`/api/recurring-expenses/${id}`);
+  if (!res.ok) { showToast(res.data?.message || t('expenses.recurringDeleteFailed'), 'error'); return; }
+  loadRecurringTemplates();
+}
+
+// Preview-then-confirm-then-run: the backend never generates past
+// occurrences on its own, so this is the only path that can.
+export async function requestRecurringBackfill(id) {
+  const preview = await fetchJSON(`/api/recurring-expenses/${id}/backfill-preview`);
+  if (!preview) { showToast(t('expenses.recurringBackfillPreviewFailed'), 'error'); return; }
+  if (!preview.count) { showToast(t('expenses.recurringBackfillNone')); return; }
+
+  const rt     = recurringTemplates.find(x => x.id === id);
+  const plural = getLang() === 'en' && preview.count !== 1 ? 's' : '';
+  const ok = await showConfirm(t('expenses.recurringBackfillConfirm', {
+    count: preview.count, plural, start: rt?.start_date?.split('T')[0] || preview.dates[0],
+  }));
+  if (!ok) return;
+
+  const res = await apiPost(`/api/recurring-expenses/${id}/backfill`, {});
+  if (!res.ok) { showToast(res.data?.message || t('expenses.recurringBackfillFailed'), 'error'); return; }
+  const plural2 = getLang() === 'en' && res.data.inserted !== 1 ? 's' : '';
+  showToast(t('expenses.recurringBackfillDone', { count: res.data.inserted, plural: plural2 }));
+  loadRecurringTemplates();
+  loadExpenses();
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
