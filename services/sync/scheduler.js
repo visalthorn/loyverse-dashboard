@@ -19,11 +19,13 @@ const status = {
   lastCronFireAt:  null,
 };
 
-// Next 09:00 in Cambodia time as an ISO timestamp -- the main daily sync;
-// what the scheduler status card counts down to.
+// Next 00:05 in Cambodia time as an ISO timestamp -- the main daily sync;
+// what the scheduler status card counts down to. Business expects gross
+// income for "yesterday" ready shortly after midnight, hence 00:05 rather
+// than a later hour.
 function nextRunAt() {
   const now = dayjs().tz(tz);
-  let next = now.hour(9).minute(0).second(0).millisecond(0);
+  let next = now.hour(0).minute(5).second(0).millisecond(0);
   if (!next.isAfter(now)) next = next.add(1, 'day');
   return next.toISOString();
 }
@@ -75,9 +77,10 @@ async function runDailySync() {
   return syncDateAndAlert(yesterday, 'scheduler');
 }
 
-// Catalog (items + categories) sync -- runs before the 09:00 receipts sync
-// so a menu change made the previous evening is reflected before the day's
-// first receipts land. Failure here is logged (via syncItems' own
+// Catalog (items + categories) sync, still at 08:45 -- now runs AFTER the
+// 00:05 receipts sync rather than before it (receipts sync moved back to
+// 00:05 to match the business's midnight gross-income expectation; items
+// sync was left in place). Failure here is logged (via syncItems' own
 // writeSyncLog call) but doesn't raise a Telegram alert the way receipts
 // sync failures do -- a stale catalog for one day is a minor inconvenience,
 // not a data-completeness problem the way a missed receipts sync is.
@@ -106,7 +109,7 @@ async function runWeeklyHeal() {
   return { checked: coverage.days.length, gaps: gapDates.length, results };
 }
 
-// If the app was down over the 09:00 tick, the run is lost -- heal it on
+// If the app was down over the 00:05 tick, the run is lost -- heal it on
 // boot. Checks via the (cheap, DB-only) coverage helper first so a clean
 // restart with nothing missing doesn't cost a Loyverse API call or add
 // sync_runs noise.
@@ -119,7 +122,7 @@ async function runCatchupIfNeeded() {
     return { ran: false };
   }
   console.log('🩹 [cron] Missed run detected — running catch-up sync');
-  const result = await syncDateAndAlert(yesterday, 'scheduler');
+  const result = await syncDateAndAlert(yesterday, 'catchup');
   return { ran: true, result };
 }
 
@@ -130,9 +133,9 @@ function startScheduler() {
       .catch(err => console.error('❌ [cron] Items sync failed:', err.message));
   }, { scheduled: true, timezone: tz });
 
-  cron.schedule('0 9 * * *', () => {
+  cron.schedule('5 0 * * *', () => {
     status.lastCronFireAt = new Date().toISOString();
-    console.log('⏰ [cron] Firing daily receipts sync (09:00)');
+    console.log('⏰ [cron] Firing daily receipts sync (00:05)');
     withAdvisoryLock(LOCK_DAILY_SYNC, 'daily sync', runDailySync)
       .catch(err => console.error('❌ [cron] Daily sync failed:', err.message));
   }, { scheduled: true, timezone: tz });
@@ -150,7 +153,7 @@ function startScheduler() {
   }, { scheduled: true, timezone: tz });
 
   status.schedulerActive = true;
-  console.log(`⏰  Scheduled: items sync 08:45, daily receipts sync 09:00, weekly gap-heal Monday 09:30, health check 09:15 (${tz})\n`);
+  console.log(`⏰  Scheduled: daily receipts sync 00:05, items sync 08:45, weekly gap-heal Monday 09:30, health check 09:15 (${tz})\n`);
 
   if (env === 'PROD') {
     withAdvisoryLock(LOCK_DAILY_SYNC, 'boot catch-up', runCatchupIfNeeded)
