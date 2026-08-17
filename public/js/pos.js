@@ -378,7 +378,10 @@ async function confirmCancelItem() {
         ? currentOrder.items.filter(i => i.id !== itemId)
         : currentOrder.items.map(i => i.id === itemId ? { ...i, quantity: remaining } : i);
       const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-      currentOrder = { ...currentOrder, items, subtotal, total: Math.max(0, subtotal - Number(currentOrder.discount)) };
+      const discount = Number(currentOrder.discount);
+      const vatRate  = Number(currentOrder.vat_rate) || 0;
+      const vatAmount = vatRate ? Math.round(Math.max(0, subtotal - discount) * vatRate / 100) : 0;
+      currentOrder = { ...currentOrder, items, subtotal, vat_amount: vatAmount, total: Math.max(0, subtotal - discount) + vatAmount };
       renderCart();
       showToast('Offline — cancellation queued, will sync automatically.', 'error');
       return;
@@ -406,8 +409,16 @@ function computeTotals() {
   const persistedDiscount = currentOrder ? Number(currentOrder.discount) : 0;
   const pendingSubtotal   = cart.reduce((sum, l) => sum + l.price * l.quantity, 0);
   const subtotal = persistedSubtotal + pendingSubtotal;
-  const total    = Math.max(0, subtotal - persistedDiscount);
-  return { subtotal, total, discount: persistedDiscount };
+  // An existing order keeps the VAT rate it was created with (server
+  // snapshot on currentOrder.vat_rate) even if the admin edits the global
+  // rate mid-service. A brand-new cart with no order yet previews using the
+  // live rate from GET /api/pos/config (see startApp).
+  const vatRate = currentOrder
+    ? Number(currentOrder.vat_rate) || 0
+    : (config.vat_enabled ? Number(config.vat_rate) || 0 : 0);
+  const vat   = vatRate ? Math.round(Math.max(0, subtotal - persistedDiscount) * vatRate / 100) : 0;
+  const total = Math.max(0, subtotal - persistedDiscount) + vat;
+  return { subtotal, total, discount: persistedDiscount, vat, vatRate };
 }
 
 // ─── Cart dock (phones) ─────────────────────────────────────────────────────
@@ -486,9 +497,17 @@ function renderCart() {
     list.querySelectorAll('[data-sent-cancel]').forEach(b => b.addEventListener('click', () => openCancelItemModal(parseInt(b.dataset.sentCancel, 10))));
   }
 
-  const { subtotal, total } = computeTotals();
+  const { subtotal, total, vat, vatRate } = computeTotals();
   getEl('subtotalValue').textContent = khr(subtotal);
   getEl('totalValue').textContent    = khr(total);
+  const vatRow = getEl('vatRow');
+  if (vatRow) {
+    vatRow.style.display = vat > 0 ? '' : 'none';
+    if (vat > 0) {
+      getEl('vatLabel').textContent = `VAT (${vatRate}%)`;
+      getEl('vatValue').textContent = khr(vat);
+    }
+  }
   renderCartDock(persisted, total);
 
   const badge = getEl('orderBadge');
@@ -660,10 +679,15 @@ function buildLocalOrder(localId, lines) {
     quantity: l.quantity, note: l.note, kitchen_status: 'pending',
   }));
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  // No currentOrder exists yet -- snapshot the live config rate now, same as
+  // computeTotals()'s no-order preview, so this local stand-in's total
+  // already matches what the server will compute once the create replays.
+  const vatRate   = config.vat_enabled ? Number(config.vat_rate) || 0 : 0;
+  const vatAmount = vatRate ? Math.round(subtotal * vatRate / 100) : 0;
   return {
     id: null, order_number: localId, provisional_number: localId, status: 'open', name: defaultOrderName(),
     dining_option: diningOption, table_number: tableNumber || null,
-    subtotal, discount: 0, total: subtotal,
+    subtotal, discount: 0, vat_rate: vatRate || null, vat_amount: vatAmount, total: subtotal + vatAmount,
     created_at: cambodiaNaiveNow(), items, _queued: true,
   };
 }
@@ -677,10 +701,13 @@ function applyOptimisticAppend(lines) {
     quantity: l.quantity, note: l.note, kitchen_status: 'pending',
   }));
   const subtotal = Number(currentOrder.subtotal) + newItems.reduce((s, i) => s + i.price * i.quantity, 0);
+  const discount = Number(currentOrder.discount);
+  const vatRate  = Number(currentOrder.vat_rate) || 0;
+  const vatAmount = vatRate ? Math.round(Math.max(0, subtotal - discount) * vatRate / 100) : 0;
   currentOrder = {
     ...currentOrder,
     items: [...currentOrder.items, ...newItems],
-    subtotal, total: Math.max(0, subtotal - Number(currentOrder.discount)),
+    subtotal, vat_amount: vatAmount, total: Math.max(0, subtotal - discount) + vatAmount,
   };
 }
 
@@ -1676,6 +1703,8 @@ function receiptToPrintableOrder(receipt) {
     items:          (receipt.items || []).map(it => ({ item_name: it.item_name, price: it.price, quantity: it.quantity, note: null })),
     subtotal:       receipt.subtotal,
     discount:        receipt.discount,
+    vat_rate:       receipt.vat_rate,
+    vat_amount:     receipt.vat_amount,
     total:          receipt.total,
     payment_method: (receipt.payments || []).map(p => p.payment_name).join(' + '),
     cash_received:  null,

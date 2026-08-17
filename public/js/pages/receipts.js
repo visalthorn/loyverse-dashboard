@@ -400,6 +400,17 @@ export function selectReceipt(id) {
         <div><div class="text-[color:var(--text-muted)] mb-0.5">${t('receipts.thDate')}</div><div class="text-[color:var(--text-primary)]">${formatDate(r.receipt_date)}</div></div>
       </div>
       ${itemsHtml ? `<div class="border-t border-[color:var(--border)] pt-3"><div class="text-[color:var(--text-muted)] font-semibold mb-2">${t('receipts.detailItems')}</div>${itemsHtml}</div>` : ''}
+      ${receiptSource === 'own' && Number(r.vat_amount) > 0 ? `
+      <div class="border-t border-[color:var(--border)] pt-3 space-y-1">
+        <div class="flex justify-between text-[color:var(--text-secondary)]">
+          <span>${t('receipts.detailSubtotal')}</span>
+          <span>${formatCurrency(r.subtotal)}</span>
+        </div>
+        <div class="flex justify-between text-[color:var(--text-secondary)]">
+          <span>${t('receipts.detailVat')}${r.vat_rate ? ` (${r.vat_rate}%)` : ''}</span>
+          <span>${formatCurrency(r.vat_amount)}</span>
+        </div>
+      </div>` : ''}
       <div class="border-t border-[color:var(--border)] pt-3 flex justify-between font-semibold">
         <span class="text-[color:var(--text-secondary)]">${t('receipts.thTotal')}</span>
         <span class="${typeClass}">${formatCurrency(r.total_money)}</span>
@@ -474,6 +485,12 @@ export function exportReceiptPDF() {
   const unitPriceLabel = t('receipts.printUnitPrice');
   const totalLabel = t('receipts.thTotal');
   const thankYouLabel = t('receipts.printThankYou');
+  const subtotalLabel = t('receipts.detailSubtotal');
+  const vatLabel = t('receipts.detailVat');
+  const showVat = receiptSource === 'own' && Number(r.vat_amount) > 0;
+  const vatRowsHtml = showVat ? `
+      <tr><td colspan="3">${subtotalLabel}</td><td style="text-align:right">KHR ${Number(r.subtotal).toLocaleString()}</td></tr>
+      <tr><td colspan="3">${vatLabel}${r.vat_rate ? ` (${r.vat_rate}%)` : ''}</td><td style="text-align:right">KHR ${Number(r.vat_amount).toLocaleString()}</td></tr>` : '';
 
   const itemsHtml = items.map(it => `
     <tr>
@@ -507,7 +524,7 @@ export function exportReceiptPDF() {
     <div class="meta"><span>${orderLabel}</span><span>${r.order ?? '—'}</span></div>
     ${items.length ? `<hr/><table>
       <thead><tr><th>${itemLabel}</th><th style="text-align:center">${qtyLabel}</th><th style="text-align:right">${unitPriceLabel}</th><th style="text-align:right">${totalLabel}</th></tr></thead>
-      <tbody>${itemsHtml}<tr class="total-row"><td colspan="3">${totalLabel}</td><td style="text-align:right">KHR ${Number(r.total_money).toLocaleString()}</td></tr></tbody>
+      <tbody>${itemsHtml}${vatRowsHtml}<tr class="total-row"><td colspan="3">${totalLabel}</td><td style="text-align:right">KHR ${Number(r.total_money).toLocaleString()}</td></tr></tbody>
     </table>` : `<hr/><div class="meta"><strong>${totalLabel}</strong><strong>KHR ${Number(r.total_money).toLocaleString()}</strong></div>`}
     <hr/>
     <div style="text-align:center;font-size:11px;color:#888;margin-top:8px">${thankYouLabel}</div>

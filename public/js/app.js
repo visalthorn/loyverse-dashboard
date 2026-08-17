@@ -218,6 +218,7 @@ window.resetTerminalPasscode    = Branches.resetTerminalPasscode;
 window.openCreateTerminalModal  = Branches.openCreateTerminalModal;
 window.openCategoriesModal      = Branches.openCategoriesModal;
 window.saveKdsDisplaySettings   = Branches.saveKdsDisplaySettings;
+window.saveVatSettings          = Branches.saveVatSettings;
 window.openDevicesModal            = Branches.openDevicesModal;
 window.unlockTerminal              = Branches.unlockTerminal;
 window.confirmRevokeAllBranchDevices = Branches.confirmRevokeAllBranchDevices;

@@ -168,6 +168,27 @@
         </form>
       </div>
 
+      <!-- VAT Settings card -->
+      <div class="card">
+        <div class="mb-4">
+          <h2 class="section-title"><span data-icon="receipt"></span> <span data-i18n="branches.vatSettingsTitle">VAT Settings</span></h2>
+          <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="branches.vatSettingsSubtitle">Applies to in-house POS invoices only, added on top of item prices at checkout</p>
+        </div>
+        <form id="vatSettingsForm" onsubmit="saveVatSettings(event)" class="grid grid-cols-2 gap-3 items-end">
+          <div class="col-span-2 flex items-center gap-2">
+            <input id="vatEnabledInput" type="checkbox" style="accent-color:var(--accent)"/>
+            <label for="vatEnabledInput" class="text-xs text-[color:var(--text-secondary)]" data-i18n="branches.vatEnabledLabel">Enable VAT on new orders</label>
+          </div>
+          <div>
+            <label class="text-xs text-[color:var(--text-secondary)] block mb-1" data-i18n="branches.vatRateLabel">VAT rate (%)</label>
+            <input id="vatRateInput" type="number" min="0" max="100" step="0.01" required class="field-input"/>
+          </div>
+          <div class="col-span-2">
+            <button type="submit" class="btn-accent" data-i18n="branches.vatSettingsSaveBtn">Save</button>
+          </div>
+        </form>
+      </div>
+
     </div>
   </main>
 </div>

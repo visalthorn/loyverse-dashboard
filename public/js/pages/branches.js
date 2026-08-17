@@ -510,7 +510,33 @@ export async function saveKdsDisplaySettings(e) {
   showToast(t('branches.kdsSettingsSaved'));
 }
 
+let vatSettings = { enabled: false, rate_percent: 10 };
+
+async function loadVatSettings() {
+  const data = await fetchJSON('/api/branches/vat-settings');
+  if (data) vatSettings = data;
+  const enabledEl = getEl('vatEnabledInput');
+  const rateEl    = getEl('vatRateInput');
+  if (enabledEl) enabledEl.checked = !!vatSettings.enabled;
+  if (rateEl)    rateEl.value      = vatSettings.rate_percent;
+}
+
+export async function saveVatSettings(e) {
+  e.preventDefault();
+  const enabled = getEl('vatEnabledInput').checked;
+  const rate    = Number(getEl('vatRateInput').value);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+    showToast(t('branches.vatSettingsInvalid'), 'error');
+    return;
+  }
+  const res = await apiPut('/api/branches/vat-settings', { enabled, rate_percent: rate });
+  if (!res.ok) { showToast(res.data.error || t('branches.vatSettingsSaveFailed'), 'error'); return; }
+  vatSettings = res.data;
+  showToast(t('branches.vatSettingsSaved'));
+}
+
 export async function init() {
   await loadAll();
   await loadKdsSettings();
+  await loadVatSettings();
 }

@@ -2,6 +2,7 @@ const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const pool   = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { writeAudit } = require('../services/audit');
 
 // 6-digit numeric PIN -- shown once at creation/reset, never stored or
 // returned in plaintext afterward.
@@ -74,8 +75,49 @@ router.put('/devices/:id', async (req, res) => {
   }
 });
 
-// NOTE: registered before /:id so /kds-settings never collides with the
-// single-segment PUT/DELETE /:id routes further down.
+// NOTE: registered before /:id so /kds-settings and /vat-settings never
+// collide with the single-segment PUT/DELETE /:id routes further down.
+
+router.get('/vat-settings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT enabled, rate_percent FROM vat_settings ORDER BY id LIMIT 1');
+    res.json(result.rows[0] || { enabled: false, rate_percent: 10 });
+  } catch (err) {
+    console.error('vat-settings GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/vat-settings', async (req, res) => {
+  const enabled = !!req.body.enabled;
+  const rate = Number(req.body.rate_percent);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+    return res.status(400).json({ error: 'rate_percent must be a number between 0 and 100.' });
+  }
+  try {
+    const existing = await pool.query('SELECT id, enabled, rate_percent FROM vat_settings ORDER BY id LIMIT 1');
+    let result;
+    if (existing.rowCount) {
+      result = await pool.query(
+        'UPDATE vat_settings SET enabled = $1, rate_percent = $2, updated_at = NOW() WHERE id = $3 RETURNING id, enabled, rate_percent',
+        [enabled, rate, existing.rows[0].id]
+      );
+    } else {
+      result = await pool.query(
+        'INSERT INTO vat_settings (enabled, rate_percent) VALUES ($1, $2) RETURNING id, enabled, rate_percent',
+        [enabled, rate]
+      );
+    }
+    await writeAudit({
+      req, action: 'update', entity: 'vat_settings', entityId: result.rows[0].id,
+      before: existing.rows[0] || null, after: result.rows[0],
+    });
+    res.json({ enabled: result.rows[0].enabled, rate_percent: result.rows[0].rate_percent });
+  } catch (err) {
+    console.error('vat-settings PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get('/kds-settings', async (req, res) => {
   try {

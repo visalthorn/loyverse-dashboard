@@ -90,8 +90,17 @@ router.get('/kpis', requireAuth, async (req, res) => {
   const avgParams     = hasBranch ? [currRange.start, currRange.end, branchIdNum] : [currRange.start, currRange.end];
   const prevAvgParams = hasBranch ? [prevRange.start, prevRange.end, branchIdNum] : [prevRange.start, prevRange.end];
   const sourceSql = sourceClause(source, [], 'v').sql;
+  // VAT only ever exists on pos_receipts (in-house POS) -- Loyverse receipts
+  // carry no VAT columns -- so this is queried directly rather than through
+  // v_receipts_all, and is deliberately kept OUT of gross_income above
+  // (that view's total_money is already net-of-VAT, see migrations/039).
+  // Reported here as its own figure since it's a liability owed to the tax
+  // authority, not revenue.
+  const vatFilter = buildPeriodFilter(period, start, end);
+  const vatBc     = branchClause(branch, vatFilter.params);
+  const skipVat   = source === 'loyverse';
   try {
-    const [curr, prev, expRes, prevExpRes, currAvg, prevAvg] = await Promise.all([
+    const [curr, prev, expRes, prevExpRes, currAvg, prevAvg, vatRes] = await Promise.all([
       pool.query(`
         SELECT COALESCE(SUM(${netMoneyExpr()}),0) AS gross_income,
                COUNT(*) FILTER (WHERE receipt_type='SALE') AS orders,
@@ -114,6 +123,12 @@ router.get('/kpis', requireAuth, async (req, res) => {
       `, ebPrev.params),
       pool.query(dailyAvgSql(hasBranch, sourceSql), avgParams),
       pool.query(dailyAvgSql(hasBranch, sourceSql), prevAvgParams),
+      skipVat
+        ? Promise.resolve({ rows: [{ vat_collected: 0 }] })
+        : pool.query(`
+            SELECT COALESCE(SUM(vat_amount),0) AS vat_collected
+            FROM pos_receipts r WHERE ${vatFilter.clause} AND r.cancelled_at IS NULL${vatBc.sql}
+          `, vatBc.params),
     ]);
 
     const c = curr.rows[0];
@@ -144,6 +159,7 @@ router.get('/kpis', requireAuth, async (req, res) => {
       avg_gross_income: { value: avgGross.toFixed(2),   growth: growth(avgGross,   prevAvgGross) },
       avg_expense:      { value: avgExpense.toFixed(2), growth: hasNoExpense ? 0 : growth(avgExpense, prevAvgExpense) },
       net_per_order:    { value: avgNet.toFixed(2),     growth: growth(avgNet,     prevAvgNet) },
+      vat_collected:    parseFloat(vatRes.rows[0].vat_collected || 0),
     });
   } catch (err) {
     console.error(err);

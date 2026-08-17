@@ -257,6 +257,33 @@ async function getValidDiningOptions() {
   return options;
 }
 
+// Cached (like dining options above) — the global VAT on/off + rate changes
+// rarely and is read on every order create. NOT used for in-progress orders
+// (append/cancel-item) — those recompute from the order's own already-
+// snapshotted vat_rate so an admin editing the rate mid-service never
+// silently changes a ticket someone already started.
+let vatSettingsCache = null; // { enabled, rate, expiresAt }
+
+async function getVatSettings() {
+  const now = Date.now();
+  if (vatSettingsCache && vatSettingsCache.expiresAt > now) {
+    return { enabled: vatSettingsCache.enabled, rate: vatSettingsCache.rate };
+  }
+  const { rows } = await pool.query('SELECT enabled, rate_percent FROM vat_settings ORDER BY id LIMIT 1');
+  const enabled = !!(rows[0] && rows[0].enabled);
+  const rate = rows[0] ? Number(rows[0].rate_percent) : 0;
+  vatSettingsCache = { enabled, rate, expiresAt: now + CATALOG_TTL_MS };
+  return { enabled, rate };
+}
+
+// subtotal/discount already net of each other; vatRate is a percent (e.g.
+// 10) or null/0 when VAT is off. Rounds to whole KHR, same unit as every
+// other money column here (NUMERIC(12,0)).
+function calcVat(subtotal, discount, vatRate) {
+  if (!vatRate) return 0;
+  return Math.round(Math.max(0, subtotal - discount) * vatRate / 100);
+}
+
 async function loadCatalog() {
   const [categoriesRes, itemsRes] = await Promise.all([
     pool.query(`
@@ -385,6 +412,7 @@ router.get('/config', requireTerminalAuth(['pos']), async (req, res) => {
     const diningRes = await pool.query(
       `SELECT DISTINCT dining_option FROM receipts WHERE dining_option IS NOT NULL ORDER BY dining_option`
     );
+    const vat = await getVatSettings();
     res.json({
       dining_options: diningRes.rows.map(r => r.dining_option),
       dine_in_option: DINE_IN_LABEL,
@@ -393,6 +421,11 @@ router.get('/config', requireTerminalAuth(['pos']), async (req, res) => {
       // starts letting another terminal claim the order, instead of the two
       // drifting apart the first time this is retuned via env.
       order_lock_ttl_seconds: config.posOrderLockTtlSeconds,
+      // Live preview only, for a cart that doesn't have a currentOrder yet --
+      // once an order exists, its own vat_rate/vat_amount snapshot is what's
+      // authoritative (see calcVat/getVatSettings comments above).
+      vat_enabled: vat.enabled,
+      vat_rate: vat.rate,
     });
   } catch (err) {
     console.error('POS config GET error:', err);
@@ -503,7 +536,10 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
     const lines = await snapshotItems(client, items);
     const subtotal   = lines.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const discountAmt = Math.max(0, Number(discount) || 0);
-    const total      = Math.max(0, subtotal - discountAmt);
+    const { enabled: vatEnabled, rate: vatRateLive } = await getVatSettings();
+    const vatRate    = vatEnabled ? vatRateLive : null;
+    const vatAmount  = calcVat(subtotal, discountAmt, vatRate);
+    const total      = Math.max(0, subtotal - discountAmt) + vatAmount;
 
     const orderNumber = await generateOrderNumber(client);
     // Uses the device's own timestamp of when the order was actually taken
@@ -533,10 +569,10 @@ router.post('/orders', requireTerminalAuth(['pos']), requireCsrf, async (req, re
     // is timezone-naive and the two processes need not share a timezone.
     const orderRes = await client.query(`
       INSERT INTO pos_orders
-        (order_number, status, dining_option, table_number, subtotal, discount, total, created_by, created_at, updated_at, terminal_id, branch_id, name, provisional_number, locked_by_terminal_id, locked_by_terminal_name, locked_by_device_id, locked_at)
-      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$9,$13,$14,NOW())
+        (order_number, status, dining_option, table_number, subtotal, discount, total, vat_rate, vat_amount, created_by, created_at, updated_at, terminal_id, branch_id, name, provisional_number, locked_by_terminal_id, locked_by_terminal_name, locked_by_device_id, locked_at)
+      VALUES ($1,'open',$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11,$12,$13,$14,$11,$15,$16,NOW())
       RETURNING *
-    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, orderName, provisional_number || null, req.terminal.name, req.terminal.device_id]);
+    `, [orderNumber, dining_option, tableNum, subtotal, discountAmt, total, vatRate, vatAmount, req.terminal.terminal_id, now, req.terminal.id, req.terminal.branch_id, orderName, provisional_number || null, req.terminal.name, req.terminal.device_id]);
 
     const order = orderRes.rows[0];
 
@@ -855,7 +891,13 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
 
     const addedSubtotal = lines.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const newSubtotal   = Number(order.subtotal) + addedSubtotal;
-    const newTotal      = Math.max(0, newSubtotal - Number(order.discount));
+    const newDiscount   = Number(order.discount);
+    // Recomputed from the order's OWN already-snapshotted vat_rate, never a
+    // fresh getVatSettings() lookup -- an in-progress order must keep the
+    // rate it was created with even if an admin edits the global rate
+    // mid-service (same snapshot principle as pos_order_items.price).
+    const newVatAmount  = calcVat(newSubtotal, newDiscount, order.vat_rate);
+    const newTotal      = Math.max(0, newSubtotal - newDiscount) + newVatAmount;
     const now = toCambodiaTime(resolveActionTime(client_time));
 
     // New lines always start kitchen_status 'pending'. If the order had
@@ -874,13 +916,13 @@ router.post('/orders/:id/items', requireTerminalAuth(['pos']), requireCsrf, asyn
     if (reactivating) {
       await client.query(
         `UPDATE pos_orders SET status = 'sent_to_kitchen', served_at = NULL, sent_to_kitchen_at = $1,
-                subtotal = $2, total = $3, version = version + 1, updated_at = $1 WHERE id = $4`,
-        [now, newSubtotal, newTotal, id]
+                subtotal = $2, total = $3, vat_amount = $4, version = version + 1, updated_at = $1 WHERE id = $5`,
+        [now, newSubtotal, newTotal, newVatAmount, id]
       );
     } else {
       await client.query(
-        `UPDATE pos_orders SET subtotal = $1, total = $2, version = version + 1, updated_at = $3 WHERE id = $4`,
-        [newSubtotal, newTotal, now, id]
+        `UPDATE pos_orders SET subtotal = $1, total = $2, vat_amount = $3, version = version + 1, updated_at = $4 WHERE id = $5`,
+        [newSubtotal, newTotal, newVatAmount, now, id]
       );
     }
     // Logged unconditionally -- previously only logged when reactivating a
@@ -958,11 +1000,15 @@ router.post('/orders/:id/items/:itemId/cancel', requireTerminalAuth(['pos']), re
 
     const itemsRes  = await client.query('SELECT price, quantity FROM pos_order_items WHERE order_id = $1', [orderId]);
     const newSubtotal = itemsRes.rows.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
-    const newTotal     = Math.max(0, newSubtotal - Number(order.discount));
+    const newDiscount = Number(order.discount);
+    // Same snapshot rule as append-items: reuse order.vat_rate, never a live
+    // getVatSettings() lookup.
+    const newVatAmount = calcVat(newSubtotal, newDiscount, order.vat_rate);
+    const newTotal     = Math.max(0, newSubtotal - newDiscount) + newVatAmount;
     const now = toCambodiaTime(resolveActionTime(req.body.client_time));
     await client.query(
-      `UPDATE pos_orders SET subtotal = $1, total = $2, version = version + 1, updated_at = $3 WHERE id = $4`,
-      [newSubtotal, newTotal, now, orderId]
+      `UPDATE pos_orders SET subtotal = $1, total = $2, vat_amount = $3, version = version + 1, updated_at = $4 WHERE id = $5`,
+      [newSubtotal, newTotal, newVatAmount, now, orderId]
     );
 
     // Carried over from the old DELETE route: if every remaining KDS-relevant
@@ -1074,11 +1120,11 @@ async function completeOrder(req, res) {
     const receiptNumber = await generateReceiptNumber(client);
     const receiptRes = await client.query(`
       INSERT INTO pos_receipts
-        (receipt_number, order_id, branch_id, pos_terminal_id, dining_option, subtotal, discount, total, receipt_date, created_by, provisional_number, completed_by_terminal_id, order_created_by_terminal_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        (receipt_number, order_id, branch_id, pos_terminal_id, dining_option, subtotal, discount, total, vat_rate, vat_amount, receipt_date, created_by, provisional_number, completed_by_terminal_id, order_created_by_terminal_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING id
     `, [receiptNumber, order.id, order.branch_id, req.terminal.id, order.dining_option,
-        order.subtotal, order.discount, order.total, now, req.terminal.terminal_id, order.provisional_number,
+        order.subtotal, order.discount, order.total, order.vat_rate, order.vat_amount, now, req.terminal.terminal_id, order.provisional_number,
         req.terminal.id, order.terminal_id]);
     const receiptId = receiptRes.rows[0].id;
 
@@ -1559,7 +1605,7 @@ router.get('/receipts', requireTerminalAuth(['pos']), async (req, res) => {
     params.push(limit);
 
     const { rows } = await pool.query(`
-      SELECT r.id, r.receipt_number, r.dining_option, r.subtotal, r.discount, r.total,
+      SELECT r.id, r.receipt_number, r.dining_option, r.subtotal, r.discount, r.total, r.vat_rate, r.vat_amount,
              r.receipt_date, r.cancelled_at, r.created_by,
              o.order_number, o.table_number, o.name AS order_name
       FROM pos_receipts r

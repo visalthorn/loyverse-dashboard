@@ -125,7 +125,7 @@ async function getOwnReceipts(req, res) {
           CASE WHEN r.cancelled_at IS NULL THEN 'SALE' ELSE 'REFUND' END AS receipt_type,
           CASE WHEN r.cancelled_at IS NULL THEN 'No' ELSE 'Yes' END AS is_canceled,
           (r.cancelled_at IS NULL) AS refundable,
-          r.total AS total_money, COALESCE(pt.name, pt.terminal_id, 'Dashboard') AS pos_device,
+          r.subtotal, r.total AS total_money, r.vat_rate, r.vat_amount, COALESCE(pt.name, pt.terminal_id, 'Dashboard') AS pos_device,
           (SELECT jsonb_agg(jsonb_build_object('item_name',ri.item_name,'qty',ri.quantity,'unit_price',ri.price,'total_price',ri.gross_total))
            FROM pos_receipt_items ri WHERE ri.receipt_id = r.id) AS items
         FROM pos_receipts r

@@ -20,6 +20,7 @@ const ALLOWLISTS = {
   // users.password (bcrypt hash) is deliberately NOT in this list.
   users: ['id', 'username', 'email', 'full_name', 'role', 'is_active'],
   role_permissions: ['id', 'role', 'page', 'can_write'],
+  vat_settings: ['id', 'enabled', 'rate_percent'],
 };
 
 // Returns null for an entity with no allowlist entry -- redact everything

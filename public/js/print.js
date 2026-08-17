@@ -106,6 +106,7 @@ export function receiptHTML(order, opts = {}) {
     <div class="hr"></div>
     <div class="row"><span>Subtotal</span><span>${khr(order.subtotal)}</span></div>
     ${Number(order.discount) > 0 ? `<div class="row"><span>Discount</span><span>-${khr(order.discount)}</span></div>` : ''}
+    ${Number(order.vat_amount) > 0 ? `<div class="row"><span>VAT${order.vat_rate ? ` (${order.vat_rate}%)` : ''}</span><span>${khr(order.vat_amount)}</span></div>` : ''}
     <div class="row grand"><span>TOTAL</span><span>${khr(order.total)}</span></div>
     <div class="hr"></div>
     <div class="row"><span>Payment</span><span>${esc(PAY_METHOD_LABELS[order.payment_method] || order.payment_method || '')}</span></div>
