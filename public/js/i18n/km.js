@@ -738,6 +738,11 @@ export const km = {
   'sync.telegramCardSub': 'ផ្ញើសារសាកល្បងដើម្បីបញ្ជាក់ថា TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID ត្រូវបានកំណត់ត្រឹមត្រូវ',
   'sync.telegramTestBtn': 'ផ្ញើការជូនដំណឹងសាកល្បង',
   'sync.telegramTestSent': 'បានផ្ញើការជូនដំណឹងសាកល្បង — សូមពិនិត្យ Telegram',
+  'sync.backupCard': 'ការធ្វើសមកាលកម្ម Loyverse បម្រុងទុក',
+  'sync.backupCardSub': 'ទាញយកបង្កាន់ដៃពីគណនី Loyverse បម្រុងទុកដាច់ដោយឡែករបស់សាខា (ប្រើតែពេល POS ផ្ទាល់ខ្លួនមិនដំណើរការ)។ ទុកកាលបរិច្ឆេទឱ្យទទេដើម្បីធ្វើសមកាលកម្មម្សិលមិញ។',
+  'sync.backupNoBranches': 'មិនទាន់មានសាខាបម្រុងទុកកំណត់ទេ',
+  'sync.backupDone': 'ការធ្វើសមកាលកម្មបម្រុងទុករួចរាល់ — បញ្ចូល {inserted}, កែប្រែ {updated}',
+  'sync.typeBackupReceipts': 'ការធ្វើសមកាលកម្មបម្រុងទុក',
 
   // ── items page ──
   'items.title': 'គ្រប់គ្រងទំនិញ',

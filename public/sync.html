@@ -173,6 +173,19 @@
       </div>
     </div>
 
+    <!-- Backup Loyverse sync (admin only; shown by pages/sync.js) -->
+    <div id="backupSyncCard" class="card" style="display:none">
+      <h2 class="section-title"><span data-icon="shield"></span> <span data-i18n="sync.backupCard">Backup Loyverse Sync</span></h2>
+      <p class="text-xs text-[color:var(--text-secondary)] mt-1" data-i18n="sync.backupCardSub">Pulls receipts from a branch's separate backup Loyverse account (used only when own-POS was down). Leave the dates blank to sync yesterday.</p>
+      <div class="flex items-center gap-2 mt-4 flex-wrap">
+        <select id="backupBranchSelect" class="field-input" style="max-width:200px"></select>
+        <input type="date" id="backupStart" class="field-input" style="max-width:160px">
+        <span class="text-xs text-[color:var(--text-secondary)]">&rarr;</span>
+        <input type="date" id="backupEnd" class="field-input" style="max-width:160px">
+        <button id="backupSyncBtn" onclick="syncBackupReceipts()" class="btn-accent flex-shrink-0" data-i18n="sync.syncNow">Sync Now</button>
+      </div>
+    </div>
+
     <!-- History -->
     <div class="card">
       <h2 class="section-title mb-4"><span data-icon="clock"></span> <span data-i18n="sync.historyTitle">Sync History</span></h2>

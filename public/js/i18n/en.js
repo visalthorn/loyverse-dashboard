@@ -738,6 +738,11 @@ export const en = {
   'sync.telegramCardSub': 'Sends a test message to confirm TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are wired up correctly',
   'sync.telegramTestBtn': 'Send Test Alert',
   'sync.telegramTestSent': 'Test alert sent — check Telegram',
+  'sync.backupCard': 'Backup Loyverse Sync',
+  'sync.backupCardSub': "Pulls receipts from a branch's separate backup Loyverse account (used only when own-POS was down). Leave the dates blank to sync yesterday.",
+  'sync.backupNoBranches': 'No backup branches configured',
+  'sync.backupDone': 'Backup sync complete — {inserted} inserted, {updated} updated',
+  'sync.typeBackupReceipts': 'Backup Sync',
 
   // ── items page ──
   'items.title': 'Items Management',

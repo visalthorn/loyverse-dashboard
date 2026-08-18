@@ -15,9 +15,10 @@ function statusIcon(status) {
 }
 
 const TYPE_KEYS = {
-  receipts:    'sync.typeReceipts',
-  items:       'sync.typeItems',
-  pos_devices: 'sync.typePosDevices',
+  receipts:        'sync.typeReceipts',
+  items:           'sync.typeItems',
+  pos_devices:     'sync.typePosDevices',
+  backup_receipts: 'sync.typeBackupReceipts',
 };
 
 function renderLastSync(type, mountId) {
@@ -247,6 +248,54 @@ async function runBackfill(start, end) {
   }
 }
 
+// ─── Backup Loyverse sync (admin only, separate account per branch) ──────────
+
+async function loadBackupBranches() {
+  const select = getEl('backupBranchSelect');
+  if (!select) return;
+  const branches = await fetchJSON('/api/sync/backup-branches');
+  if (!branches || !branches.length) {
+    select.innerHTML = `<option value="">${t('sync.backupNoBranches')}</option>`;
+    select.disabled = true;
+    const btn = getEl('backupSyncBtn');
+    if (btn) btn.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  select.innerHTML = branches.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+}
+
+export async function syncBackupReceipts() {
+  const branchId = getEl('backupBranchSelect')?.value;
+  if (!branchId) { showToast(t('sync.backupNoBranches'), 'error'); return; }
+
+  const start = getEl('backupStart')?.value;
+  const end   = getEl('backupEnd')?.value;
+  if ((start && !end) || (!start && end)) { showToast(t('sync.backfillNoRange'), 'error'); return; }
+
+  const btn = getEl('backupSyncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = t('sync.syncing'); }
+  try {
+    const body = { branch_id: Number(branchId) };
+    if (start && end) { body.start_date = start; body.end_date = end; }
+    const res = await apiPost('/api/sync/backup-receipts', body);
+    const data = res.data || {};
+    if (res.ok) {
+      const days = data.days || [data];
+      const totalInserted = days.reduce((sum, d) => sum + (d.inserted || 0), 0);
+      const totalUpdated  = days.reduce((sum, d) => sum + (d.updated  || 0), 0);
+      showToast(t('sync.backupDone', { inserted: totalInserted, updated: totalUpdated }), data.status === 'failed' ? 'error' : 'success');
+    } else {
+      showToast(data.message || data.error || t('sync.failed'), 'error');
+    }
+  } catch {
+    showToast(t('sync.failedConnection'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = t('sync.syncNow'); }
+    loadLogs();
+  }
+}
+
 export async function testTelegram() {
   const btn = getEl('testTelegramBtn');
   if (btn) { btn.disabled = true; btn.textContent = t('sync.syncing'); }
@@ -276,5 +325,9 @@ export function init() {
 
     const tgCard = getEl('telegramTestCard');
     if (tgCard) tgCard.style.display = '';
+
+    const backupCard = getEl('backupSyncCard');
+    if (backupCard) backupCard.style.display = '';
+    loadBackupBranches();
   }
 }

@@ -112,8 +112,17 @@ async function syncReceiptsForDate(dateStr, triggeredBy = 'auto') {
   }
 
   const loyverseCount = receipts.length;
+  // source != 'loyverse_backup' -- excludes rows written by the manual
+  // per-branch backup sync (services/sync/backupReceipts.js), which share
+  // this table but belong to a different Loyverse account entirely. Without
+  // this, a date that ever received a backup sync would look permanently
+  // "ahead" of this (primary) account's real count and could mask a genuine
+  // future gap here (the weekly gap-heal rescans past dates indefinitely).
   const ourCountBefore = parseInt(
-    (await pool.query('SELECT COUNT(*) FROM receipts WHERE CAST(receipt_date AS date) = $1::date', [dateStr])).rows[0].count,
+    (await pool.query(
+      "SELECT COUNT(*) FROM receipts WHERE CAST(receipt_date AS date) = $1::date AND source IS DISTINCT FROM 'loyverse_backup'",
+      [dateStr]
+    )).rows[0].count,
     10
   );
 
@@ -145,7 +154,10 @@ async function syncReceiptsForDate(dateStr, triggeredBy = 'auto') {
     await client.query('COMMIT');
 
     const ourCountAfter = parseInt(
-      (await pool.query('SELECT COUNT(*) FROM receipts WHERE CAST(receipt_date AS date) = $1::date', [dateStr])).rows[0].count,
+      (await pool.query(
+        "SELECT COUNT(*) FROM receipts WHERE CAST(receipt_date AS date) = $1::date AND source IS DISTINCT FROM 'loyverse_backup'",
+        [dateStr]
+      )).rows[0].count,
       10
     );
     const status = ourCountAfter === loyverseCount ? 'success' : 'partial';

@@ -104,6 +104,7 @@ window.setCoverageDays = Sync.setCoverageDays;
 window.backfillDate    = Sync.backfillDate;
 window.backfillRange   = Sync.backfillRange;
 window.testTelegram    = Sync.testTelegram;
+window.syncBackupReceipts = Sync.syncBackupReceipts;
 
 // Expenses
 window.submitExpense        = Expenses.submitExpense;

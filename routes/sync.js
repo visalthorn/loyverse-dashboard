@@ -4,6 +4,7 @@ const { requireAuth, requireRole, requireWrite } = require('../middleware/auth')
 const {
   syncYesterdayReceipts, syncReceiptsRange, MAX_RANGE_DAYS,
   syncItems, syncPosDevices, getSchedulerStatus, getReceiptsCoverage,
+  listBackupBranches, syncYesterdayBackupReceipts, syncBackupReceiptsRange,
 } = require('../services/sync');
 const { tz } = require('../config');
 
@@ -62,6 +63,46 @@ router.post('/pos-devices', requireAuth, requireRole('admin'), async (req, res) 
     res.status(result.status === 'failed' ? 500 : 200).json(result);
   } catch (err) {
     console.error('❌ POS devices sync route error:', err.message);
+    res.status(500).json({ status: 'failed', error: err.message });
+  }
+});
+
+// Manual per-branch backup sync -- pulls from a SEPARATE Loyverse account
+// (credentials in branch_loyverse_backup, set up by hand via SQL, no admin
+// UI). Admin-only: exposes a second account's sync trigger and cross-branch
+// data, same precedent as /pos-devices and branch CRUD.
+router.get('/backup-branches', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const branches = await listBackupBranches();
+    res.json(branches);
+  } catch (err) {
+    console.error('sync backup-branches GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/backup-receipts', requireAuth, requireRole('admin'), async (req, res) => {
+  const { branch_id, start_date, end_date } = req.body || {};
+  const branchId = parseInt(branch_id, 10);
+  const triggeredBy = req.user?.username || 'manual';
+  if (!Number.isInteger(branchId)) return res.status(400).json({ message: 'branch_id is required.' });
+
+  try {
+    if (start_date || end_date) {
+      if (!DATE_RE.test(start_date || '') || !DATE_RE.test(end_date || ''))
+        return res.status(400).json({ message: 'start_date and end_date are both required, as YYYY-MM-DD.' });
+
+      const days = await syncBackupReceiptsRange(branchId, start_date, end_date, triggeredBy);
+      const overall = days.some(d => d.status === 'failed') ? 'failed'
+        : days.some(d => d.status === 'partial') ? 'partial' : 'success';
+      return res.status(overall === 'failed' ? 500 : 200).json({ status: overall, days });
+    }
+
+    const result = await syncYesterdayBackupReceipts(branchId, triggeredBy);
+    res.status(result.status === 'failed' ? 500 : 200).json(result);
+  } catch (err) {
+    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message });
+    console.error('❌ Backup receipts sync route error:', err.message);
     res.status(500).json({ status: 'failed', error: err.message });
   }
 });
